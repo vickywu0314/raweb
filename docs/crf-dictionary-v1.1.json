@@ -1,0 +1,3275 @@
+{
+ "version": "1.1",
+ "sections": [
+  {
+   "id": "history",
+   "key": "history",
+   "title": "病史病情",
+   "groups": [
+    {
+     "title": "本次就诊与疾病概况",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "visitDate",
+       "path": "visitDate",
+       "label": "本次随访时间",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": true,
+       "default": null,
+       "when": null,
+       "note": "访视级字段",
+       "formula": null
+      },
+      {
+       "key": "method",
+       "path": "method",
+       "label": "访视方式",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "outpatient",
+         "label": "门诊随访"
+        },
+        {
+         "value": "phone",
+         "label": "电话随访"
+        },
+        {
+         "value": "inpatient",
+         "label": "住院随访"
+        }
+       ],
+       "required": false,
+       "default": "outpatient",
+       "when": null,
+       "note": "访视级字段",
+       "formula": null
+      },
+      {
+       "key": "subtype",
+       "path": "history.subtype",
+       "label": "疾病分型",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "sero_pos",
+         "label": "血清阳性 RA（RF 和/或抗 CCP 阳性）"
+        },
+        {
+         "value": "sero_neg",
+         "label": "血清阴性 RA"
+        },
+        {
+         "value": "undetermined",
+         "label": "待定"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "医生根据患者情况填写",
+       "formula": null
+      },
+      {
+       "key": "firstVisitDate",
+       "path": "history.firstVisitDate",
+       "label": "首诊时间",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "onsetDate",
+       "path": "history.onsetDate",
+       "label": "发病时间",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "首次出现相关症状日期",
+       "formula": null
+      },
+      {
+       "key": "diagnosisDate",
+       "path": "history.diagnosisDate",
+       "label": "确诊时间",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "chiefComplaint",
+       "path": "history.chiefComplaint",
+       "label": "主诉",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "course",
+       "path": "history.course",
+       "label": "首发症状 / 病程",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "既往及个人史",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "pastHistory",
+       "path": "history.pastHistory",
+       "label": "既往史",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "familyHistory",
+       "path": "history.familyHistory",
+       "label": "家族史",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "comorbidity",
+       "path": "history.comorbidity",
+       "label": "合并疾病",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "FM / AS 等常见相关疾病在「基本信息」中结构化记录",
+       "formula": null
+      },
+      {
+       "key": "smoking",
+       "path": "history.smoking",
+       "label": "吸烟史",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "never",
+         "label": "从不吸烟"
+        },
+        {
+         "value": "former",
+         "label": "既往吸烟"
+        },
+        {
+         "value": "current",
+         "label": "目前吸烟"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "allergy",
+       "path": "history.allergy",
+       "label": "过敏史",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "加重诱因",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "flareTriggers",
+       "path": "history.flareTriggers",
+       "label": "加重诱因",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "stop",
+         "label": "停药"
+        },
+        {
+         "value": "reduce",
+         "label": "减药"
+        },
+        {
+         "value": "switch",
+         "label": "换药"
+        },
+        {
+         "value": "irregular",
+         "label": "间断服药"
+        },
+        {
+         "value": "fatigue",
+         "label": "劳累"
+        },
+        {
+         "value": "cold",
+         "label": "感冒"
+        },
+        {
+         "value": "infection",
+         "label": "感染"
+        },
+        {
+         "value": "emotion",
+         "label": "情绪刺激"
+        },
+        {
+         "value": "childbirth",
+         "label": "分娩或小产"
+        },
+        {
+         "value": "diet",
+         "label": "饮食不当"
+        },
+        {
+         "value": "trauma",
+         "label": "创伤"
+        },
+        {
+         "value": "surgery",
+         "label": "手术"
+        },
+        {
+         "value": "weather",
+         "label": "天气变化"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "flareTriggerOther",
+       "path": "history.flareTriggerOther",
+       "label": "其他诱因",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "flareTriggers",
+        "has": "other"
+       },
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "关节症状",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "jointPain",
+       "path": "history.jointPain",
+       "label": "关节疼痛",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "mild",
+         "label": "疼痛较轻"
+        },
+        {
+         "value": "moderate",
+         "label": "疼痛较重，可以忍受"
+        },
+        {
+         "value": "severe",
+         "label": "疼痛很重，难以忍受"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "painNature",
+       "path": "history.painNature",
+       "label": "疼痛性质",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "unclear",
+         "label": "不明确"
+        },
+        {
+         "value": "distending",
+         "label": "胀痛"
+        },
+        {
+         "value": "stabbing",
+         "label": "刺痛"
+        },
+        {
+         "value": "cold",
+         "label": "冷痛"
+        },
+        {
+         "value": "aching",
+         "label": "酸痛"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "painSitePattern",
+       "path": "history.painSitePattern",
+       "label": "疼痛部位特点",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "fixed",
+         "label": "痛有定处"
+        },
+        {
+         "value": "migratory",
+         "label": "游走不定"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "painWorseTime",
+       "path": "history.painWorseTime",
+       "label": "疼痛加重时间",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无明显时间性"
+        },
+        {
+         "value": "morning",
+         "label": "晨起"
+        },
+        {
+         "value": "afternoon",
+         "label": "午后"
+        },
+        {
+         "value": "night",
+         "label": "夜间"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "morningStiffness",
+       "path": "history.morningStiffness",
+       "label": "关节晨僵",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "lt30m",
+         "label": "<30分钟"
+        },
+        {
+         "value": "30m_1h",
+         "label": "30分钟~1小时"
+        },
+        {
+         "value": "1h_2h",
+         "label": "1小时~2小时"
+        },
+        {
+         "value": "gt2h",
+         "label": ">2小时"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "jointSwelling",
+       "path": "history.jointSwelling",
+       "label": "关节肿胀",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "mild",
+         "label": "很轻"
+        },
+        {
+         "value": "moderate",
+         "label": "较重"
+        },
+        {
+         "value": "severe",
+         "label": "极重"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "jointHeat",
+       "path": "history.jointHeat",
+       "label": "关节触热",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "hot_feel",
+         "label": "触热且有热感"
+        },
+        {
+         "value": "hot_nofeel",
+         "label": "触热但无热感"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "skinRedness",
+       "path": "history.skinRedness",
+       "label": "皮色发红",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "no",
+         "label": "无"
+        },
+        {
+         "value": "yes",
+         "label": "有"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "coldHeatChange",
+       "path": "history.coldHeatChange",
+       "label": "寒热变化",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无明显变化"
+        },
+        {
+         "value": "heat_worse",
+         "label": "遇热加重"
+        },
+        {
+         "value": "cold_worse",
+         "label": "遇寒加重"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "subcutaneousNodule",
+       "path": "history.subcutaneousNodule",
+       "label": "皮下结节",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "no",
+         "label": "无"
+        },
+        {
+         "value": "yes",
+         "label": "有"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "deformityJoints",
+       "path": "history.deformityJoints",
+       "label": "屈伸不利 / 关节畸形部位",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "elbow",
+         "label": "肘"
+        },
+        {
+         "value": "wrist",
+         "label": "腕"
+        },
+        {
+         "value": "mcp",
+         "label": "掌指关节"
+        },
+        {
+         "value": "pip",
+         "label": "近端指关节"
+        },
+        {
+         "value": "dip",
+         "label": "远端指关节"
+        },
+        {
+         "value": "knee",
+         "label": "膝"
+        },
+        {
+         "value": "foot",
+         "label": "足"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "全身及其他症状",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "appetite",
+       "path": "history.appetite",
+       "label": "胃口",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "good",
+         "label": "很好"
+        },
+        {
+         "value": "fair",
+         "label": "有点差"
+        },
+        {
+         "value": "poor",
+         "label": "很差"
+        },
+        {
+         "value": "none",
+         "label": "一点胃口都没有"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "insomnia",
+       "path": "history.insomnia",
+       "label": "失眠多梦",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "occasional",
+         "label": "偶尔"
+        },
+        {
+         "value": "often",
+         "label": "时常"
+        },
+        {
+         "value": "always",
+         "label": "总是"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "restlessness",
+       "path": "history.restlessness",
+       "label": "心烦不安",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "almost_never",
+         "label": "几乎没有"
+        },
+        {
+         "value": "occasional",
+         "label": "偶尔"
+        },
+        {
+         "value": "often",
+         "label": "常常"
+        },
+        {
+         "value": "almost_always",
+         "label": "几乎总是"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "fatigue",
+       "path": "history.fatigue",
+       "label": "神疲乏力",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "mild",
+         "label": "有疲乏"
+        },
+        {
+         "value": "moderate",
+         "label": "很疲乏"
+        },
+        {
+         "value": "severe",
+         "label": "非常疲乏，不能干任何事"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "aversionWindCold",
+       "path": "history.aversionWindCold",
+       "label": "怕风怕凉",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "slight",
+         "label": "稍感，无需加盖衣被"
+        },
+        {
+         "value": "relieved",
+         "label": "加盖衣被可缓解"
+        },
+        {
+         "value": "unrelieved",
+         "label": "加盖衣被不缓解"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "menstruation",
+       "path": "history.menstruation",
+       "label": "月经（适用时）",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "urine",
+       "path": "history.urine",
+       "label": "小便",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "stool",
+       "path": "history.stool",
+       "label": "大便",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "exam",
+   "key": "exam",
+   "title": "辅助检查",
+   "groups": [
+    {
+     "title": "炎症与血常规",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "esr",
+       "path": "exam.esr",
+       "label": "ESR 血沉",
+       "type": "number",
+       "unit": "mm/h",
+       "ref": [
+        0,
+        20
+       ],
+       "min": 0,
+       "max": 150,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "crp",
+       "path": "exam.crp",
+       "label": "CRP C-反应蛋白",
+       "type": "number",
+       "unit": "mg/L",
+       "ref": [
+        0,
+        10
+       ],
+       "min": 0,
+       "max": 300,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "hscrp",
+       "path": "exam.hscrp",
+       "label": "hsCRP 超敏 CRP",
+       "type": "number",
+       "unit": "mg/L",
+       "ref": [
+        0,
+        3
+       ],
+       "min": 0,
+       "max": 50,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "wbc",
+       "path": "exam.wbc",
+       "label": "WBC 白细胞",
+       "type": "number",
+       "unit": "×10⁹/L",
+       "ref": [
+        3.5,
+        9.5
+       ],
+       "min": 0,
+       "max": 100,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "hgb",
+       "path": "exam.hgb",
+       "label": "HGB 血红蛋白",
+       "type": "number",
+       "unit": "g/L",
+       "ref": [
+        115,
+        175
+       ],
+       "min": 30,
+       "max": 250,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "plt",
+       "path": "exam.plt",
+       "label": "PLT 血小板",
+       "type": "number",
+       "unit": "×10⁹/L",
+       "ref": [
+        125,
+        350
+       ],
+       "min": 0,
+       "max": 1500,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "免疫与自身抗体",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "rf",
+       "path": "exam.rf",
+       "label": "RF 类风湿因子",
+       "type": "number",
+       "unit": "IU/mL",
+       "ref": [
+        0,
+        20
+       ],
+       "min": 0,
+       "max": 5000,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "antiCcp",
+       "path": "exam.antiCcp",
+       "label": "抗 CCP 抗体",
+       "type": "number",
+       "unit": "U/mL",
+       "ref": [
+        0,
+        17
+       ],
+       "min": 0,
+       "max": 5000,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ana",
+       "path": "exam.ana",
+       "label": "ANA 抗核抗体",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "negative",
+         "label": "阴性"
+        },
+        {
+         "value": "positive",
+         "label": "阳性"
+        },
+        {
+         "value": "not_done",
+         "label": "未做"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "antiSsa",
+       "path": "exam.antiSsa",
+       "label": "抗 SSA",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "negative",
+         "label": "阴性"
+        },
+        {
+         "value": "positive",
+         "label": "阳性"
+        },
+        {
+         "value": "not_done",
+         "label": "未做"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "antiSsb",
+       "path": "exam.antiSsb",
+       "label": "抗 SSB",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "negative",
+         "label": "阴性"
+        },
+        {
+         "value": "positive",
+         "label": "阳性"
+        },
+        {
+         "value": "not_done",
+         "label": "未做"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "antiRo52",
+       "path": "exam.antiRo52",
+       "label": "抗 Ro-52 抗体",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "negative",
+         "label": "阴性"
+        },
+        {
+         "value": "positive",
+         "label": "阳性"
+        },
+        {
+         "value": "not_done",
+         "label": "未做"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "igg",
+       "path": "exam.igg",
+       "label": "IgG",
+       "type": "number",
+       "unit": "g/L",
+       "ref": [
+        7,
+        16
+       ],
+       "min": 0,
+       "max": 60,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "iga",
+       "path": "exam.iga",
+       "label": "IgA",
+       "type": "number",
+       "unit": "g/L",
+       "ref": [
+        0.7,
+        4
+       ],
+       "min": 0,
+       "max": 20,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "igm",
+       "path": "exam.igm",
+       "label": "IgM",
+       "type": "number",
+       "unit": "g/L",
+       "ref": [
+        0.4,
+        2.3
+       ],
+       "min": 0,
+       "max": 20,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "肝肾功能与其他生化",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "alt",
+       "path": "exam.alt",
+       "label": "ALT 谷丙转氨酶",
+       "type": "number",
+       "unit": "U/L",
+       "ref": [
+        7,
+        40
+       ],
+       "min": 0,
+       "max": 3000,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ast",
+       "path": "exam.ast",
+       "label": "AST 谷草转氨酶",
+       "type": "number",
+       "unit": "U/L",
+       "ref": [
+        13,
+        35
+       ],
+       "min": 0,
+       "max": 3000,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ggt",
+       "path": "exam.ggt",
+       "label": "GGT 谷氨酰转移酶",
+       "type": "number",
+       "unit": "U/L",
+       "ref": [
+        7,
+        45
+       ],
+       "min": 0,
+       "max": 3000,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "dbil",
+       "path": "exam.dbil",
+       "label": "DBIL 直接胆红素",
+       "type": "number",
+       "unit": "μmol/L",
+       "ref": [
+        0,
+        6.8
+       ],
+       "min": 0,
+       "max": 500,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "urea",
+       "path": "exam.urea",
+       "label": "UREA 尿素",
+       "type": "number",
+       "unit": "mmol/L",
+       "ref": [
+        2.6,
+        7.5
+       ],
+       "min": 0,
+       "max": 100,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "crea",
+       "path": "exam.crea",
+       "label": "CREA 肌酐",
+       "type": "number",
+       "unit": "μmol/L",
+       "ref": [
+        41,
+        111
+       ],
+       "min": 0,
+       "max": 3000,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "dDimer",
+       "path": "exam.dDimer",
+       "label": "D-二聚体",
+       "type": "number",
+       "unit": "mg/L FEU",
+       "ref": [
+        0,
+        0.55
+       ],
+       "min": 0,
+       "max": 100,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "hcy",
+       "path": "exam.hcy",
+       "label": "HCY 同型半胱氨酸",
+       "type": "number",
+       "unit": "μmol/L",
+       "ref": [
+        0,
+        15
+       ],
+       "min": 0,
+       "max": 300,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "血脂与血糖",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "cho",
+       "path": "exam.cho",
+       "label": "CHO 总胆固醇",
+       "type": "number",
+       "unit": "mmol/L",
+       "ref": [
+        0,
+        5.2
+       ],
+       "min": 0,
+       "max": 30,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "tg",
+       "path": "exam.tg",
+       "label": "TG 甘油三酯",
+       "type": "number",
+       "unit": "mmol/L",
+       "ref": [
+        0,
+        1.7
+       ],
+       "min": 0,
+       "max": 50,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "hdlc",
+       "path": "exam.hdlc",
+       "label": "HDL-C",
+       "type": "number",
+       "unit": "mmol/L",
+       "ref": [
+        1,
+        null
+       ],
+       "min": 0,
+       "max": 10,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ldlc",
+       "path": "exam.ldlc",
+       "label": "LDL-C",
+       "type": "number",
+       "unit": "mmol/L",
+       "ref": [
+        0,
+        3.4
+       ],
+       "min": 0,
+       "max": 20,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "glu",
+       "path": "exam.glu",
+       "label": "GLU 葡萄糖",
+       "type": "number",
+       "unit": "mmol/L",
+       "ref": [
+        3.9,
+        6.1
+       ],
+       "min": 0,
+       "max": 50,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "影像与检查报告",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "xrayDate",
+       "path": "exam.xrayDate",
+       "label": "关节 X 线日期",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "xrayNo",
+       "path": "exam.xrayNo",
+       "label": "检查号",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "xraySites",
+       "path": "exam.xraySites",
+       "label": "检查部位",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "hand",
+         "label": "手"
+        },
+        {
+         "value": "foot",
+         "label": "足"
+        },
+        {
+         "value": "knee",
+         "label": "膝"
+        },
+        {
+         "value": "elbow",
+         "label": "肘"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "reportText",
+       "path": "exam.reportText",
+       "label": "检验 / 影像报告",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ecgResult",
+       "path": "exam.ecgResult",
+       "label": "心电图",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "normal",
+         "label": "正常"
+        },
+        {
+         "value": "abnormal",
+         "label": "异常"
+        },
+        {
+         "value": "not_done",
+         "label": "未做"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ecgAbnormalTypes",
+       "path": "exam.ecgAbnormalTypes",
+       "label": "心电图异常类型",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "t_wave",
+         "label": "T 波改变"
+        },
+        {
+         "value": "st",
+         "label": "ST 改变"
+        },
+        {
+         "value": "block",
+         "label": "传导阻滞"
+        },
+        {
+         "value": "arrhythmia",
+         "label": "心律失常"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "ecgResult",
+        "eq": "abnormal"
+       },
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "echoResult",
+       "path": "exam.echoResult",
+       "label": "超声心动",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "normal",
+         "label": "正常"
+        },
+        {
+         "value": "abnormal",
+         "label": "异常"
+        },
+        {
+         "value": "not_done",
+         "label": "未做"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "echoDetail",
+       "path": "exam.echoDetail",
+       "label": "超声心动所见",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "echoResult",
+        "eq": "abnormal"
+       },
+       "note": "",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "assessment",
+   "key": "assessment",
+   "title": "病情评估",
+   "groups": [
+    {
+     "title": "关节与 VAS",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "tjc28",
+       "path": "assessment.tjc28",
+       "label": "压痛关节数 TJC28",
+       "type": "number",
+       "unit": "",
+       "ref": null,
+       "min": 0,
+       "max": 28,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "sjc28",
+       "path": "assessment.sjc28",
+       "label": "肿胀关节数 SJC28",
+       "type": "number",
+       "unit": "",
+       "ref": null,
+       "min": 0,
+       "max": 28,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "morningStiffnessMin",
+       "path": "assessment.morningStiffnessMin",
+       "label": "晨僵持续时间",
+       "type": "number",
+       "unit": "分钟",
+       "ref": null,
+       "min": 0,
+       "max": 1440,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "painVas",
+       "path": "assessment.painVas",
+       "label": "患者疼痛 VAS",
+       "type": "number",
+       "unit": "0–100",
+       "ref": null,
+       "min": 0,
+       "max": 100,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "ptgaVas",
+       "path": "assessment.ptgaVas",
+       "label": "患者疾病总体 VAS",
+       "type": "number",
+       "unit": "0–100",
+       "ref": null,
+       "min": 0,
+       "max": 100,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "phgaVas",
+       "path": "assessment.phgaVas",
+       "label": "医生疾病总体 VAS",
+       "type": "number",
+       "unit": "0–100",
+       "ref": null,
+       "min": 0,
+       "max": 100,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "功能与疾病活动度",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "haq",
+       "path": "assessment.haq",
+       "label": "HAQ 评分",
+       "type": "number",
+       "unit": "0–3",
+       "ref": null,
+       "min": 0,
+       "max": 3,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "das28Esr",
+       "path": "assessment.das28Esr",
+       "label": "DAS28-ESR",
+       "type": "computed",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "自动计算：TJC28、SJC28、ESR、患者疾病总体 VAS",
+       "formula": "das28Esr"
+      },
+      {
+       "key": "das28Crp",
+       "path": "assessment.das28Crp",
+       "label": "DAS28-CRP",
+       "type": "computed",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "自动计算：TJC28、SJC28、CRP、患者疾病总体 VAS",
+       "formula": "das28Crp"
+      },
+      {
+       "key": "acrResponse",
+       "path": "assessment.acrResponse",
+       "label": "ACR 疗效",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "未达 ACR20"
+        },
+        {
+         "value": "acr20",
+         "label": "ACR20"
+        },
+        {
+         "value": "acr50",
+         "label": "ACR50"
+        },
+        {
+         "value": "acr70",
+         "label": "ACR70"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "脏器受累",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "organInvolvement",
+       "path": "assessment.organInvolvement",
+       "label": "受累脏器",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "none",
+         "label": "无"
+        },
+        {
+         "value": "vasculitis",
+         "label": "类风湿血管炎"
+        },
+        {
+         "value": "lung",
+         "label": "肺、胸膜病变"
+        },
+        {
+         "value": "heart",
+         "label": "心脏病变"
+        },
+        {
+         "value": "nerve",
+         "label": "神经病变"
+        },
+        {
+         "value": "kidney",
+         "label": "肾脏病变"
+        },
+        {
+         "value": "other",
+         "label": "其他系统"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "organDetail",
+       "path": "assessment.organDetail",
+       "label": "具体表现",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "organInvolvement",
+        "hasAny": [
+         "vasculitis",
+         "lung",
+         "heart",
+         "nerve",
+         "kidney",
+         "other"
+        ]
+       },
+       "note": "",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "tcm",
+   "key": "tcm",
+   "title": "中医诊断",
+   "groups": [
+    {
+     "title": "证型",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "mainSyndrome",
+       "path": "tcm.mainSyndrome",
+       "label": "主证",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "wind_damp",
+         "label": "风湿痹阻证"
+        },
+        {
+         "value": "cold_damp",
+         "label": "寒湿痹阻证"
+        },
+        {
+         "value": "damp_heat",
+         "label": "湿热痹阻证"
+        },
+        {
+         "value": "phlegm_stasis",
+         "label": "痰瘀痹阻证"
+        },
+        {
+         "value": "blood_stasis",
+         "label": "瘀血痹阻证"
+        },
+        {
+         "value": "qi_blood_def",
+         "label": "气血两虚证"
+        },
+        {
+         "value": "liver_kidney_def",
+         "label": "肝肾不足证"
+        },
+        {
+         "value": "qi_yin_def",
+         "label": "气阴两虚证"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "secondarySyndromes",
+       "path": "tcm.secondarySyndromes",
+       "label": "兼证",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "wind_damp",
+         "label": "风湿痹阻证"
+        },
+        {
+         "value": "cold_damp",
+         "label": "寒湿痹阻证"
+        },
+        {
+         "value": "damp_heat",
+         "label": "湿热痹阻证"
+        },
+        {
+         "value": "phlegm_stasis",
+         "label": "痰瘀痹阻证"
+        },
+        {
+         "value": "blood_stasis",
+         "label": "瘀血痹阻证"
+        },
+        {
+         "value": "qi_blood_def",
+         "label": "气血两虚证"
+        },
+        {
+         "value": "liver_kidney_def",
+         "label": "肝肾不足证"
+        },
+        {
+         "value": "qi_yin_def",
+         "label": "气阴两虚证"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "舌脉",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "tongueColor",
+       "path": "tcm.tongueColor",
+       "label": "舌色",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "pale",
+         "label": "淡白"
+        },
+        {
+         "value": "light_red",
+         "label": "淡红"
+        },
+        {
+         "value": "red",
+         "label": "红"
+        },
+        {
+         "value": "crimson",
+         "label": "绛"
+        },
+        {
+         "value": "purple",
+         "label": "紫暗"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "tongueShape",
+       "path": "tcm.tongueShape",
+       "label": "舌形",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "normal",
+         "label": "正常"
+        },
+        {
+         "value": "enlarged",
+         "label": "胖大"
+        },
+        {
+         "value": "thin",
+         "label": "瘦薄"
+        },
+        {
+         "value": "teeth_marks",
+         "label": "齿痕"
+        },
+        {
+         "value": "fissured",
+         "label": "裂纹"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "coatingTexture",
+       "path": "tcm.coatingTexture",
+       "label": "苔质",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "thin",
+         "label": "薄"
+        },
+        {
+         "value": "thick",
+         "label": "厚"
+        },
+        {
+         "value": "greasy",
+         "label": "腻"
+        },
+        {
+         "value": "dry",
+         "label": "燥"
+        },
+        {
+         "value": "peeled",
+         "label": "剥"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "coatingColor",
+       "path": "tcm.coatingColor",
+       "label": "苔色",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "white",
+         "label": "白"
+        },
+        {
+         "value": "yellow",
+         "label": "黄"
+        },
+        {
+         "value": "grey_black",
+         "label": "灰黑"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "pulse",
+       "path": "tcm.pulse",
+       "label": "脉象",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "treatment",
+   "key": "treatment",
+   "title": "治疗方案",
+   "groups": [
+    {
+     "title": "与上次治疗比较",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "regimenChanged",
+       "path": "treatment.regimenChanged",
+       "label": "治疗方案是否调整",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "na",
+         "label": "首次建档 / 无上次方案"
+        },
+        {
+         "value": "no",
+         "label": "否"
+        },
+        {
+         "value": "yes",
+         "label": "是"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "changeReason",
+       "path": "treatment.changeReason",
+       "label": "调整原因",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "poor_efficacy",
+         "label": "疗效不佳"
+        },
+        {
+         "value": "adverse",
+         "label": "不良事件"
+        },
+        {
+         "value": "economic",
+         "label": "经济原因"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "regimenChanged",
+        "eq": "yes"
+       },
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "用药明细",
+     "repeat": {
+      "key": "medications",
+      "item": "药物",
+      "add": "添加药物"
+     },
+     "when": null,
+     "fields": [
+      {
+       "key": "drugType",
+       "path": "treatment.medications[].drugType",
+       "label": "药物类型",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "western",
+         "label": "西药"
+        },
+        {
+         "value": "chinese_patent",
+         "label": "中成药"
+        },
+        {
+         "value": "herbal",
+         "label": "中药饮片"
+        }
+       ],
+       "required": false,
+       "default": "western",
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "drugCategory",
+       "path": "treatment.medications[].drugCategory",
+       "label": "药物类别",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "csdmard",
+         "label": "传统合成 DMARD"
+        },
+        {
+         "value": "bdmard",
+         "label": "生物制剂"
+        },
+        {
+         "value": "tsdmard",
+         "label": "靶向合成 DMARD（JAK 抑制剂）"
+        },
+        {
+         "value": "gc",
+         "label": "糖皮质激素"
+        },
+        {
+         "value": "nsaid",
+         "label": "非甾体抗炎药"
+        },
+        {
+         "value": "other",
+         "label": "其他 / 辅助用药"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "drugType",
+        "eq": "western"
+       },
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "drugName",
+       "path": "treatment.medications[].drugName",
+       "label": "药品名称",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": true,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "brandName",
+       "path": "treatment.medications[].brandName",
+       "label": "商品名称",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "manufacturer",
+       "path": "treatment.medications[].manufacturer",
+       "label": "厂家",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "spec",
+       "path": "treatment.medications[].spec",
+       "label": "规格",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "dose",
+       "path": "treatment.medications[].dose",
+       "label": "单次剂量",
+       "type": "number",
+       "unit": "",
+       "ref": null,
+       "min": 0,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "doseUnit",
+       "path": "treatment.medications[].doseUnit",
+       "label": "剂量单位",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "mg",
+         "label": "mg"
+        },
+        {
+         "value": "g",
+         "label": "g"
+        },
+        {
+         "value": "μg",
+         "label": "μg"
+        },
+        {
+         "value": "ml",
+         "label": "ml"
+        },
+        {
+         "value": "片",
+         "label": "片"
+        },
+        {
+         "value": "粒",
+         "label": "粒"
+        },
+        {
+         "value": "袋",
+         "label": "袋"
+        },
+        {
+         "value": "支",
+         "label": "支"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "route",
+       "path": "treatment.medications[].route",
+       "label": "给药方式",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "oral",
+         "label": "口服"
+        },
+        {
+         "value": "sc",
+         "label": "皮下注射"
+        },
+        {
+         "value": "iv",
+         "label": "静脉滴注"
+        },
+        {
+         "value": "im",
+         "label": "肌肉注射"
+        },
+        {
+         "value": "topical",
+         "label": "外用"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "frequency",
+       "path": "treatment.medications[].frequency",
+       "label": "给药频次",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "qd",
+         "label": "每日一次"
+        },
+        {
+         "value": "bid",
+         "label": "每日两次"
+        },
+        {
+         "value": "tid",
+         "label": "每日三次"
+        },
+        {
+         "value": "qw",
+         "label": "每周一次"
+        },
+        {
+         "value": "biw",
+         "label": "每周两次"
+        },
+        {
+         "value": "q2w",
+         "label": "每两周一次"
+        },
+        {
+         "value": "q4w",
+         "label": "每四周一次"
+        },
+        {
+         "value": "prn",
+         "label": "必要时"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "startDate",
+       "path": "treatment.medications[].startDate",
+       "label": "起始时间",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "cumulativeDose",
+       "path": "treatment.medications[].cumulativeDose",
+       "label": "累积剂量",
+       "type": "number",
+       "unit": "",
+       "ref": null,
+       "min": 0,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "单位同剂量单位",
+       "formula": null
+      },
+      {
+       "key": "adjustProcess",
+       "path": "treatment.medications[].adjustProcess",
+       "label": "调药过程",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "adjustReason",
+       "path": "treatment.medications[].adjustReason",
+       "label": "调药原因",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "中药饮片处方",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "herbalFormula",
+       "path": "treatment.herbalFormula",
+       "label": "主方",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "herbalDoses",
+       "path": "treatment.herbalDoses",
+       "label": "剂数",
+       "type": "number",
+       "unit": "剂",
+       "ref": null,
+       "min": 0,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "herbalAdd",
+       "path": "treatment.herbalAdd",
+       "label": "加味药物",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "herbalRemove",
+       "path": "treatment.herbalRemove",
+       "label": "减味药物",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "adverse",
+   "key": "adverse",
+   "title": "不良反应",
+   "groups": [
+    {
+     "title": "本次是否发生",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "occurred",
+       "path": "adverse.occurred",
+       "label": "是否发生不良反应",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "no",
+         "label": "否"
+        },
+        {
+         "value": "yes",
+         "label": "是"
+        }
+       ],
+       "required": false,
+       "default": "no",
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    },
+    {
+     "title": "不良事件",
+     "repeat": {
+      "key": "events",
+      "item": "不良事件",
+      "add": "添加不良事件"
+     },
+     "when": {
+      "key": "occurred",
+      "eq": "yes"
+     },
+     "fields": [
+      {
+       "key": "name",
+       "path": "adverse.events[].name",
+       "label": "不良反应名称",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "AE01",
+         "label": "白细胞下降"
+        },
+        {
+         "value": "AE02",
+         "label": "血小板下降"
+        },
+        {
+         "value": "AE03",
+         "label": "中性粒细胞下降"
+        },
+        {
+         "value": "AE04",
+         "label": "贫血"
+        },
+        {
+         "value": "AE05",
+         "label": "全血细胞下降"
+        },
+        {
+         "value": "AE06",
+         "label": "淋巴细胞下降"
+        },
+        {
+         "value": "AE07",
+         "label": "口腔溃疡"
+        },
+        {
+         "value": "AE08",
+         "label": "口/舌疼痛"
+        },
+        {
+         "value": "AE09",
+         "label": "恶心、呕吐"
+        },
+        {
+         "value": "AE10",
+         "label": "腹泻"
+        },
+        {
+         "value": "AE11",
+         "label": "腹痛"
+        },
+        {
+         "value": "AE12",
+         "label": "肝功异常"
+        },
+        {
+         "value": "AE13",
+         "label": "消化不良"
+        },
+        {
+         "value": "AE14",
+         "label": "咳嗽"
+        },
+        {
+         "value": "AE15",
+         "label": "咳痰"
+        },
+        {
+         "value": "AE16",
+         "label": "哮喘"
+        },
+        {
+         "value": "AE17",
+         "label": "呼吸困难"
+        },
+        {
+         "value": "AE18",
+         "label": "血尿"
+        },
+        {
+         "value": "AE19",
+         "label": "蛋白尿"
+        },
+        {
+         "value": "AE20",
+         "label": "肾功异常"
+        },
+        {
+         "value": "AE21",
+         "label": "肾衰竭"
+        },
+        {
+         "value": "AE22",
+         "label": "少尿"
+        },
+        {
+         "value": "AE23",
+         "label": "心梗"
+        },
+        {
+         "value": "AE24",
+         "label": "头晕"
+        },
+        {
+         "value": "AE25",
+         "label": "头痛"
+        },
+        {
+         "value": "AE26",
+         "label": "失眠"
+        },
+        {
+         "value": "AE27",
+         "label": "皮疹"
+        },
+        {
+         "value": "AE28",
+         "label": "皮肤瘙痒"
+        },
+        {
+         "value": "AE29",
+         "label": "色素沉着"
+        },
+        {
+         "value": "AE30",
+         "label": "月经延迟"
+        },
+        {
+         "value": "AE31",
+         "label": "肿瘤"
+        },
+        {
+         "value": "AE32",
+         "label": "体重减轻"
+        },
+        {
+         "value": "AE33",
+         "label": "脱发"
+        },
+        {
+         "value": "AE34",
+         "label": "结节"
+        },
+        {
+         "value": "AE35",
+         "label": "感染"
+        },
+        {
+         "value": "other",
+         "label": "其他"
+        }
+       ],
+       "required": true,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "nameOther",
+       "path": "adverse.events[].nameOther",
+       "label": "其他名称",
+       "type": "text",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "name",
+        "eq": "other"
+       },
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "startDate",
+       "path": "adverse.events[].startDate",
+       "label": "发生日期",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "endDate",
+       "path": "adverse.events[].endDate",
+       "label": "结束日期",
+       "type": "date",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "action",
+       "path": "adverse.events[].action",
+       "label": "药物处理措施",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "unchanged",
+         "label": "剂量不变"
+        },
+        {
+         "value": "reduce",
+         "label": "减少剂量"
+        },
+        {
+         "value": "stop",
+         "label": "停止用药"
+        },
+        {
+         "value": "symptomatic",
+         "label": "对症治疗"
+        },
+        {
+         "value": "other",
+         "label": "其他措施"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "isSae",
+       "path": "adverse.events[].isSae",
+       "label": "是否 SAE",
+       "type": "single",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "no",
+         "label": "否"
+        },
+        {
+         "value": "yes",
+         "label": "是"
+        }
+       ],
+       "required": false,
+       "default": "no",
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "saeCategories",
+       "path": "adverse.events[].saeCategories",
+       "label": "SAE 类别",
+       "type": "multi",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": [
+        {
+         "value": "death",
+         "label": "致命"
+        },
+        {
+         "value": "life_threatening",
+         "label": "危及生命"
+        },
+        {
+         "value": "hospitalization",
+         "label": "需要住院治疗或延长住院时间"
+        },
+        {
+         "value": "disability",
+         "label": "导致永久或严重的残疾 / 能力丧失"
+        },
+        {
+         "value": "congenital",
+         "label": "母亲使用研究药物导致新生儿不良事件"
+        },
+        {
+         "value": "important",
+         "label": "由医生判断为重大医疗事件"
+        }
+       ],
+       "required": false,
+       "default": null,
+       "when": {
+        "key": "isSae",
+        "eq": "yes"
+       },
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "detail",
+       "path": "adverse.events[].detail",
+       "label": "事件详情",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "case",
+   "key": "caseRecord",
+   "title": "随诊病例",
+   "groups": [
+    {
+     "title": "",
+     "repeat": null,
+     "when": null,
+     "fields": [
+      {
+       "key": "note",
+       "path": "caseRecord.note",
+       "label": "随诊病例记录",
+       "type": "longtext",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "",
+       "formula": null
+      },
+      {
+       "key": "attachments",
+       "path": "caseRecord.attachments",
+       "label": "病例附件",
+       "type": "file",
+       "unit": "",
+       "ref": null,
+       "min": null,
+       "max": null,
+       "options": null,
+       "required": false,
+       "default": null,
+       "when": null,
+       "note": "上传后得到附件 ID（fileIds），随访视一起提交",
+       "formula": null
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

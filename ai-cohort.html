@@ -1,0 +1,30 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b57d0"><link rel="icon" href="img/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="css/common.css?v=53"><link rel="stylesheet" href="css/shared/ai-analytics.css?v=53"><link rel="stylesheet" href="css/pages/ai-cohort.css?v=53"><script src="js/boot.js?v=53" defer></script><script src="js/data.js?v=53" defer></script><script src="js/common.js?v=53" defer></script><script src="js/shared/ai-analytics.js?v=53" defer></script><script src="js/pages/ai-cohort.js?v=53" defer></script><title>队列分析 · 患者数据研究平台</title></head><body><header class="app-header"><a class="brand" href="projects.html"><img src="img/logo.svg" width="38" height="38" alt=""><span>患者数据研究平台<small>Patient Data Research Platform</small></span></a><div class="header-actions"><div class="account"><span class="avatar">陈</span><span>陈医生<small>研究者</small></span></div></div></header><div class="app-layout"><aside class="sidebar"></aside><main id="main"><div class="breadcrumb">智能分析 <span>/</span> <a href="ai-analysis.html">AI 智能分析</a> <span>/</span> 队列分析</div>
+<div class="page-heading"><div><h1>群体智能分析 · 队列分析</h1><p>用研究问题或条件建立队列，查看疾病活动、治疗分组达标率、亚组差异与自动发现。</p></div><span class="demo-flag">演示数据 · 规则计算</span></div>
+<section class="ai-panel builder"><form id="question-form" class="ask-row"><input id="question" autocomplete="off" placeholder="用一句话描述研究问题，例如：TNFi 治疗 6 个月后仍处于中高疾病活动的患者"><button class="button ai-button" type="submit">✦ 解析并分析</button></form>
+<p class="parse-note" id="parse-note" hidden></p>
+<div class="cond-line"><span class="cond-title">当前条件</span><div class="chip-row" id="chips"></div></div>
+<details class="adv" open><summary>条件筛选</summary><div class="filter-grid">
+<label><span>性别</span><select id="f-sex"><option value="">不限</option><option>女</option><option>男</option></select></label>
+<label><span>年龄</span><select id="f-age"><option value="">不限</option><option value="18-40">18–40 岁</option><option value="40-50">40–50 岁</option><option value="50-60">50–60 岁</option><option value="60-70">60–70 岁</option><option value="70-">70 岁以上</option></select></label>
+<label><span>血清学</span><select id="f-sero"><option value="">不限</option><option value="1">RF / ACPA 阳性</option></select></label>
+<label><span>当前治疗</span><select id="f-tx"><option value="">不限</option><option value="csDMARD">csDMARD</option><option value="bio">任一生物 / 靶向</option><option>TNFi</option><option>JAKi</option><option>IL-6i</option><option>Abatacept</option></select></label>
+<label><span>评估时点</span><select id="f-at"><option value="now">最近一次访视</option><option value="6m">治疗 6 个月</option></select></label>
+<label><span>疾病活动度</span><select id="f-act"><option value="">不限</option><option value="target">已达标（缓解 / 低活动）</option><option value="mod-high">中高疾病活动（未达标）</option><option value="remission">缓解</option><option value="low">低疾病活动</option><option value="moderate">中疾病活动</option><option value="high">高疾病活动</option></select></label>
+<label><span>其他病史</span><select id="f-cm"><option value="">不限</option><option value="FM">合并 FM</option><option value="AS">合并 AS</option><option value="none">无合并 FM / AS</option></select></label>
+<label><span>资料完整性</span><select id="f-data"><option value="">不限</option><option value="complete">资料完整</option><option value="missing">资料待补全</option></select></label>
+</div><div class="adv-actions"><button class="button" type="button" id="reset">清空条件</button></div></details></section>
+<section class="stat-row" id="stats"></section>
+<div id="no-result" class="empty-state" hidden><h2>当前条件下没有患者</h2><p>请删除部分条件后重试。</p></div>
+<div id="results">
+<div class="panel-grid">
+<section class="ai-panel"><header><div><h2>疾病活动分布</h2><p>DAS28-ESR 分层：缓解 &lt; 2.6 · 低 ≤ 3.2 · 中 ≤ 5.1 · 高 &gt; 5.1</p></div></header><div id="chart-activity"></div></section>
+<section class="ai-panel"><header><div><h2>按当前治疗分组的达标率</h2><p>达标 = DAS28 ≤ 3.2（低疾病活动或缓解）</p></div></header><div id="chart-tx"></div></section>
+<section class="ai-panel"><header><div><h2>亚组对比 · 是否合并纤维肌痛</h2><p>用于识别被 FM 抬高的疾病活动评分</p></div></header><div id="compare"></div></section>
+<section class="ai-panel"><header><div><h2>治疗路径</h2><p>当前所处治疗线数占比</p></div></header><div id="chart-line"></div></section>
+</div>
+<section class="ai-panel"><header><div><h2>✦ 自动发现</h2><p>基于当前队列规则计算；只描述数据差异，不做因果判断</p></div><a class="button compact" id="ask-chat" href="ai-chat.html">就此队列继续提问 →</a></header><div class="insight-list" id="insights"></div></section>
+<section class="ai-panel"><header><div><h2>队列患者</h2><p id="list-count"></p></div><button class="button compact" type="button" id="export">导出队列</button></header>
+<div class="ai-row ai-row-head"><span>患者</span><span>当前治疗</span><span>方案时长</span><span>DAS28</span><span>疾病活动</span><span>CRP</span><span>其他病史</span></div>
+<div id="patient-rows" class="ai-rows"></div><button class="button more" type="button" id="more">显示更多</button></section>
+</div>
+<p class="app-footnote">演示数据：DAS28、治疗、CRP 等分析字段按固定规则生成，仅用于展示分析方式，不代表真实临床结论。</p></main></div></body></html>

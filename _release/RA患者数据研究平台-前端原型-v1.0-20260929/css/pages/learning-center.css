@@ -1,0 +1,142 @@
+/* learning-center.html 页面专属样式（在 common.css 之后加载） */
+
+.knowledge-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+
+.knowledge-card {
+  position:relative;
+  min-height:215px;
+  padding:22px;
+  border:1px solid #dfe7f1;
+  border-radius:13px;
+  background:#fff;
+}
+
+.knowledge-card>span {
+  display:inline-grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  border-radius:9px;
+  background:#eef5ff;
+  color:#0b63ce;
+  font-weight:800;
+}
+
+.knowledge-card h2 {
+  font-size:var(--fs-lg);
+  margin:16px 0 8px;
+}
+
+.knowledge-card p {
+  color:#718198;
+  font-size:var(--fs-xs);
+  line-height:1.75;
+}
+
+.knowledge-card>a {
+  position:absolute;
+  left:22px;
+  bottom:20px;
+  color:#0b63ce;
+  font-size:var(--fs-xs);
+  font-weight:700;
+}
+
+.knowledge-card.featured {
+  border-color:#bcd5f4;
+  box-shadow:0 5px 18px rgba(49,92,145,.06);
+}
+
+.topic-tags {
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+
+.topic-tags b {
+  font-size:var(--fs-xs);
+  font-weight:600;
+  color:#58718e;
+  background:#f3f6fa;
+  border-radius:12px;
+  padding:4px 8px;
+}
+
+.reference-panel {
+  margin-top:18px;
+  padding:20px 22px;
+  border:1px solid #dfe7f1;
+  border-radius:12px;
+  background:#fff;
+}
+
+.reference-panel h2 {
+  font-size:var(--fs-lg);
+  margin-bottom:5px;
+}
+
+.reference-panel p {
+  font-size:var(--fs-xs);
+  color:#77879a;
+}
+
+/* v38 参考文献直接展开，按论文引用格式列出 */
+.reference-list {
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid #edf1f6;
+}
+
+.reference-list h3 {
+  font-size:var(--fs-md);
+  margin-bottom:8px;
+}
+
+.reference-list ol {
+  margin:0;
+  padding-left:26px;
+  display:grid;
+  gap:6px;
+}
+
+.reference-list li {
+  font-size:var(--fs-sm);
+  line-height:1.65;
+  color:#4a5b72;
+}
+
+.reference-list li::marker {
+  color:#8a98ab;
+  font-variant-numeric:tabular-nums;
+}
+
+.reference-panel .reference-meta {
+  margin-top:12px;
+}
+
+/* 顶部说明文字在空间足够时单行展示 */
+.knowledge-hero > div:first-child {
+  flex:1 1 auto;
+  min-width:0;
+}
+
+.knowledge-hero p {
+  max-width:none;
+}
+
+@media (max-width:1100px) {
+  .knowledge-grid {
+    grid-template-columns:repeat(2,1fr);
+  }
+}
+
+@media (max-width:700px) {
+  .knowledge-grid {
+    grid-template-columns:1fr;
+  }
+}

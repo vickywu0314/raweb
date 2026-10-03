@@ -1,0 +1,86 @@
+/* data-quality.html 页面专属样式（列表通用样式见 css/shared/patient-list.css） */
+
+/* 列宽：患者信息 | 研究信息 | 质控问题 | 问题类型 | 处理状态 | 箭头（无选择列） */
+.patient-columns.selectable {
+  grid-template-columns:minmax(210px,2.2fr) minmax(126px,1.2fr) minmax(200px,2.2fr) minmax(96px,.8fr) minmax(96px,.8fr) 16px;
+}
+
+.patient-card.selectable {
+  grid-template-columns:minmax(0,1fr);
+}
+
+.patient-card-link {
+  grid-template-columns:minmax(210px,2.2fr) minmax(126px,1.2fr) minmax(200px,2.2fr) minmax(96px,.8fr) minmax(96px,.8fr) 16px;
+}
+
+.issue-text {
+  font-size:var(--fs-md);
+  color:var(--ink);
+}
+
+.quality-summary {
+  margin-bottom:20px;
+}
+
+@media (max-width:1199px) {
+  .patient-card.selectable {
+    grid-template-columns:minmax(0,1fr);
+  }
+  .patient-card-link {
+    grid-template-columns:repeat(4,minmax(0,1fr)) 16px;
+  }
+  .patient-card-link .patient-identity {
+    grid-column:1/5;
+  }
+  .patient-card-link>.chevron {
+    grid-column:5;
+  }
+  .patient-card-link .issue-cell {
+    grid-column:span 2;
+  }
+  .patient-card-link .type-cell,
+  .patient-card-link .status-cell {
+    grid-row:3;
+  }
+}
+
+@media (max-width:700px) {
+  .patient-card-link {
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) 12px;
+  }
+  .patient-card-link .patient-identity {
+    grid-column:1/3;
+  }
+  .patient-card-link>.chevron {
+    grid-column:3;
+  }
+  .patient-card-link .issue-cell {
+    grid-column:1/4;
+    grid-row:3;
+  }
+  .patient-card-link .type-cell {
+    grid-column:1;
+    grid-row:4;
+  }
+  .patient-card-link .status-cell {
+    grid-column:2/4;
+    grid-row:4;
+  }
+}
+
+/* 标记已处理 */
+.mark-done {
+  margin-top:6px;
+  padding:2px 8px;
+  border:1px solid #cfe0f5;
+  border-radius:6px;
+  background:#fff;
+  color:var(--primary);
+  font-size:var(--fs-xs);
+  font-weight:600;
+  cursor:pointer;
+}
+
+.mark-done:hover {
+  background:#eef5ff;
+}

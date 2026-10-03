@@ -1,0 +1,359 @@
+/* patient-visits.html 页面专属样式（在 common.css 之后加载） */
+
+.visits-section-head {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:8px 0 14px;
+}
+
+.visits-section-head h2 {
+  font-size:var(--fs-2xl);
+}
+
+.visits-section-head span {
+  color:var(--muted);
+  font-size:var(--fs-xs);
+}
+
+.visit-list {
+  display:grid;
+  gap:12px;
+}
+
+.visit-row {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:18px;
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:17px 20px;
+}
+
+.visit-row-main {
+  display:flex;
+  align-items:center;
+  gap:14px;
+  color:var(--ink);
+  flex:1;
+}
+
+.visit-row-main strong {
+  font-size:var(--fs-lg);
+}
+
+.visit-row-main time {
+  margin-left:12px;
+  font-weight:600;
+}
+
+.visit-row-main small {
+  display:block;
+  color:var(--muted);
+  margin-top:4px;
+}
+
+@media (max-width:600px) {
+  .visit-row {
+    align-items:flex-start;
+  }
+  .visit-row-main time {
+    display:block;
+    margin:2px 0 0;
+  }
+}
+
+.reference-history {
+  border-top:1px solid var(--line);
+  margin-top:18px;
+  padding-top:16px;
+  display:grid;
+  gap:13px;
+}
+
+.reference-history h3 {
+  color:#60738e;
+  margin-bottom:3px;
+}
+
+.reference-history p {
+  font-size:var(--fs-sm);
+}
+
+.reference-history small {
+  display:block;
+  color:var(--muted);
+  font-size:var(--fs-xs);
+  margin-top:3px;
+}
+
+.visit-row-status {
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:10px;
+  flex-wrap:wrap;
+  color:var(--muted);
+  font-size:var(--fs-xs);
+}
+
+.visit-chevron-link {
+  display:flex;
+  align-items:center;
+  padding:6px;
+  margin-left:4px;
+}
+
+.visit-chevron-link .chevron {
+  width:16px;
+}
+
+@media (max-width:600px) {
+  .visit-row-status {
+    justify-content:flex-start;
+    width:100%;
+  }
+}
+
+.skeleton-button {
+  width:88px;
+  height:40px;
+  border-radius:8px;
+}
+
+.skeleton-button.wide {
+  width:108px;
+}
+
+.visits-basic-skeleton {
+  margin-top:24px;
+  padding-top:20px;
+  border-top:1px solid var(--line);
+}
+
+.visit-skeleton-row {
+  justify-content:flex-start;
+  pointer-events:none;
+}
+
+.skeleton-record {
+  width:40px;
+  height:40px;
+  border-radius:10px;
+  flex:0 0 auto;
+}
+
+.visit-skeleton-copy {
+  display:grid;
+  gap:8px;
+  flex:1;
+}
+
+.skeleton-visit-title {
+  width:190px;
+  height:16px;
+}
+
+.skeleton-visit-sub {
+  width:125px;
+  height:11px;
+}
+
+.visit-skeleton-row>.skeleton-chevron {
+  margin-left:auto;
+}
+
+.skeleton-visit-total {
+  width:64px;
+  height:12px;
+}
+
+/* v37 常见相关疾病：已记录病种的核心内容与病程 */
+.related-list {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+  gap:10px;
+  margin-top:6px;
+}
+
+.related-item {
+  padding:12px 14px;
+  border:1px solid #e1e8f2;
+  border-radius:10px;
+  background:#fbfcfe;
+}
+
+.related-head {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px 10px;
+  margin-bottom:8px;
+}
+
+.related-since {
+  color:var(--muted);
+  font-size:var(--fs-xs);
+}
+
+.related-status {
+  margin-left:auto;
+  padding:2px 8px;
+  border-radius:999px;
+  background:#f1f4f8;
+  color:#4d5f77;
+  font-size:var(--fs-xs);
+}
+
+.related-item dl {
+  display:grid;
+  gap:4px;
+  margin:0;
+}
+
+.related-item dl div {
+  display:grid;
+  grid-template-columns:64px 1fr;
+  gap:8px;
+}
+
+.related-item dt {
+  color:var(--muted);
+  font-size:var(--fs-xs);
+}
+
+.related-item dd {
+  margin:0;
+  font-size:var(--fs-sm);
+}
+
+.related-more {
+  margin-top:8px;
+  padding:0;
+  border:0;
+  background:none;
+  color:var(--primary);
+  font-size:var(--fs-xs);
+  font-weight:600;
+}
+
+.related-more:hover {
+  text-decoration:underline;
+}
+
+/* 随访周期 · 下次随访 */
+.next-due {
+  display:block;
+  margin-top:2px;
+  color:#6f7f95;
+  font-size:var(--fs-xs);
+  font-weight:500;
+}
+
+.next-due.overdue { color:#b3322a; }
+.next-due.soon { color:#a76419; }
+
+/* 修改记录 */
+.audit-panel {
+  margin-top:18px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+}
+
+.audit-panel summary {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 18px;
+  cursor:pointer;
+}
+
+.audit-panel summary h2 {
+  font-size:var(--fs-lg);
+}
+
+.audit-panel summary span {
+  color:#8a98ab;
+  font-size:var(--fs-sm);
+}
+
+.audit-list {
+  margin:0;
+  padding:0 18px 14px;
+  list-style:none;
+}
+
+.audit-list li {
+  display:grid;
+  grid-template-columns:130px 84px minmax(0,1fr) 150px;
+  align-items:start;
+  gap:12px;
+  padding:9px 0;
+  border-top:1px solid #edf1f6;
+  font-size:var(--fs-sm);
+}
+
+.audit-list time,
+.audit-list em {
+  color:#8a98ab;
+  font-style:normal;
+  font-variant-numeric:tabular-nums;
+}
+
+.audit-list .audit-empty {
+  display:block;
+  color:#8a98ab;
+}
+
+@media (max-width:700px) {
+  .audit-list li {
+    grid-template-columns:1fr;
+    gap:2px;
+  }
+}
+
+.audit-tag {
+  justify-self:start;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:var(--fs-xs);
+  font-weight:700;
+  white-space:nowrap;
+}
+
+.audit-tag.new { background:#eaf2fe; color:#1f63c6; }
+.audit-tag.edit { background:#f1edff; color:#5b45c9; }
+.audit-tag.qc { background:#fcf5e8; color:#9a6a22; }
+.audit-tag.warn { background:#fff0f0; color:#b3322a; }
+
+.audit-detail {
+  display:grid;
+  gap:2px;
+  color:#34445a;
+  line-height:1.6;
+}
+
+.audit-detail del {
+  color:#b3322a;
+  text-decoration:line-through;
+  text-decoration-color:rgba(179,50,42,.5);
+}
+
+.audit-detail ins {
+  color:#1f8a5b;
+  text-decoration:none;
+  font-weight:600;
+}
+
+.audit-list em {
+  text-align:right;
+}
+
+@media (max-width:700px) {
+  .audit-list em {
+    text-align:left;
+  }
+}

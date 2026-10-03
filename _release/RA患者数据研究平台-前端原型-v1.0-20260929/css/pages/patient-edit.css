@@ -1,0 +1,42 @@
+/* patient-edit.html 页面专属样式（表单通用样式见 css/shared/case-form.css） */
+
+.edit-card {
+  border-left:3px solid var(--primary);
+}
+
+#plan.edit-card {
+  border-left-color:#17917f;
+}
+
+.create-section-head.static {
+  grid-template-columns:minmax(150px,max-content) 1fr;
+  cursor:default;
+  background:#f9fbfe;
+  border-bottom:1px solid #edf1f5;
+}
+
+.form-field input[readonly] {
+  background:#f3f5f8;
+  color:#6f7f95;
+}
+
+.next-preview {
+  margin-top:6px;
+  padding:10px 12px;
+  border-radius:8px;
+  background:#f3f7fb;
+  font-size:var(--fs-md);
+  font-weight:600;
+}
+
+.cycle-tip {
+  margin-top:12px;
+  color:#8a98ab;
+  font-size:var(--fs-xs);
+}
+
+.form-field.is-changed input,
+.form-field.is-changed select {
+  border-color:#e0a93c;
+  background:#fffaf0;
+}

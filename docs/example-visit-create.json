@@ -1,0 +1,63 @@
+{
+  "visitDate": "2026-04-02",
+  "method": "outpatient",
+  "history": {
+    "subtype": "sero_pos",
+    "flareTriggers": [
+      "none"
+    ],
+    "jointPain": "mild",
+    "morningStiffness": "lt30m"
+  },
+  "exam": {
+    "esr": 18,
+    "crp": 4.2,
+    "wbc": 5.8,
+    "hgb": 121,
+    "plt": 260,
+    "alt": 31
+  },
+  "assessment": {
+    "tjc28": 2,
+    "sjc28": 1,
+    "ptgaVas": 25,
+    "painVas": 20,
+    "das28Esr": 3.45,
+    "das28Crp": 2.98,
+    "acrResponse": "acr50"
+  },
+  "treatment": {
+    "regimenChanged": "no",
+    "medications": [
+      {
+        "drugType": "western",
+        "drugCategory": "csdmard",
+        "drugName": "甲氨蝶呤",
+        "manufacturer": "上海信谊",
+        "spec": "2.5 mg × 16 片",
+        "dose": 10,
+        "doseUnit": "mg",
+        "route": "oral",
+        "frequency": "qw",
+        "startDate": "2026-01-01",
+        "cumulativeDose": 0
+      },
+      {
+        "drugType": "western",
+        "drugCategory": "other",
+        "drugName": "叶酸片",
+        "dose": 5,
+        "doseUnit": "mg",
+        "route": "oral",
+        "frequency": "qw",
+        "startDate": "2026-01-01"
+      }
+    ]
+  },
+  "adverse": {
+    "occurred": "no"
+  },
+  "caseRecord": {
+    "note": "症状明显好转，继续原方案。"
+  }
+}

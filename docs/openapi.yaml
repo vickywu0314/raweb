@@ -1,0 +1,1094 @@
+openapi: 3.1.0
+info:
+  title: 患者数据研究平台 API
+  version: 0.1.0-draft
+  description: |
+    一期接口契约草稿（RA 研究库）。与《后端接口与实现方案 v0.1》配套。
+    - 统一前缀 /api/v1；JSON；日期 YYYY-MM-DD，时间 ISO 8601 带时区。
+    - 登录态为服务端会话（HttpOnly Cookie `ra_session`）。
+    - 修改类请求需带 row_version，版本不一致返回 409。
+    - CRF 数据按字段编码存取，编码见 docs/crf-dictionary-draft.csv。
+servers:
+  - url: /api/v1
+security:
+  - session: []
+tags:
+  - name: auth
+    description: 登录与会话
+  - name: studies
+    description: 研究库
+  - name: patients
+    description: 患者档案
+  - name: visits
+    description: 访视与 CRF
+  - name: crf
+    description: CRF 模板与字段字典
+  - name: followups
+    description: 随访计划
+  - name: qc
+    description: 数据质控
+  - name: audit
+    description: 修改记录
+  - name: stats
+    description: 看板统计
+  - name: ai
+    description: AI 分析
+  - name: guidelines
+    description: 指南库
+  - name: files
+    description: 附件与识别
+
+paths:
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: 用户名密码登录
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+                remember: { type: boolean, description: 勾选则会话 30 天 }
+      responses:
+        '200':
+          description: 登录成功，Set-Cookie 写入会话
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Error' }
+        '423':
+          description: 连续输错已锁定
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: 退出登录
+      responses:
+        '204': { description: 已退出 }
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: 当前用户、所属研究与权限点
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+        '401': { $ref: '#/components/responses/Error' }
+  /auth/password:
+    post:
+      tags: [auth]
+      summary: 修改密码
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassword, newPassword]
+              properties:
+                oldPassword: { type: string, format: password }
+                newPassword: { type: string, format: password, minLength: 8 }
+      responses:
+        '204': { description: 已修改 }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /studies:
+    get:
+      tags: [studies]
+      summary: 当前用户可见的研究库
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Study' }
+  /studies/{studyId}:
+    get:
+      tags: [studies]
+      summary: 研究概况
+      parameters: [{ $ref: '#/components/parameters/studyId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Study' }
+  /studies/{studyId}/crf-template:
+    get:
+      tags: [crf]
+      summary: CRF 模板（字段字典），前端据此渲染表单
+      parameters:
+        - { $ref: '#/components/parameters/studyId' }
+        - name: version
+          in: query
+          description: 不传则返回当前发布版本
+          schema: { type: string, example: '1.0' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CrfTemplate' }
+
+  /patients:
+    get:
+      tags: [patients]
+      summary: 患者列表（筛选、分页）
+      parameters:
+        - { $ref: '#/components/parameters/studyQuery' }
+        - { name: q, in: query, description: 姓名 / 住院号 / 研究编号, schema: { type: string } }
+        - name: status
+          in: query
+          schema: { type: string, enum: [overdue, soon, active, pending_first, withdrawn] }
+          description: 随访逾期 / 近期需随访 / 随访中 / 待首次随访 / 已脱落
+        - name: completeness
+          in: query
+          schema: { type: string, enum: [complete, missing] }
+        - name: comorbidity
+          in: query
+          schema: { type: string, example: FM }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+        - { name: sort, in: query, schema: { type: string, example: '-lastVisitDate' } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Page' }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/PatientSummary' }
+    post:
+      tags: [patients]
+      summary: 新建患者档案（可同时创建基线访视）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [studyId, patient]
+              properties:
+                studyId: { type: string }
+                patient: { $ref: '#/components/schemas/PatientInput' }
+                baselineVisit:
+                  $ref: '#/components/schemas/VisitInput'
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Patient' }
+        '422': { $ref: '#/components/responses/Error' }
+  /patients/export:
+    get:
+      tags: [patients]
+      summary: 按当前筛选导出（CSV / XLSX）
+      parameters:
+        - { $ref: '#/components/parameters/studyQuery' }
+        - { name: format, in: query, schema: { type: string, enum: [csv, xlsx], default: xlsx } }
+        - { name: deidentify, in: query, schema: { type: boolean, default: true }, description: 明文导出需 export:full 权限 }
+      responses:
+        '200':
+          description: 文件流
+          content:
+            application/octet-stream: {}
+        '403': { $ref: '#/components/responses/Error' }
+  /patients/{patientId}:
+    get:
+      tags: [patients]
+      summary: 患者详情（含随访周期与下次随访）
+      parameters: [{ $ref: '#/components/parameters/patientId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Patient' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [patients]
+      summary: 编辑档案（含随访周期），逐项写审计
+      parameters: [{ $ref: '#/components/parameters/patientId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/PatientInput' }
+                - type: object
+                  required: [rowVersion]
+                  properties:
+                    rowVersion: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Patient' }
+        '409': { $ref: '#/components/responses/Error' }
+        '422': { $ref: '#/components/responses/Error' }
+  /patients/{patientId}/withdraw:
+    post:
+      tags: [patients]
+      summary: 标记脱落
+      parameters: [{ $ref: '#/components/parameters/patientId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                date: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Patient' }
+  /patients/{patientId}/visits:
+    get:
+      tags: [visits]
+      summary: 随访时间线
+      parameters: [{ $ref: '#/components/parameters/patientId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/VisitSummary' }
+    post:
+      tags: [visits]
+      summary: 新增随访
+      parameters: [{ $ref: '#/components/parameters/patientId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VisitInput' }
+      responses:
+        '201':
+          description: 已创建
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Visit' }
+        '422': { $ref: '#/components/responses/Error' }
+  /patients/{patientId}/audit:
+    get:
+      tags: [audit]
+      summary: 修改记录
+      parameters:
+        - { $ref: '#/components/parameters/patientId' }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Page' }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/AuditEntry' }
+  /patients/{patientId}/insight:
+    get:
+      tags: [ai]
+      summary: 单患者病程分析（疾病历程、治疗响应、相似患者、洞察）
+      parameters: [{ $ref: '#/components/parameters/patientId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PatientInsight' }
+
+  /visits/{visitId}:
+    get:
+      tags: [visits]
+      summary: 访视详情（含 CRF 数据与派生指标）
+      parameters: [{ $ref: '#/components/parameters/visitId' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Visit' }
+  /visits/{visitId}/crf:
+    put:
+      tags: [visits]
+      summary: 保存 CRF（草稿）
+      parameters: [{ $ref: '#/components/parameters/visitId' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [data, rowVersion]
+              properties:
+                data: { $ref: '#/components/schemas/CrfData' }
+                rowVersion: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Visit' }
+        '409': { $ref: '#/components/responses/Error' }
+        '423': { description: 访视已锁定 }
+  /visits/{visitId}/submit:
+    post:
+      tags: [visits]
+      summary: 提交访视（触发校验与质控）
+      parameters: [{ $ref: '#/components/parameters/visitId' }]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rowVersion]
+              properties:
+                rowVersion: { type: integer }
+      responses:
+        '200':
+          description: 已提交；返回新生成的质控问题
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  visit: { $ref: '#/components/schemas/Visit' }
+                  qcIssues:
+                    type: array
+                    items: { $ref: '#/components/schemas/QcIssue' }
+        '422': { $ref: '#/components/responses/Error' }
+
+  /followups:
+    get:
+      tags: [followups]
+      summary: 应随访列表（按上次随访 + 随访周期计算）
+      parameters:
+        - { $ref: '#/components/parameters/studyQuery' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [overdue, soon, later] }
+        - { name: within, in: query, description: 未来 N 天内到期, schema: { type: integer, example: 30 } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Page' }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Followup' }
+
+  /qc/issues:
+    get:
+      tags: [qc]
+      summary: 质控问题列表
+      parameters:
+        - { $ref: '#/components/parameters/studyQuery' }
+        - { name: status, in: query, schema: { type: string, enum: [open, resolved, ignored] } }
+        - { name: level, in: query, schema: { type: string, enum: [error, warning] } }
+        - { name: type, in: query, schema: { type: string, enum: [missing, range, logic, window] } }
+        - { name: patientId, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/page' }
+        - { $ref: '#/components/parameters/size' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: '#/components/schemas/Page' }
+                  - type: object
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/QcIssue' }
+  /qc/issues/{issueId}:
+    patch:
+      tags: [qc]
+      summary: 回复 / 标记已处理 / 忽略
+      parameters:
+        - { name: issueId, in: path, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [open, resolved, ignored] }
+                note: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/QcIssue' }
+  /qc/run:
+    post:
+      tags: [qc]
+      summary: 手动重跑质控规则
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studyId: { type: string }
+                patientId: { type: string }
+      responses:
+        '202': { description: 已排队 }
+
+  /stats/dashboard:
+    get:
+      tags: [stats]
+      summary: 看板指标
+      parameters: [{ $ref: '#/components/parameters/studyQuery' }]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+  /stats/risk-lists/{type}:
+    get:
+      tags: [stats]
+      summary: 风险名单（看板卡片点开）
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { type: string, enum: [overdue, high_activity, missing_data, adverse_event, rebound] }
+        - { $ref: '#/components/parameters/studyQuery' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PatientSummary' }
+
+  /ai/parse:
+    post:
+      tags: [ai]
+      summary: 自然语言问题 → 结构化筛选条件（前端可展示并修改）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                studyId: { type: string }
+                question: { type: string, example: 使用 JAK 抑制剂 6 个月以上且 DAS28 仍高于 3.2 的患者 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  filter: { $ref: '#/components/schemas/CohortFilter' }
+                  explanation: { type: string }
+  /ai/cohort:
+    post:
+      tags: [ai]
+      summary: 队列分析（统计、分层、洞察）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studyId: { type: string }
+                filter: { $ref: '#/components/schemas/CohortFilter' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CohortResult' }
+  /ai/chat:
+    post:
+      tags: [ai]
+      summary: 研究数据对话（SSE 流式）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                sessionId: { type: string, description: 不传则新建会话 }
+                studyId: { type: string }
+                message: { type: string }
+      responses:
+        '200':
+          description: text/event-stream；事件 delta / sources / done
+          content:
+            text/event-stream: {}
+
+  /guidelines:
+    get:
+      tags: [guidelines]
+      summary: 指南列表
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/GuidelineMeta' }
+  /guidelines/search:
+    get:
+      tags: [guidelines]
+      summary: 要点与案例检索
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - { name: guideline, in: query, description: 多个用逗号分隔, schema: { type: string } }
+        - { name: topic, in: query, schema: { type: string } }
+        - { name: type, in: query, schema: { type: string, enum: [point, case] } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: array
+                    items: { $ref: '#/components/schemas/GuidelinePoint' }
+                  cases:
+                    type: array
+                    items: { $ref: '#/components/schemas/GuidelineCase' }
+  /guidelines/{guidelineId}/file:
+    get:
+      tags: [guidelines]
+      summary: 下载原文 PDF
+      parameters:
+        - { name: guidelineId, in: path, required: true, schema: { type: string } }
+      responses:
+        '302': { description: 跳转到对象存储临时地址 }
+
+  /attachments:
+    post:
+      tags: [files]
+      summary: 上传附件（化验单、影像报告照片）
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+                ownerType: { type: string, enum: [visit, patient] }
+                ownerId: { type: string }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attachment' }
+  /ocr/lab-report:
+    post:
+      tags: [files]
+      summary: 化验单识别，返回按字段编码的建议值（需人工核对后保存）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [attachmentIds]
+              properties:
+                attachmentIds:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggestions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        code: { type: string, example: LAB.crp }
+                        value: {}
+                        unit: { type: string }
+                        confidence: { type: number }
+
+components:
+  securitySchemes:
+    session:
+      type: apiKey
+      in: cookie
+      name: ra_session
+  parameters:
+    studyId:
+      name: studyId
+      in: path
+      required: true
+      schema: { type: string, example: RA }
+    studyQuery:
+      name: studyId
+      in: query
+      required: true
+      schema: { type: string, example: RA }
+    patientId:
+      name: patientId
+      in: path
+      required: true
+      schema: { type: string, example: '611991' }
+    visitId:
+      name: visitId
+      in: path
+      required: true
+      schema: { type: string }
+    page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+  responses:
+    Error:
+      description: 错误
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: VALIDATION_FAILED }
+        message: { type: string }
+        details:
+          type: array
+          description: 422 时按字段编码列出
+          items:
+            type: object
+            properties:
+              field: { type: string, example: ASM.tjc28 }
+              message: { type: string }
+    Page:
+      type: object
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    Me:
+      type: object
+      properties:
+        id: { type: string }
+        username: { type: string }
+        name: { type: string, example: 陈医生 }
+        mustChangePassword: { type: boolean }
+        studies:
+          type: array
+          items:
+            type: object
+            properties:
+              studyId: { type: string }
+              role: { type: string, enum: [investigator, data_manager, medical_lead, sys_admin] }
+              permissions:
+                type: array
+                items: { type: string, example: patient:edit }
+    Study:
+      type: object
+      properties:
+        id: { type: string, example: RA }
+        name: { type: string, example: 类风湿关节炎研究数据库 }
+        disease: { type: string }
+        status: { type: string, enum: [active, locked, archived] }
+        crfVersion: { type: string, example: '1.0' }
+        siteCount: { type: integer }
+        patientCount: { type: integer }
+    CrfTemplate:
+      type: object
+      properties:
+        studyId: { type: string }
+        version: { type: string }
+        publishedAt: { type: string, format: date-time }
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string, example: LAB }
+              title: { type: string, example: 检查检验 }
+              groups:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    title: { type: string }
+                    repeatable: { type: boolean }
+                    fields:
+                      type: array
+                      items: { $ref: '#/components/schemas/CrfField' }
+    CrfField:
+      type: object
+      required: [code, label, type]
+      properties:
+        code: { type: string, example: LAB.crp }
+        label: { type: string, example: CRP }
+        type: { type: string, enum: [number, text, longtext, date, single, multi] }
+        unit: { type: string, example: mg/L }
+        min: { type: number }
+        max: { type: number }
+        required: { type: boolean }
+        options:
+          type: array
+          items:
+            type: object
+            properties:
+              value: { type: string }
+              label: { type: string }
+        computed: { type: boolean, description: 服务端计算，前端只读 }
+    CrfData:
+      type: object
+      description: 以字段编码为键；重复组为数组，例如 "TRT.med" 为用药明细列表
+      additionalProperties: true
+      example:
+        LAB.esr: 32
+        LAB.crp: 12.5
+        ASM.tjc28: 6
+        ASM.sjc28: 4
+        HIS.flare_triggers: [fatigue, weather]
+        TRT.med:
+          - { drug_type: csDMARD, drug_name: 甲氨蝶呤, dose: 15, dose_unit: mg, frequency: qw }
+    PatientInput:
+      type: object
+      properties:
+        subjectNo: { type: string }
+        name: { type: string }
+        gender: { type: string, enum: [M, F] }
+        birthDate: { type: string, format: date }
+        phone: { type: string }
+        idNumber: { type: string, description: 加密存储 }
+        hospitalNo: { type: string }
+        followCycle: { type: integer, enum: [3, 6, 12], description: 随访周期（月） }
+        comorbidities:
+          type: array
+          items: { $ref: '#/components/schemas/Comorbidity' }
+    PatientSummary:
+      type: object
+      properties:
+        id: { type: string }
+        subjectNo: { type: string }
+        nameMasked: { type: string, example: 张*华 }
+        gender: { type: string }
+        age: { type: integer }
+        followCycle: { type: integer }
+        lastVisitDate: { type: string, format: date }
+        nextDue: { type: string, format: date }
+        followStatus: { type: string, enum: [overdue, soon, active, pending_first, withdrawn] }
+        completeness: { type: string, enum: [complete, missing] }
+        missingCount: { type: integer }
+        comorbidities:
+          type: array
+          items: { type: string, example: FM }
+        latestDas28: { type: number }
+    Patient:
+      allOf:
+        - { $ref: '#/components/schemas/PatientSummary' }
+        - type: object
+          properties:
+            name: { type: string, description: 按权限返回明文 }
+            birthDate: { type: string, format: date }
+            phoneMasked: { type: string }
+            hospitalNo: { type: string }
+            enrolledAt: { type: string, format: date }
+            withdrawn:
+              type: object
+              properties:
+                date: { type: string, format: date }
+                reason: { type: string }
+            comorbidityDetails:
+              type: array
+              items: { $ref: '#/components/schemas/Comorbidity' }
+            rowVersion: { type: integer }
+    Comorbidity:
+      type: object
+      properties:
+        disease: { type: string, example: FM }
+        detail: { type: string }
+        linkedStudyId: { type: string, description: 对应病种数据库，可跳转 }
+    VisitInput:
+      type: object
+      required: [visitDate]
+      properties:
+        visitDate: { type: string, format: date }
+        visitType: { type: string, enum: [baseline, followup, unscheduled] }
+        data: { $ref: '#/components/schemas/CrfData' }
+        submit: { type: boolean, description: true 直接提交，false 存草稿 }
+    VisitSummary:
+      type: object
+      properties:
+        id: { type: string }
+        visitNo: { type: integer }
+        visitType: { type: string }
+        visitDate: { type: string, format: date }
+        status: { type: string, enum: [draft, submitted, locked] }
+        das28: { type: number }
+        crp: { type: number }
+        treatmentSummary: { type: string }
+        openQcCount: { type: integer }
+    Visit:
+      allOf:
+        - { $ref: '#/components/schemas/VisitSummary' }
+        - type: object
+          properties:
+            patientId: { type: string }
+            crfVersion: { type: string }
+            data: { $ref: '#/components/schemas/CrfData' }
+            derived:
+              type: object
+              properties:
+                das28Esr: { type: number }
+                das28Crp: { type: number }
+                cdai: { type: number }
+                sdai: { type: number }
+                activity: { type: string, enum: [remission, low, moderate, high] }
+            updatedBy: { type: string }
+            updatedAt: { type: string, format: date-time }
+            rowVersion: { type: integer }
+    Followup:
+      type: object
+      properties:
+        patient: { $ref: '#/components/schemas/PatientSummary' }
+        cycle: { type: integer }
+        lastVisitDate: { type: string, format: date }
+        due: { type: string, format: date }
+        days: { type: integer, description: 距到期天数，负数为逾期 }
+        status: { type: string, enum: [overdue, soon, later] }
+    QcIssue:
+      type: object
+      properties:
+        id: { type: string }
+        ruleCode: { type: string }
+        level: { type: string, enum: [error, warning] }
+        type: { type: string, enum: [missing, range, logic, window] }
+        patientId: { type: string }
+        visitId: { type: string }
+        fieldCode: { type: string, description: 前端据此定位到表单字段, example: LAB.crp }
+        message: { type: string }
+        status: { type: string, enum: [open, resolved, ignored] }
+        note: { type: string }
+        createdAt: { type: string, format: date-time }
+        resolvedBy: { type: string }
+    AuditEntry:
+      type: object
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        user: { type: string }
+        action: { type: string, enum: [create_patient, update_patient, create_visit, update_visit, submit_visit, qc_open, qc_resolve, withdraw, import] }
+        entity: { type: string, enum: [patient, visit, qc_issue] }
+        entityId: { type: string }
+        changes:
+          type: array
+          items:
+            type: object
+            properties:
+              field: { type: string, example: followCycle }
+              label: { type: string, example: 随访周期 }
+              old: {}
+              new: {}
+    Dashboard:
+      type: object
+      properties:
+        patientTotal: { type: integer }
+        newThisMonth: { type: integer }
+        visitsThisMonth: { type: integer }
+        overdue: { type: integer }
+        dueSoon: { type: integer }
+        missingData: { type: integer }
+        openQc: { type: integer }
+        activityDistribution:
+          type: object
+          additionalProperties: { type: integer }
+        treatToTargetRate: { type: number }
+        treatmentMix:
+          type: array
+          items:
+            type: object
+            properties:
+              label: { type: string }
+              count: { type: integer }
+    CohortFilter:
+      type: object
+      description: 与前端 AI_FILTER_DEFAULT 字段一致
+      properties:
+        treatments:
+          type: array
+          items: { type: string, example: JAKi }
+        minMonths: { type: integer }
+        das28Min: { type: number }
+        das28Max: { type: number }
+        activity:
+          type: array
+          items: { type: string, enum: [remission, low, moderate, high] }
+        serology: { type: string, enum: [positive, negative] }
+        comorbidity: { type: string }
+        ageMin: { type: integer }
+        ageMax: { type: integer }
+    CohortResult:
+      type: object
+      properties:
+        n: { type: integer }
+        stats:
+          type: object
+          additionalProperties: true
+        subgroups:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        insights:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              text: { type: string }
+              evidence:
+                type: array
+                description: 支撑数据或指南出处
+                items: { type: string }
+        patientIds:
+          type: array
+          items: { type: string }
+    PatientInsight:
+      type: object
+      properties:
+        conclusion:
+          type: object
+          properties:
+            tone: { type: string, enum: [good, stable, bad] }
+            text: { type: string }
+        journey:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              kind: { type: string }
+              title: { type: string }
+              visitId: { type: string }
+        response: { type: object, additionalProperties: true }
+        similar: { type: object, additionalProperties: true }
+        insights:
+          type: array
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              text: { type: string }
+              visitId: { type: string }
+              fieldCode: { type: string }
+    GuidelineMeta:
+      type: object
+      properties:
+        id: { type: string, example: eular2025 }
+        title: { type: string }
+        short: { type: string }
+        org: { type: string }
+        journal: { type: string }
+        doi: { type: string }
+        year: { type: integer }
+        region: { type: string }
+        kind: { type: string, example: 国际推荐 }
+        highlights:
+          type: array
+          items: { type: string }
+        fileUrl: { type: string }
+    GuidelinePoint:
+      type: object
+      properties:
+        id: { type: string }
+        guidelineId: { type: string }
+        topic: { type: string }
+        title: { type: string }
+        content: { type: string }
+        grade: { type: string }
+        page: { type: integer }
+        keywords:
+          type: array
+          items: { type: string }
+    GuidelineCase:
+      type: object
+      properties:
+        id: { type: string }
+        guidelineId: { type: string }
+        title: { type: string }
+        scenario: { type: string }
+        steps:
+          type: array
+          items: { type: string }
+        refs:
+          type: array
+          items: { type: string }
+        page: { type: integer }
+    Attachment:
+      type: object
+      properties:
+        id: { type: string }
+        filename: { type: string }
+        size: { type: integer }
+        contentType: { type: string }
+        url: { type: string, description: 临时下载地址 }

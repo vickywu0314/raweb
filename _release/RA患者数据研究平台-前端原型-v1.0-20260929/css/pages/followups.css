@@ -1,0 +1,64 @@
+/* followups.html 页面专属样式（列表通用样式见 css/shared/patient-list.css） */
+
+/* 列宽：单选 | 患者信息 | 研究信息 | 随访计划 | 预计日期 | 随访状态 | 箭头 */
+.patient-columns.selectable {
+  grid-template-columns:34px minmax(210px,2.2fr) minmax(126px,1.2fr) minmax(140px,1.3fr) minmax(126px,1.2fr) minmax(104px,.9fr) 16px;
+}
+
+.patient-card-link {
+  grid-template-columns:minmax(210px,2.2fr) minmax(126px,1.2fr) minmax(140px,1.3fr) minmax(126px,1.2fr) minmax(104px,.9fr) 16px;
+}
+
+.plan-name {
+  font-size:var(--fs-md);
+}
+
+.check-col input[type=radio] {
+  cursor:pointer;
+}
+
+.patient-card.is-picked {
+  border-color:var(--primary);
+  box-shadow:0 0 0 3px rgba(11,92,204,.1);
+}
+
+.pick-hint {
+  color:#8a98ab;
+  font-size:var(--fs-sm);
+}
+
+.quality-summary {
+  margin-bottom:20px;
+}
+
+@media (max-width:1199px) {
+  .patient-card-link {
+    grid-template-columns:repeat(4,minmax(0,1fr)) 16px;
+  }
+  .patient-card-link .patient-identity {
+    grid-column:1/5;
+  }
+  .patient-card-link>.chevron {
+    grid-column:5;
+  }
+}
+
+@media (max-width:700px) {
+  .patient-card-link {
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) 12px;
+  }
+  .patient-card-link .patient-identity {
+    grid-column:1/3;
+  }
+  .patient-card-link>.chevron {
+    grid-column:3;
+  }
+  .patient-card-link .plan-cell {
+    grid-column:2/4;
+    grid-row:2;
+  }
+  .patient-card-link .date-cell {
+    grid-column:1;
+    grid-row:3;
+  }
+}

@@ -1,0 +1,374 @@
+/* learning-center.html 页面专属样式（在 common.css 之后加载） */
+
+.knowledge-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+
+.knowledge-card {
+  position:relative;
+  min-height:215px;
+  padding:22px;
+  border:1px solid #dfe7f1;
+  border-radius:13px;
+  background:#fff;
+}
+
+.knowledge-card>span {
+  display:inline-grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  border-radius:9px;
+  background:#eef5ff;
+  color:#0b63ce;
+  font-weight:800;
+}
+
+.knowledge-card h2 {
+  font-size:var(--fs-lg);
+  margin:16px 0 8px;
+}
+
+.knowledge-card p {
+  color:#718198;
+  font-size:var(--fs-xs);
+  line-height:1.75;
+}
+
+.knowledge-card>a {
+  position:absolute;
+  left:22px;
+  bottom:20px;
+  color:#0b63ce;
+  font-size:var(--fs-xs);
+  font-weight:700;
+}
+
+.knowledge-card.featured {
+  border-color:#bcd5f4;
+  box-shadow:0 5px 18px rgba(49,92,145,.06);
+}
+
+.topic-tags {
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  margin-top:12px;
+}
+
+.topic-tags b {
+  font-size:var(--fs-xs);
+  font-weight:600;
+  color:#58718e;
+  background:#f3f6fa;
+  border-radius:12px;
+  padding:4px 8px;
+}
+
+.reference-panel {
+  margin-top:18px;
+  padding:20px 22px;
+  border:1px solid #dfe7f1;
+  border-radius:12px;
+  background:#fff;
+}
+
+.reference-panel h2 {
+  font-size:var(--fs-lg);
+  margin-bottom:5px;
+}
+
+.reference-panel p {
+  font-size:var(--fs-xs);
+  color:#77879a;
+}
+
+/* v38 参考文献直接展开，按论文引用格式列出 */
+.reference-list {
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid #edf1f6;
+}
+
+.reference-list h3 {
+  font-size:var(--fs-md);
+  margin-bottom:8px;
+}
+
+.reference-list ol {
+  margin:0;
+  padding-left:26px;
+  display:grid;
+  gap:6px;
+}
+
+.reference-list li {
+  font-size:var(--fs-sm);
+  line-height:1.65;
+  color:#4a5b72;
+}
+
+.reference-list li::marker {
+  color:#8a98ab;
+  font-variant-numeric:tabular-nums;
+}
+
+.reference-panel .reference-meta {
+  margin-top:12px;
+}
+
+/* 顶部说明文字在空间足够时单行展示 */
+.knowledge-hero > div:first-child {
+  flex:1 1 auto;
+  min-width:0;
+}
+
+.knowledge-hero p {
+  max-width:none;
+}
+
+@media (max-width:1100px) {
+  .knowledge-grid {
+    grid-template-columns:repeat(2,1fr);
+  }
+}
+
+@media (max-width:700px) {
+  .knowledge-grid {
+    grid-template-columns:1fr;
+  }
+}
+
+/* v50 最新国内外指南 + 指南精华速查 */
+.gl-block {
+  margin-bottom:18px;
+}
+
+.gl-head h2,
+.kb-entry h2,
+.lc-sub {
+  margin:6px 0 4px;
+  font-size:var(--fs-2xl);
+}
+
+.gl-head p,
+.kb-entry-text p {
+  color:#6f7f95;
+  font-size:var(--fs-sm);
+}
+
+.lc-sub {
+  margin:24px 0 12px;
+}
+
+.gl-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+  margin-top:14px;
+}
+
+.gl-card {
+  --tone:#2f6fd6;
+  --tint:#eef4fd;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:18px;
+  border:1px solid #dfe7f1;
+  border-top:4px solid var(--tone);
+  border-radius:13px;
+  background:#fff;
+}
+
+.gl-card.intl { --tone:#1f63c6; --tint:#eaf2fe; }
+.gl-card.west { --tone:#17917f; --tint:#ebf7f4; }
+.gl-card.tcm { --tone:#b8770f; --tint:#fcf5e8; }
+.gl-card.mix { --tone:#6a4ce6; --tint:#f3f0fe; }
+
+.gl-tags {
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:var(--fs-xs);
+}
+
+.gl-kind {
+  padding:2px 8px;
+  border-radius:999px;
+  background:var(--tint);
+  color:var(--tone);
+  font-weight:700;
+}
+
+.gl-region {
+  color:#8a98ab;
+}
+
+.gl-card h3 {
+  font-size:var(--fs-lg);
+  line-height:1.45;
+}
+
+.gl-en {
+  color:#8a98ab;
+  font-size:var(--fs-xs);
+  line-height:1.5;
+}
+
+.gl-src {
+  color:#6f7f95;
+  font-size:var(--fs-xs);
+  line-height:1.6;
+}
+
+.gl-hl {
+  flex:1;
+  margin:4px 0 0;
+  padding-left:18px;
+  color:#34445a;
+  font-size:var(--fs-sm);
+  line-height:1.65;
+}
+
+.gl-hl li + li {
+  margin-top:4px;
+}
+
+.gl-hl li::marker {
+  color:var(--tone);
+}
+
+.gl-actions {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin-top:8px;
+}
+
+.gl-open {
+  font-size:var(--fs-xs);
+  font-weight:600;
+}
+
+.kb-entry {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(360px,1.1fr);
+  align-items:center;
+  gap:12px 28px;
+  padding:22px 24px;
+  border:1px solid #cfe0f5;
+  border-radius:16px;
+  background:linear-gradient(120deg,#eef6ff,#fff 70%);
+}
+
+.kb-search {
+  display:flex;
+  align-items:center;
+  gap:8px;
+  height:52px;
+  padding:0 6px 0 14px;
+  border:1px solid #cbd9ec;
+  border-radius:12px;
+  background:#fff;
+  color:#8a98ab;
+}
+
+.kb-search:focus-within {
+  border-color:var(--primary);
+  box-shadow:0 0 0 4px rgba(11,92,204,.1);
+}
+
+.kb-search svg {
+  width:18px;
+  height:18px;
+  flex:none;
+}
+
+.kb-search input {
+  flex:1;
+  min-width:0;
+  height:100%;
+  padding:0;
+  border:0;
+  background:transparent;
+  font-size:var(--fs-md);
+  outline:none;
+}
+
+.kb-search input:focus-visible {
+  outline:none;
+}
+
+.kb-search .button {
+  min-height:40px;
+}
+
+.kb-chips {
+  grid-column:1 / -1;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px;
+  font-size:var(--fs-xs);
+  color:#8a98ab;
+}
+
+.kb-chips a {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:4px 10px;
+  border:1px solid #d6e2f5;
+  border-radius:999px;
+  background:#fff;
+  color:#41536b;
+  font-size:var(--fs-sm);
+}
+
+.kb-chips a:hover {
+  border-color:var(--primary);
+  color:var(--primary);
+}
+
+.kb-chips small {
+  color:#9aa6b5;
+}
+
+.kb-chips .case-link {
+  border-color:#e1dafc;
+  color:#5b45c9;
+}
+
+@media (max-width:1300px) {
+  .gl-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+@media (max-width:900px) {
+  .kb-entry {
+    grid-template-columns:1fr;
+  }
+}
+
+@media (max-width:600px) {
+  .gl-grid {
+    grid-template-columns:1fr;
+  }
+}
+
+/* 专题卡片：链接随内容下移，避免与标签重叠 */
+.knowledge-card {
+  display:flex;
+  flex-direction:column;
+}
+
+.knowledge-card>a {
+  position:static;
+  margin-top:auto;
+  padding-top:14px;
+}

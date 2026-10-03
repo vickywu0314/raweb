@@ -1,0 +1,78 @@
+/* projects.html 页面专属样式（在 common.css 之后加载） */
+
+.project-overview-cards {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+  margin:18px 0;
+}
+
+.project-overview-cards article {
+  padding:17px;
+  border:1px solid #e4e9ef;
+  border-radius:11px;
+  background:#fff;
+}
+
+.project-overview-cards strong {
+  display:block;
+  font-size:var(--fs-3xl);
+}
+
+.project-overview-cards span {
+  display:block;
+  margin-top:5px;
+  color:#8492a2;
+  font-size:var(--fs-xs);
+}
+
+@media (max-width:1000px) {
+  .project-overview-cards {
+    grid-template-columns:repeat(2,1fr);
+  }
+}
+
+/* 项目总览 KPI */
+
+.project-overview-cards article {
+  position:relative;
+  overflow:hidden;
+}
+
+.project-overview-cards article::before {
+  content:"";
+  position:absolute;
+  left:0;
+  right:0;
+  top:0;
+  height:3px;
+  background:var(--primary);
+}
+
+.project-overview-cards article:nth-child(2)::before {
+  background:var(--ok);
+}
+
+.project-overview-cards article:nth-child(3)::before {
+  background:var(--ai);
+}
+
+.project-overview-cards article:nth-child(4)::before {
+  background:var(--warn);
+}
+
+.project-overview-cards article:nth-child(1) strong {
+  color:var(--primary);
+}
+
+.project-overview-cards article:nth-child(2) strong {
+  color:var(--ok);
+}
+
+.project-overview-cards article:nth-child(3) strong {
+  color:var(--ai);
+}
+
+.project-overview-cards article:nth-child(4) strong {
+  color:#a55f05;
+}

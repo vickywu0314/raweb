@@ -1,0 +1,47 @@
+/* visit-create.html 页面专属样式（表单通用样式见 css/shared/case-form.css） */
+
+/* 基本信息只读卡片 */
+.create-section.is-locked .create-section-head h2::after {
+  content:"🔒";
+  margin-left:6px;
+  font-size:var(--fs-xs);
+}
+
+.locked-note {
+  margin-bottom:14px;
+  padding:9px 12px;
+  border-radius:8px;
+  background:#f3f6fa;
+  color:#5d6d83;
+  font-size:var(--fs-sm);
+}
+
+.readonly-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px 18px;
+}
+
+.readonly-grid div {
+  display:grid;
+  gap:3px;
+  min-width:0;
+}
+
+.readonly-grid span {
+  color:#8a98ab;
+  font-size:var(--fs-xs);
+}
+
+.readonly-grid b {
+  font-size:var(--fs-md);
+  font-weight:600;
+  color:var(--ink);
+  overflow-wrap:anywhere;
+}
+
+@media (max-width:900px) {
+  .readonly-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
