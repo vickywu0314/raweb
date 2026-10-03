@@ -1,0 +1,11 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	symlinks = false
+	ignorecase = true
+	quotepath = false
+[user]
+	name = vickywu0314
+	email = smarthooters@gmail.com

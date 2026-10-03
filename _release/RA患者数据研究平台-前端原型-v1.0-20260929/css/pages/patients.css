@@ -1,0 +1,31 @@
+/* patients.html 页面专属样式（列表通用样式见 css/shared/patient-list.css） */
+
+/* 摘要中的可点击数字：点击筛选资料待补全患者 */
+.summary-link {
+  padding:0;
+  border:0;
+  border-radius:2px;
+  background:none;
+  color:var(--primary);
+  font:inherit;
+  font-weight:650;
+  text-decoration:underline;
+  text-underline-offset:3px;
+  cursor:pointer;
+}
+
+.summary-link:hover {
+  color:var(--primary-hover);
+}
+
+/* v37 其他病史列：可点击病种标签，点击弹出病程简要 */
+.comorbid-chips {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+}
+
+.comorbid-none {
+  color:#8a98ab;
+  font-size:var(--fs-md);
+}

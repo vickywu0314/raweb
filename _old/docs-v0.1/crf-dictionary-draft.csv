@@ -1,0 +1,95 @@
+﻿字段编码,模块,分组,字段名称,类型,单位,取值范围,选项,必填,重复组,当前前端键,备注
+HIS.first_visit_date,病史病情,疾病时间轴与病程,首诊时间,日期,,,,,,history:firstVisit,
+HIS.visit_date,病史病情,疾病时间轴与病程,本次随访时间,日期,,,,,,history:visitDate,归入 visit.visit_date，不放 CRF
+HIS.onset_date,病史病情,疾病时间轴与病程,发病时间,日期,,,,,,history:onset,
+HIS.diagnosis_date,病史病情,疾病时间轴与病程,确诊时间,日期,,,,,,history:diagnosis,
+HIS.course_desc,病史病情,疾病时间轴与病程,首发症状 / 病程,长文本,,,,,,history:course,
+HIS.past_history,病史病情,既往及个人史,既往史,长文本,,,,,,history:past,
+HIS.family_history,病史病情,既往及个人史,家族史,长文本,,,,,,history:family,
+HIS.comorbidity,病史病情,既往及个人史,合并疾病,长文本,,,,,,history:comorbidity,
+HIS.smoking,病史病情,既往及个人史,吸烟史,单选,,,从不吸烟 | 既往吸烟 | 目前吸烟,,,history:smoke,
+HIS.allergy,病史病情,既往及个人史,过敏史,文本,,,,,,history:allergy,
+HIS.flare_triggers,病史病情,加重诱因,加重诱因,多选,,,无 | 停药 | 减药 | 换药 | 间断服药 | 劳累 | 感冒 | 感染 | 情绪刺激 | 分娩或小产 | 饮食不当 | 创伤 | 手术 | 天气变化 | 其他,,,history:10 history:11 history:12 history:13 history:14 history:15 history:16 history:17 history:18 history:19 history:20 history:21 history:22 history:23 history:24,现为多个独立勾选框，合并为一个多选字段
+HIS.joint_pain,病史病情,关节症状,关节疼痛,单选,,,无 | 疼痛较轻 | 疼痛较重，可以忍受 | 疼痛很重，难以忍受,,,history:25,
+HIS.pain_nature,病史病情,关节症状,疼痛性质,单选,,,不明确 | 胀痛 | 刺痛 | 冷痛 | 酸痛,,,history:26,
+HIS.pain_site_pattern,病史病情,关节症状,疼痛部位特点,单选,,,痛有定处 | 游走不定,,,history:27,
+HIS.pain_worse_time,病史病情,关节症状,疼痛加重时间,单选,,,无明显时间性 | 晨起 | 午后 | 夜间,,,history:28,
+HIS.morning_stiffness,病史病情,关节症状,关节晨僵,单选,,,无 | <30分钟 | 30分钟~1小时 | 1小时~2小时 | >2小时,,,history:29,
+HIS.joint_swelling,病史病情,关节症状,关节肿胀,单选,,,无 | 很轻 | 较重 | 极重,,,history:30,
+HIS.joint_heat,病史病情,关节症状,关节触热,单选,,,无 | 触热且有热感 | 触热但无热感,,,history:31,
+HIS.skin_redness,病史病情,关节症状,皮色发红,单选,,,无 | 有,,,history:32,
+HIS.cold_heat_change,病史病情,关节症状,寒热变化,单选,,,无明显变化 | 遇热加重 | 遇寒加重,,,history:33,
+HIS.subcutaneous_nodule,病史病情,关节症状,皮下结节,单选,,,无 | 有,,,history:34,
+HIS.affected_joints,病史病情,关节症状,受累关节,多选,,,肘 | 腕 | 掌指关节 | 近端指关节 | 远端指关节 | 膝 | 足,,,history:35 history:36 history:37 history:38 history:39 history:40 history:41,现为多个独立勾选框，合并为一个多选字段
+HIS.appetite,病史病情,全身及其他症状,胃口,单选,,,很好 | 有点差 | 很差 | 一点胃口都没有,,,history:42,
+HIS.insomnia_dreams,病史病情,全身及其他症状,失眠多梦,单选,,,无 | 偶尔 | 时常 | 总是,,,history:43,
+HIS.restlessness,病史病情,全身及其他症状,心烦不安,单选,,,几乎没有 | 偶尔 | 常常 | 几乎总是,,,history:44,
+HIS.fatigue,病史病情,全身及其他症状,神疲乏力,单选,,,无 | 有疲乏 | 很疲乏 | 非常疲乏，不能干任何事,,,history:45,
+HIS.aversion_wind_cold,病史病情,全身及其他症状,怕风怕凉,单选,,,无 | 稍感，无需加盖衣被 | 加盖衣被可缓解 | 加盖衣被不缓解,,,history:46,
+HIS.menstruation,病史病情,全身及其他症状,月经（适用时）,文本,,,,,,history:47,
+HIS.urine,病史病情,全身及其他症状,小便,文本,,,,,,history:48,
+HIS.stool,病史病情,全身及其他症状,大便,文本,,,,,,history:49,
+LAB.esr,检查检验,炎症与血常规,ESR (mm/h),数值,mm/h,0-150,,,,exam:0,
+LAB.crp,检查检验,炎症与血常规,CRP (mg/L),数值,mg/L,0-300,,,,exam:1,
+LAB.hscrp,检查检验,炎症与血常规,hsCRP,数值,mg/L,,,,,exam:2,
+LAB.wbc,检查检验,炎症与血常规,WBC,数值,10^9/L,,,,,exam:3,现前端为文本框，建议改数值
+LAB.hgb,检查检验,炎症与血常规,HGB,数值,g/L,,,,,exam:4,现前端为文本框，建议改数值
+LAB.plt,检查检验,炎症与血常规,PLT,数值,10^9/L,,,,,exam:5,现前端为文本框，建议改数值
+LAB.rf,检查检验,免疫、肝肾功能及其他检验,RF,数值,IU/mL,,,,,exam:6,现前端为文本框，建议改数值
+LAB.igg,检查检验,免疫、肝肾功能及其他检验,IgG,数值,g/L,,,,,exam:7,现前端为文本框，建议改数值
+LAB.iga,检查检验,免疫、肝肾功能及其他检验,IgA,数值,g/L,,,,,exam:8,现前端为文本框，建议改数值
+LAB.igm,检查检验,免疫、肝肾功能及其他检验,IgM,数值,g/L,,,,,exam:9,现前端为文本框，建议改数值
+LAB.alt,检查检验,免疫、肝肾功能及其他检验,ALT,数值,U/L,,,,,exam:10,现前端为文本框，建议改数值
+LAB.ast,检查检验,免疫、肝肾功能及其他检验,AST,数值,U/L,,,,,exam:11,现前端为文本框，建议改数值
+LAB.ggt,检查检验,免疫、肝肾功能及其他检验,GGT,数值,U/L,,,,,exam:12,现前端为文本框，建议改数值
+LAB.urea,检查检验,免疫、肝肾功能及其他检验,UREA,数值,mmol/L,,,,,exam:13,现前端为文本框，建议改数值
+LAB.crea,检查检验,免疫、肝肾功能及其他检验,CREA,数值,μmol/L,,,,,exam:14,现前端为文本框，建议改数值
+LAB.d_dimer,检查检验,免疫、肝肾功能及其他检验,D-Dimer,数值,mg/L FEU,,,,,exam:15,现前端为文本框，建议改数值
+LAB.hcy,检查检验,免疫、肝肾功能及其他检验,HCY,数值,μmol/L,,,,,exam:16,现前端为文本框，建议改数值
+LAB.other_biochem,检查检验,免疫、肝肾功能及其他检验,DBIL / 血脂 / 血糖,文本,,,,,,exam:17,多项合并在一个框，建议拆分
+LAB.xray_date,检查检验,影像与检查报告,关节 X 线日期,日期,,,,,,exam:18,
+LAB.exam_no,检查检验,影像与检查报告,检查号,文本,,,,,,exam:19,
+LAB.exam_site,检查检验,影像与检查报告,检查部位,文本,,,,,,exam:20,
+LAB.report_text,检查检验,影像与检查报告,检验 / 影像报告,长文本,,,,,,exam:21,
+LAB.ecg,检查检验,影像与检查报告,心电图,文本,,,,,,exam:22,
+LAB.echo,检查检验,影像与检查报告,超声心动,文本,,,,,,exam:23,
+ASM.tjc28,评估,关节与 VAS,压痛关节数,数值,,0-28,,,,assessment:0,
+ASM.sjc28,评估,关节与 VAS,肿胀关节数,数值,,0-28,,,,assessment:1,
+ASM.morning_stiffness_min,评估,关节与 VAS,晨僵持续时间（分钟）,数值,min,,,,,assessment:2,
+ASM.pain_vas,评估,关节与 VAS,患者疼痛 VAS,数值,mm,0-100,,,,assessment:3,
+ASM.ptga_vas,评估,关节与 VAS,患者疾病总体 VAS,数值,mm,0-100,,,,assessment:4,
+ASM.phga_vas,评估,关节与 VAS,医生疾病总体 VAS,数值,mm,0-100,,,,assessment:5,
+ASM.haq,评估,HAQ 与疾病活动度,HAQ,数值,,0-3,,,,assessment:6,
+ASM.das28,评估,HAQ 与疾病活动度,DAS28,数值,,0-10,,,,assessment:7,建议服务端自动计算，并区分 DAS28-ESR / DAS28-CRP
+ASM.acr_response,评估,HAQ 与疾病活动度,ACR 疗效,单选,,,请选择 | ACR20 | ACR50 | ACR70,,,assessment:8,
+ASM.organ_involvement,评估,HAQ 与疾病活动度,脏器受累,长文本,,,,,,assessment:9,
+TCM.main_syndrome,中医四诊,,主证,文本,,,,,,tcm:0,
+TCM.secondary_syndrome,中医四诊,,兼证,文本,,,,,,tcm:1,
+TCM.tongue_color,中医四诊,,舌色,文本,,,,,,tcm:2,
+TCM.tongue_shape,中医四诊,,舌形,文本,,,,,,tcm:3,
+TCM.coating_texture,中医四诊,,苔质,文本,,,,,,tcm:4,
+TCM.coating_color,中医四诊,,苔色,文本,,,,,,tcm:5,
+TCM.pulse,中医四诊,,脉象,文本,,,,,,tcm:6,
+TRT.regimen_changed,治疗,与上次治疗比较,治疗方案是否调整,单选,,,首次建档 / 无上次方案 | 否 | 是,,,treatment:0,
+TRT.change_reason,治疗,与上次治疗比较,调整原因,单选,,,请选择 | 疗效不佳 | 不良事件 | 经济原因 | 其他,,,treatment:1,
+TRT.med.drug_type,治疗,用药明细,药物类型,单选,,,西药 | 中成药 | 中药饮片,,是（用药明细，每行一种药）,treatment:2,
+TRT.med.drug_name,治疗,用药明细,药品名称,文本,,,,,是（用药明细，每行一种药）,treatment:3,
+TRT.med.brand_name,治疗,用药明细,商品名称,文本,,,,,是（用药明细，每行一种药）,treatment:4,
+TRT.med.manufacturer,治疗,用药明细,厂家,文本,,,,,是（用药明细，每行一种药）,treatment:5,
+TRT.med.spec,治疗,用药明细,规格,文本,,,,,是（用药明细，每行一种药）,treatment:6,
+TRT.med.dose,治疗,用药明细,剂量,数值,,,,,是（用药明细，每行一种药）,treatment:7,现前端为文本框，建议改数值
+TRT.med.dose_unit,治疗,用药明细,单位,文本,,,,,是（用药明细，每行一种药）,treatment:8,
+TRT.med.route,治疗,用药明细,给药方式,文本,,,,,是（用药明细，每行一种药）,treatment:9,
+TRT.med.frequency,治疗,用药明细,给药频次,文本,,,,,是（用药明细，每行一种药）,treatment:10,
+TRT.med.start_date,治疗,用药明细,起始时间,日期,,,,,是（用药明细，每行一种药）,treatment:11,
+TRT.med.adjust_process,治疗,用药明细,调药过程,文本,,,,,是（用药明细，每行一种药）,treatment:12,
+TRT.med.adjust_reason,治疗,用药明细,调药原因,文本,,,,,是（用药明细，每行一种药）,treatment:13,
+TRT.med.cumulative_dose,治疗,用药明细,累积剂量,数值,,,,,是（用药明细，每行一种药）,treatment:14,现前端为文本框，建议改数值
+AE.ae_occurred,不良反应,,是否发生不良反应,单选,,,否 | 是,,,adverse:0,
+AE.event.ae_name,不良反应,,不良反应名称,文本,,,,,是（每条不良事件一行）,adverse:1,
+AE.event.ae_start,不良反应,,发生日期,日期,,,,,是（每条不良事件一行）,adverse:2,
+AE.event.ae_end,不良反应,,结束日期,日期,,,,,是（每条不良事件一行）,adverse:3,
+AE.event.ae_action,不良反应,,药物处理措施,单选,,,剂量不变 | 减少剂量 | 停止用药 | 对症治疗 | 其他措施,,是（每条不良事件一行）,adverse:4,
+AE.event.is_sae,不良反应,,是否 SAE,单选,,,否 | 是,,是（每条不良事件一行）,adverse:5,
+AE.event.ae_detail,不良反应,,事件详情 / SAE 分类,长文本,,,,,是（每条不良事件一行）,adverse:6,
+CASE.progress_note,随诊病例,,随诊病例记录,长文本,,,,,,case:0,

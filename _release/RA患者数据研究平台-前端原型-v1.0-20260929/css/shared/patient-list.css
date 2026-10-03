@@ -1,0 +1,640 @@
+/* 患者列表类页面（共享模块）：patients / followups / data-quality 共用——检索栏、操作栏、列表卡片、分页。
+   各页面在自己的 css/pages/*.css 中覆盖列宽。 */
+
+.toolbar {
+  display:flex;
+  gap:12px;
+  align-items:center;
+  margin-bottom:20px;
+}
+
+.search-field {
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-width:200px;
+  flex:1;
+  border:1px solid #d4dfed;
+  border-radius:9px;
+  background:transparent;
+  padding:0 15px;
+  min-height:46px;
+}
+
+.search-field:focus-within {
+  border-color:var(--primary);
+  box-shadow:0 0 0 3px #0b5ccc12;
+}
+
+.search-field img {
+  width:20px;
+  height:20px;
+}
+
+.search-field input {
+  background:transparent;
+  width:100%;
+  padding:0;
+  outline:none;
+  border:0;
+  font-size:var(--fs-md);
+}
+
+.search-field input:focus-visible {
+  outline:none;
+}
+
+.select-field select {
+  background:transparent;
+  min-height:46px;
+  width:170px;
+  color:#596d87;
+}
+
+.toolbar>.button {
+  min-height:46px;
+}
+
+.list-tools {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:20px;
+}
+
+.filter-tabs {
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+}
+
+.filter-tab {
+  border:1px solid transparent;
+  color:#748399;
+  padding:6px 10px;
+  background:transparent;
+  min-height:36px;
+  font-size:var(--fs-xs);
+}
+
+.filter-tab span {
+  font-size:var(--fs-xs);
+  padding-left:6px;
+  opacity:.8;
+}
+
+.filter-tab:hover {
+  background:#edf2fa;
+}
+
+.filter-tab.active {
+  color:var(--primary);
+  background:#e9f1fd;
+  border-color:#d4e4fa;
+  font-weight:600;
+}
+
+.pagination-bar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  flex-wrap:wrap;
+  margin-top:24px;
+  color:var(--muted);
+  font-size:var(--fs-xs);
+}
+
+.pagination-controls {
+  display:flex;
+  align-items:center;
+  gap:16px;
+}
+
+#pagination {
+  display:flex;
+  gap:5px;
+  align-items:center;
+}
+
+#pagination button {
+  min-width:33px;
+  height:34px;
+  padding:0 8px;
+  background:white;
+  border:1px solid var(--line);
+  color:#61718a;
+}
+
+#pagination button.active {
+  background:var(--primary);
+  border-color:var(--primary);
+  color:white;
+}
+
+.page-size select {
+  font-size:var(--fs-xs);
+  min-height:34px;
+}
+
+.empty-state {
+  text-align:center;
+  border:1px dashed var(--line);
+  border-radius:12px;
+  padding:60px 20px;
+}
+
+.empty-state>img {
+  width:32px;
+  height:32px;
+  margin:0 auto 16px;
+  opacity:.5;
+}
+
+.empty-state h2 {
+  font-size:var(--fs-xl);
+}
+
+.empty-state p {
+  margin:10px 0 20px;
+  color:var(--muted);
+}
+
+@media (max-width:1200px) {
+  .select-field select {
+    width:145px;
+  }
+}
+
+@media (max-width:1000px) {
+  .toolbar {
+    flex-wrap:wrap;
+  }
+  .search-field {
+    flex-basis:100%;
+  }
+  .select-field {
+    flex:1;
+  }
+  .select-field select {
+    width:100%;
+  }
+}
+
+@media (max-width:700px) {
+  .toolbar {
+    gap:9px;
+    margin-bottom:13px;
+  }
+  .search-field {
+    padding:0 12px;
+  }
+  .search-field input {
+    font-size:var(--fs-sm);
+  }
+  .select-field select {
+    font-size:var(--fs-xs);
+    padding:0 7px;
+  }
+  .list-tools {
+    display:block;
+    margin-bottom:14px;
+  }
+  .filter-tabs {
+    flex-wrap:nowrap;
+    overflow-x:auto;
+    gap:3px;
+    padding-bottom:3px;
+  }
+  .filter-tab {
+    flex:none;
+    font-size:var(--fs-xs);
+    padding:6px 8px;
+  }
+  .pagination-bar {
+    margin-top:19px;
+    gap:12px;
+  }
+  .pagination-controls {
+    width:100%;
+    justify-content:space-between;
+    gap:7px;
+  }
+  #pagination {
+    gap:4px;
+  }
+  #pagination button {
+    min-width:29px;
+    padding:0 6px;
+  }
+  .page-size select {
+    padding:0 5px;
+    font-size:var(--fs-xs);
+  }
+}
+
+@media (max-width:360px) {
+  .pagination-controls {
+    flex-wrap:wrap;
+    row-gap:12px;
+  }
+  .page-size {
+    margin-left:auto;
+  }
+}
+
+/* 列表表头与每条记录共用列宽；卡片整体可通过键盘打开。 */
+
+.patient-columns,
+.patient-card {
+  display:grid;
+  grid-template-columns:minmax(210px, 2.2fr) minmax(126px, 1.2fr) minmax(100px, 1fr) minmax(128px, 1.2fr) minmax(126px, 1.2fr) minmax(104px, .9fr) 16px;
+  align-items:center;
+  column-gap:18px;
+  padding:0 20px;
+}
+
+.patient-columns {
+  color:#8a98ac;
+  font-size:var(--fs-xs);
+  padding-bottom:10px;
+}
+
+.patient-list {
+  display:grid;
+  gap:12px;
+}
+
+.patient-card {
+  width:100%;
+  padding-top:19px;
+  padding-bottom:19px;
+  text-align:left;
+  border:1px solid #dce4ef;
+  background:white;
+  border-radius:12px;
+  color:var(--ink);
+  transition:border-color .15s, box-shadow .15s;
+}
+
+.patient-card:hover {
+  border-color:#82acf0;
+  box-shadow:0 3px 12px #2547750c;
+}
+
+.patient-identity {
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+
+.patient-info {
+  min-width:0;
+}
+
+.patient-cell {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:5px;
+  min-width:0;
+  font-size:var(--fs-sm);
+}
+
+.cell-label {
+  display:none;
+}
+
+.cell-note {
+  font-size:var(--fs-xs);
+  color:#8593a8;
+}
+
+.missing-value {
+  color:#8090a5;
+  font-size:var(--fs-xs);
+}
+
+.last-visit {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  font-variant-numeric:tabular-nums;
+  font-size:var(--fs-xs);
+}
+
+.last-visit img {
+  width:14px;
+  height:14px;
+}
+
+.status-cell .badge {
+  font-size:var(--fs-xs);
+  padding:3px 9px;
+}
+
+@media (min-width: 1600px) {
+  .patient-card {
+    padding-top:22px;
+    padding-bottom:22px;
+  }
+  .cell-note {
+    font-size:var(--fs-xs);
+  }
+  .last-visit {
+    font-size:var(--fs-md);
+  }
+}
+
+@media (max-width: 1199px) {
+  .patient-columns {
+    display:none;
+  }
+  .patient-card {
+    grid-template-columns:repeat(5, minmax(0, 1fr)) 16px;
+    row-gap:16px;
+    column-gap:12px;
+  }
+  .patient-identity {
+    grid-column:1 / 6;
+  }
+  .patient-card > .chevron {
+    grid-column:6;
+    grid-row:1;
+  }
+  .patient-cell {
+    grid-row:2;
+    border-top:1px solid #edf1f7;
+    padding-top:12px;
+  }
+  .cell-label {
+    display:block;
+    color:#8a98ac;
+    font-size:var(--fs-xs);
+    margin-bottom:3px;
+  }
+}
+
+@media (max-width: 700px) {
+  .patient-card {
+    padding:16px;
+    grid-template-columns:minmax(0, 1fr) minmax(0, 1fr) 12px;
+    column-gap:12px;
+    row-gap:13px;
+  }
+  .patient-identity {
+    grid-column:1 / 3;
+  }
+  .patient-card > .chevron {
+    grid-column:3;
+  }
+  .research-cell {
+    grid-column:1;
+    grid-row:2;
+  }
+  .disease-cell {
+    grid-column:2 / 4;
+    grid-row:2;
+  }
+  .visit-cell {
+    grid-column:1;
+    grid-row:3;
+  }
+  .status-cell {
+    grid-column:2 / 4;
+    grid-row:3;
+  }
+  .status-cell .badge {
+    margin-top:1px;
+  }
+}
+
+.patient-columns.selectable {
+  grid-template-columns:34px minmax(210px,2.2fr) minmax(126px,1.2fr) minmax(100px,1fr) minmax(128px,1.2fr) minmax(126px,1.2fr) minmax(104px,.9fr) 16px;
+}
+
+.patient-card.selectable {
+  grid-template-columns:34px minmax(0,1fr);
+  padding-left:20px;
+  padding-right:20px;
+}
+
+.patient-card-link {
+  display:grid;
+  grid-template-columns:minmax(210px,2.2fr) minmax(126px,1.2fr) minmax(100px,1fr) minmax(128px,1.2fr) minmax(126px,1.2fr) minmax(104px,.9fr) 16px;
+  align-items:center;
+  column-gap:18px;
+  color:var(--ink);
+  min-width:0;
+}
+
+.check-col {
+  display:grid;
+  place-items:center;
+}
+
+.check-col input {
+  width:16px;
+  height:16px;
+  accent-color:var(--primary);
+}
+
+@media (max-width:1199px) {
+  .patient-columns.selectable {
+    display:none;
+  }
+  .patient-card.selectable {
+    grid-template-columns:30px minmax(0,1fr);
+  }
+  .patient-card-link {
+    grid-template-columns:repeat(5,minmax(0,1fr)) 16px;
+    row-gap:16px;
+  }
+  .patient-card-link .patient-identity {
+    grid-column:1/6;
+  }
+  .patient-card-link>.chevron {
+    grid-column:6;
+    grid-row:1;
+  }
+  .patient-card-link .patient-cell {
+    grid-row:2;
+  }
+}
+
+@media (max-width:700px) {
+  .patient-card-link {
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) 12px;
+  }
+  .patient-card-link .patient-identity {
+    grid-column:1/3;
+  }
+  .patient-card-link>.chevron {
+    grid-column:3;
+  }
+  .patient-card-link .research-cell {
+    grid-column:1;
+    grid-row:2;
+  }
+  .patient-card-link .disease-cell {
+    grid-column:2/4;
+    grid-row:2;
+  }
+  .patient-card-link .visit-cell {
+    grid-column:1;
+    grid-row:3;
+  }
+  .patient-card-link .status-cell {
+    grid-column:2/4;
+    grid-row:3;
+  }
+  .patient-card-link .history-cell {
+    grid-column:1/4;
+    grid-row:4;
+  }
+}
+
+/* v15: skeleton loading for patient list and patient visit overview */
+
+.skeleton-inline-summary {
+  width:260px;
+  height:13px;
+  margin-top:8px;
+}
+
+.patient-skeleton-row {
+  pointer-events:none;
+}
+
+.skeleton-check {
+  width:16px;
+  height:16px;
+}
+
+.patient-skeleton-cell {
+  display:grid;
+  gap:8px;
+  align-content:center;
+}
+
+.skeleton-patient-name {
+  width:112px;
+  height:17px;
+}
+
+.skeleton-cell-line {
+  width:92px;
+  height:15px;
+}
+
+.skeleton-cell-sub {
+  width:72px;
+  height:11px;
+}
+
+.skeleton-result-count {
+  width:150px;
+  height:12px;
+}
+
+.new-patient-button .button-plus {
+  font-size:var(--fs-2xl);
+  line-height:1;
+  font-weight:400;
+  margin-top:-1px;
+}
+
+@media (min-width:1800px) {
+  .patient-columns.selectable,
+  .patient-card.selectable {
+    column-gap:clamp(18px,1.25vw,34px);
+  }
+  .toolbar {
+    gap:14px;
+  }
+  .search-field {
+    flex:1 1 720px;
+  }
+  .select-field {
+    flex:0 0 190px;
+  }
+}
+
+@media (min-width:2800px) {
+  .patient-list {
+    gap:14px;
+  }
+  .patient-card {
+    min-height:112px;
+  }
+}
+
+/* 列表与卡片强化 */
+
+.filter-tab.active {
+  background:var(--primary);
+  border-color:var(--primary);
+  color:#fff;
+}
+
+.filter-tab.active span {
+  color:rgba(255,255,255,.85);
+}
+
+.patient-card {
+  transition:border-color .15s,box-shadow .15s;
+}
+
+.patient-card:hover {
+  border-color:#b9cff3;
+  box-shadow:0 6px 18px rgba(29,95,224,.08);
+}
+
+/* ===== v34 列表字阶：主值 14 / 次要 13 / 表头·标签 12 ===== */
+
+.patient-card .study-code,
+.patient-card .last-visit,
+.patient-card .missing-value {
+  font-size:var(--fs-md);
+  color:var(--ink);
+}
+
+.patient-card .missing-value {
+  color:#8a98ab;
+}
+
+.patient-card .patient-meta,
+.patient-card .cell-note {
+  font-size:var(--fs-sm);
+}
+
+.patient-card .cell-label,
+.patient-columns span {
+  font-size:var(--fs-xs);
+}
+
+.patient-columns span {
+  color:#6f7f95;
+  font-weight:600;
+}
+
+.filter-tab {
+  font-size:var(--fs-md);
+}
+
+.filter-tab span {
+  font-size:var(--fs-xs);
+}
+
+/* v36 表格上方操作栏：左对齐 */
+.list-actions-bar {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-bottom:16px;
+}
+

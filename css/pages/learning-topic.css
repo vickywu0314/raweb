@@ -1,0 +1,155 @@
+/* learning-topic.html 页面专属样式 */
+
+.lt-head {
+  display:flex;
+  align-items:center;
+  gap:18px;
+  padding:26px 28px;
+  margin-bottom:18px;
+  border:1px solid #cfe0f5;
+  border-radius:16px;
+  background:linear-gradient(120deg,#eef6ff,#fff 70%);
+}
+
+.lt-no {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:52px;
+  height:52px;
+  border-radius:12px;
+  background:var(--primary);
+  color:#fff;
+  font-size:var(--fs-xl);
+  font-weight:700;
+}
+
+.lt-head h1 {
+  font-size:var(--fs-4xl);
+}
+
+.lt-head p {
+  margin-top:4px;
+  color:#61748d;
+}
+
+.lt-layout {
+  display:grid;
+  grid-template-columns:200px minmax(0,1fr);
+  gap:20px;
+  align-items:start;
+}
+
+.lt-toc {
+  position:sticky;
+  top:96px;
+  display:grid;
+  gap:2px;
+  padding:10px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+}
+
+.lt-toc a {
+  padding:8px 10px;
+  border-radius:8px;
+  color:#41536b;
+  font-size:var(--fs-sm);
+}
+
+.lt-toc a:hover {
+  background:#eef5ff;
+  color:var(--primary);
+}
+
+.lt-body {
+  display:grid;
+  gap:14px;
+}
+
+.lt-section {
+  padding:20px 24px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:#fff;
+  scroll-margin-top:96px;
+  color:#34445a;
+  font-size:var(--fs-md);
+  line-height:1.8;
+}
+
+.lt-section h2 {
+  margin-bottom:10px;
+  font-size:var(--fs-xl);
+  color:var(--ink);
+}
+
+.lt-section ul,
+.lt-section ol {
+  margin:0;
+  padding-left:22px;
+}
+
+.lt-section li + li {
+  margin-top:4px;
+}
+
+.lt-table {
+  width:100%;
+  margin:6px 0;
+  border-collapse:collapse;
+  font-size:var(--fs-sm);
+}
+
+.lt-table th,
+.lt-table td {
+  padding:8px 10px;
+  border:1px solid #e3e9f1;
+  text-align:left;
+  vertical-align:top;
+}
+
+.lt-table th {
+  background:#f6f8fb;
+  color:#52606f;
+  font-size:var(--fs-xs);
+}
+
+.lt-note {
+  margin-top:8px;
+  color:#8a98ab;
+  font-size:var(--fs-xs);
+}
+
+.lt-refs li {
+  font-size:var(--fs-sm);
+  color:#52606f;
+}
+
+.lt-pager {
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:18px;
+  font-size:var(--fs-sm);
+  font-weight:600;
+}
+
+@media (max-width:900px) {
+  .lt-layout {
+    grid-template-columns:1fr;
+  }
+  .lt-toc {
+    position:static;
+    display:flex;
+    overflow-x:auto;
+  }
+  .lt-toc a {
+    flex:none;
+  }
+  .lt-table {
+    display:block;
+    overflow-x:auto;
+  }
+}

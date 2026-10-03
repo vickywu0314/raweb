@@ -1,0 +1,157 @@
+/* ai-cohort.html 页面专属样式（AI 通用样式见 css/shared/ai-analytics.css） */
+
+.page-heading .demo-flag {
+  align-self:flex-start;
+}
+
+.builder {
+  margin-bottom:16px;
+}
+
+.parse-note {
+  margin-top:10px;
+  color:#52606f;
+  font-size:var(--fs-sm);
+}
+
+.cond-line {
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  margin-top:14px;
+}
+
+.cond-title {
+  flex:none;
+  padding-top:5px;
+  color:#6f7f95;
+  font-size:var(--fs-xs);
+  font-weight:600;
+}
+
+.adv {
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid #edf1f6;
+}
+
+.adv summary {
+  cursor:pointer;
+  color:#52606f;
+  font-size:var(--fs-sm);
+  font-weight:600;
+}
+
+.filter-grid {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px 14px;
+  margin-top:12px;
+}
+
+.filter-grid label span {
+  display:block;
+  margin-bottom:5px;
+  color:#6f7f95;
+  font-size:var(--fs-xs);
+}
+
+.filter-grid select {
+  width:100%;
+  height:38px;
+  padding:0 10px;
+  border:1px solid #d7e0eb;
+  background:#fff;
+  font-size:var(--fs-sm);
+}
+
+.adv-actions {
+  display:flex;
+  justify-content:flex-start;
+  margin-top:12px;
+}
+
+#stats {
+  margin-bottom:16px;
+}
+
+.panel-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  margin-bottom:16px;
+}
+
+#results > .ai-panel {
+  margin-bottom:16px;
+}
+
+/* 队列患者名单 */
+.ai-row {
+  display:grid;
+  grid-template-columns:minmax(150px,1.5fr) minmax(120px,1.2fr) minmax(80px,.8fr) minmax(120px,1.1fr) minmax(100px,.9fr) minmax(70px,.7fr) minmax(70px,.7fr);
+  align-items:center;
+  gap:12px;
+  padding:12px 14px;
+  border-bottom:1px solid #edf1f6;
+  color:var(--ink);
+  font-size:var(--fs-md);
+}
+
+a.ai-row:hover {
+  background:#f7faff;
+}
+
+.ai-row small {
+  display:block;
+  color:#8a98ab;
+  font-size:var(--fs-xs);
+}
+
+.ai-row-name b {
+  font-weight:650;
+}
+
+.ai-row .num {
+  font-variant-numeric:tabular-nums;
+}
+
+.ai-row-head {
+  padding-top:0;
+  color:#6f7f95;
+  font-size:var(--fs-xs);
+  font-weight:600;
+}
+
+.more {
+  margin-top:12px;
+}
+
+.more[hidden] {
+  display:none;
+}
+
+@media (max-width:1100px) {
+  .panel-grid {
+    grid-template-columns:1fr;
+  }
+  .filter-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .ai-row {
+    grid-template-columns:repeat(3,minmax(0,1fr));
+  }
+  .ai-row-head {
+    display:none;
+  }
+}
+
+@media (max-width:600px) {
+  .ai-row {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .cond-line {
+    flex-direction:column;
+    gap:6px;
+  }
+}

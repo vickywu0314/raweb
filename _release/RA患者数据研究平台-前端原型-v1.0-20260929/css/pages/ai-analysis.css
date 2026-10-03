@@ -1,0 +1,90 @@
+/* ai-analysis.html 页面专属样式（AI 通用样式见 css/shared/ai-analytics.css） */
+
+.page-heading .demo-flag {
+  align-self:flex-start;
+}
+
+.ask-box {
+  margin-bottom:18px;
+  padding:22px 24px;
+  border:1px solid #ddd6fb;
+  border-radius:16px;
+  background:linear-gradient(120deg,#f6f3ff,#fff 65%);
+}
+
+.ask-box label {
+  display:block;
+  margin-bottom:10px;
+  font-size:var(--fs-lg);
+  font-weight:650;
+}
+
+.ask-examples {
+  margin-top:12px;
+}
+
+.cond-chip.example {
+  padding:5px 12px;
+  border-color:#e1dafc;
+  background:#fff;
+  color:#5b45c9;
+  cursor:pointer;
+}
+
+.cond-chip.example:hover {
+  background:#f3f0ff;
+}
+
+.hub-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+  margin-bottom:18px;
+}
+
+.hub-card {
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:20px;
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:#fff;
+}
+
+.hub-card h2 {
+  font-size:var(--fs-lg);
+}
+
+.hub-card p {
+  flex:1;
+  color:#718196;
+  font-size:var(--fs-sm);
+  line-height:1.7;
+}
+
+.hub-card .button {
+  align-self:flex-start;
+}
+
+.hub-mark {
+  color:#8191a4;
+  font-size:var(--fs-xs);
+  letter-spacing:.08em;
+}
+
+a.stat-tile {
+  color:inherit;
+  transition:border-color .15s,box-shadow .15s;
+}
+
+a.stat-tile:hover {
+  border-color:#9fc0f0;
+  box-shadow:0 4px 14px rgba(29,95,224,.08);
+}
+
+@media (max-width:1000px) {
+  .hub-grid {
+    grid-template-columns:1fr;
+  }
+}

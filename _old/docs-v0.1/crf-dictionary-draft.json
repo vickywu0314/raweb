@@ -1,0 +1,1658 @@
+{
+ "study": "RA",
+ "version": "1.0-draft",
+ "fields": [
+  {
+   "code": "HIS.first_visit_date",
+   "section": "病史病情",
+   "group": "疾病时间轴与病程",
+   "label": "首诊时间",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:firstVisit"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.visit_date",
+   "section": "病史病情",
+   "group": "疾病时间轴与病程",
+   "label": "本次随访时间",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:visitDate"
+   ],
+   "note": "归入 visit.visit_date，不放 CRF"
+  },
+  {
+   "code": "HIS.onset_date",
+   "section": "病史病情",
+   "group": "疾病时间轴与病程",
+   "label": "发病时间",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:onset"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.diagnosis_date",
+   "section": "病史病情",
+   "group": "疾病时间轴与病程",
+   "label": "确诊时间",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:diagnosis"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.course_desc",
+   "section": "病史病情",
+   "group": "疾病时间轴与病程",
+   "label": "首发症状 / 病程",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:course"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.past_history",
+   "section": "病史病情",
+   "group": "既往及个人史",
+   "label": "既往史",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:past"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.family_history",
+   "section": "病史病情",
+   "group": "既往及个人史",
+   "label": "家族史",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:family"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.comorbidity",
+   "section": "病史病情",
+   "group": "既往及个人史",
+   "label": "合并疾病",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:comorbidity"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.smoking",
+   "section": "病史病情",
+   "group": "既往及个人史",
+   "label": "吸烟史",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "从不吸烟",
+    "既往吸烟",
+    "目前吸烟"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:smoke"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.allergy",
+   "section": "病史病情",
+   "group": "既往及个人史",
+   "label": "过敏史",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:allergy"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.flare_triggers",
+   "section": "病史病情",
+   "group": "加重诱因",
+   "label": "加重诱因",
+   "type": "多选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "停药",
+    "减药",
+    "换药",
+    "间断服药",
+    "劳累",
+    "感冒",
+    "感染",
+    "情绪刺激",
+    "分娩或小产",
+    "饮食不当",
+    "创伤",
+    "手术",
+    "天气变化",
+    "其他"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:10",
+    "history:11",
+    "history:12",
+    "history:13",
+    "history:14",
+    "history:15",
+    "history:16",
+    "history:17",
+    "history:18",
+    "history:19",
+    "history:20",
+    "history:21",
+    "history:22",
+    "history:23",
+    "history:24"
+   ],
+   "note": "现为多个独立勾选框，合并为一个多选字段"
+  },
+  {
+   "code": "HIS.joint_pain",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "关节疼痛",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "疼痛较轻",
+    "疼痛较重，可以忍受",
+    "疼痛很重，难以忍受"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:25"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.pain_nature",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "疼痛性质",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "不明确",
+    "胀痛",
+    "刺痛",
+    "冷痛",
+    "酸痛"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:26"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.pain_site_pattern",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "疼痛部位特点",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "痛有定处",
+    "游走不定"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:27"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.pain_worse_time",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "疼痛加重时间",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无明显时间性",
+    "晨起",
+    "午后",
+    "夜间"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:28"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.morning_stiffness",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "关节晨僵",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "<30分钟",
+    "30分钟~1小时",
+    "1小时~2小时",
+    ">2小时"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:29"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.joint_swelling",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "关节肿胀",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "很轻",
+    "较重",
+    "极重"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:30"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.joint_heat",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "关节触热",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "触热且有热感",
+    "触热但无热感"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:31"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.skin_redness",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "皮色发红",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "有"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:32"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.cold_heat_change",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "寒热变化",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无明显变化",
+    "遇热加重",
+    "遇寒加重"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:33"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.subcutaneous_nodule",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "皮下结节",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "有"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:34"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.affected_joints",
+   "section": "病史病情",
+   "group": "关节症状",
+   "label": "受累关节",
+   "type": "多选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "肘",
+    "腕",
+    "掌指关节",
+    "近端指关节",
+    "远端指关节",
+    "膝",
+    "足"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:35",
+    "history:36",
+    "history:37",
+    "history:38",
+    "history:39",
+    "history:40",
+    "history:41"
+   ],
+   "note": "现为多个独立勾选框，合并为一个多选字段"
+  },
+  {
+   "code": "HIS.appetite",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "胃口",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "很好",
+    "有点差",
+    "很差",
+    "一点胃口都没有"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:42"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.insomnia_dreams",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "失眠多梦",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "偶尔",
+    "时常",
+    "总是"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:43"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.restlessness",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "心烦不安",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "几乎没有",
+    "偶尔",
+    "常常",
+    "几乎总是"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:44"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.fatigue",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "神疲乏力",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "有疲乏",
+    "很疲乏",
+    "非常疲乏，不能干任何事"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:45"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.aversion_wind_cold",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "怕风怕凉",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "无",
+    "稍感，无需加盖衣被",
+    "加盖衣被可缓解",
+    "加盖衣被不缓解"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:46"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.menstruation",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "月经（适用时）",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:47"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.urine",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "小便",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:48"
+   ],
+   "note": ""
+  },
+  {
+   "code": "HIS.stool",
+   "section": "病史病情",
+   "group": "全身及其他症状",
+   "label": "大便",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "history:49"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.esr",
+   "section": "检查检验",
+   "group": "炎症与血常规",
+   "label": "ESR (mm/h)",
+   "type": "数值",
+   "unit": "mm/h",
+   "range": "0-150",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:0"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.crp",
+   "section": "检查检验",
+   "group": "炎症与血常规",
+   "label": "CRP (mg/L)",
+   "type": "数值",
+   "unit": "mg/L",
+   "range": "0-300",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:1"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.hscrp",
+   "section": "检查检验",
+   "group": "炎症与血常规",
+   "label": "hsCRP",
+   "type": "数值",
+   "unit": "mg/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:2"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.wbc",
+   "section": "检查检验",
+   "group": "炎症与血常规",
+   "label": "WBC",
+   "type": "数值",
+   "unit": "10^9/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:3"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.hgb",
+   "section": "检查检验",
+   "group": "炎症与血常规",
+   "label": "HGB",
+   "type": "数值",
+   "unit": "g/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:4"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.plt",
+   "section": "检查检验",
+   "group": "炎症与血常规",
+   "label": "PLT",
+   "type": "数值",
+   "unit": "10^9/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:5"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.rf",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "RF",
+   "type": "数值",
+   "unit": "IU/mL",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:6"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.igg",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "IgG",
+   "type": "数值",
+   "unit": "g/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:7"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.iga",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "IgA",
+   "type": "数值",
+   "unit": "g/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:8"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.igm",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "IgM",
+   "type": "数值",
+   "unit": "g/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:9"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.alt",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "ALT",
+   "type": "数值",
+   "unit": "U/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:10"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.ast",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "AST",
+   "type": "数值",
+   "unit": "U/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:11"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.ggt",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "GGT",
+   "type": "数值",
+   "unit": "U/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:12"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.urea",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "UREA",
+   "type": "数值",
+   "unit": "mmol/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:13"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.crea",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "CREA",
+   "type": "数值",
+   "unit": "μmol/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:14"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.d_dimer",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "D-Dimer",
+   "type": "数值",
+   "unit": "mg/L FEU",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:15"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.hcy",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "HCY",
+   "type": "数值",
+   "unit": "μmol/L",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:16"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "LAB.other_biochem",
+   "section": "检查检验",
+   "group": "免疫、肝肾功能及其他检验",
+   "label": "DBIL / 血脂 / 血糖",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:17"
+   ],
+   "note": "多项合并在一个框，建议拆分"
+  },
+  {
+   "code": "LAB.xray_date",
+   "section": "检查检验",
+   "group": "影像与检查报告",
+   "label": "关节 X 线日期",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:18"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.exam_no",
+   "section": "检查检验",
+   "group": "影像与检查报告",
+   "label": "检查号",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:19"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.exam_site",
+   "section": "检查检验",
+   "group": "影像与检查报告",
+   "label": "检查部位",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:20"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.report_text",
+   "section": "检查检验",
+   "group": "影像与检查报告",
+   "label": "检验 / 影像报告",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:21"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.ecg",
+   "section": "检查检验",
+   "group": "影像与检查报告",
+   "label": "心电图",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:22"
+   ],
+   "note": ""
+  },
+  {
+   "code": "LAB.echo",
+   "section": "检查检验",
+   "group": "影像与检查报告",
+   "label": "超声心动",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "exam:23"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.tjc28",
+   "section": "评估",
+   "group": "关节与 VAS",
+   "label": "压痛关节数",
+   "type": "数值",
+   "unit": "",
+   "range": "0-28",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:0"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.sjc28",
+   "section": "评估",
+   "group": "关节与 VAS",
+   "label": "肿胀关节数",
+   "type": "数值",
+   "unit": "",
+   "range": "0-28",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:1"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.morning_stiffness_min",
+   "section": "评估",
+   "group": "关节与 VAS",
+   "label": "晨僵持续时间（分钟）",
+   "type": "数值",
+   "unit": "min",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:2"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.pain_vas",
+   "section": "评估",
+   "group": "关节与 VAS",
+   "label": "患者疼痛 VAS",
+   "type": "数值",
+   "unit": "mm",
+   "range": "0-100",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:3"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.ptga_vas",
+   "section": "评估",
+   "group": "关节与 VAS",
+   "label": "患者疾病总体 VAS",
+   "type": "数值",
+   "unit": "mm",
+   "range": "0-100",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:4"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.phga_vas",
+   "section": "评估",
+   "group": "关节与 VAS",
+   "label": "医生疾病总体 VAS",
+   "type": "数值",
+   "unit": "mm",
+   "range": "0-100",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:5"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.haq",
+   "section": "评估",
+   "group": "HAQ 与疾病活动度",
+   "label": "HAQ",
+   "type": "数值",
+   "unit": "",
+   "range": "0-3",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:6"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.das28",
+   "section": "评估",
+   "group": "HAQ 与疾病活动度",
+   "label": "DAS28",
+   "type": "数值",
+   "unit": "",
+   "range": "0-10",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:7"
+   ],
+   "note": "建议服务端自动计算，并区分 DAS28-ESR / DAS28-CRP"
+  },
+  {
+   "code": "ASM.acr_response",
+   "section": "评估",
+   "group": "HAQ 与疾病活动度",
+   "label": "ACR 疗效",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "请选择",
+    "ACR20",
+    "ACR50",
+    "ACR70"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:8"
+   ],
+   "note": ""
+  },
+  {
+   "code": "ASM.organ_involvement",
+   "section": "评估",
+   "group": "HAQ 与疾病活动度",
+   "label": "脏器受累",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "assessment:9"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.main_syndrome",
+   "section": "中医四诊",
+   "group": "",
+   "label": "主证",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:0"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.secondary_syndrome",
+   "section": "中医四诊",
+   "group": "",
+   "label": "兼证",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:1"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.tongue_color",
+   "section": "中医四诊",
+   "group": "",
+   "label": "舌色",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:2"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.tongue_shape",
+   "section": "中医四诊",
+   "group": "",
+   "label": "舌形",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:3"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.coating_texture",
+   "section": "中医四诊",
+   "group": "",
+   "label": "苔质",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:4"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.coating_color",
+   "section": "中医四诊",
+   "group": "",
+   "label": "苔色",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:5"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TCM.pulse",
+   "section": "中医四诊",
+   "group": "",
+   "label": "脉象",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "tcm:6"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.regimen_changed",
+   "section": "治疗",
+   "group": "与上次治疗比较",
+   "label": "治疗方案是否调整",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "首次建档 / 无上次方案",
+    "否",
+    "是"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "treatment:0"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.change_reason",
+   "section": "治疗",
+   "group": "与上次治疗比较",
+   "label": "调整原因",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "请选择",
+    "疗效不佳",
+    "不良事件",
+    "经济原因",
+    "其他"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "treatment:1"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.drug_type",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "药物类型",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "西药",
+    "中成药",
+    "中药饮片"
+   ],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:2"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.drug_name",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "药品名称",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:3"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.brand_name",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "商品名称",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:4"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.manufacturer",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "厂家",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:5"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.spec",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "规格",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:6"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.dose",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "剂量",
+   "type": "数值",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:7"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "TRT.med.dose_unit",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "单位",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:8"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.route",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "给药方式",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:9"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.frequency",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "给药频次",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:10"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.start_date",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "起始时间",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:11"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.adjust_process",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "调药过程",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:12"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.adjust_reason",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "调药原因",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:13"
+   ],
+   "note": ""
+  },
+  {
+   "code": "TRT.med.cumulative_dose",
+   "section": "治疗",
+   "group": "用药明细",
+   "label": "累积剂量",
+   "type": "数值",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（用药明细，每行一种药）",
+   "old": [
+    "treatment:14"
+   ],
+   "note": "现前端为文本框，建议改数值"
+  },
+  {
+   "code": "AE.ae_occurred",
+   "section": "不良反应",
+   "group": "",
+   "label": "是否发生不良反应",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "否",
+    "是"
+   ],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "adverse:0"
+   ],
+   "note": ""
+  },
+  {
+   "code": "AE.event.ae_name",
+   "section": "不良反应",
+   "group": "",
+   "label": "不良反应名称",
+   "type": "文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（每条不良事件一行）",
+   "old": [
+    "adverse:1"
+   ],
+   "note": ""
+  },
+  {
+   "code": "AE.event.ae_start",
+   "section": "不良反应",
+   "group": "",
+   "label": "发生日期",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（每条不良事件一行）",
+   "old": [
+    "adverse:2"
+   ],
+   "note": ""
+  },
+  {
+   "code": "AE.event.ae_end",
+   "section": "不良反应",
+   "group": "",
+   "label": "结束日期",
+   "type": "日期",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（每条不良事件一行）",
+   "old": [
+    "adverse:3"
+   ],
+   "note": ""
+  },
+  {
+   "code": "AE.event.ae_action",
+   "section": "不良反应",
+   "group": "",
+   "label": "药物处理措施",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "剂量不变",
+    "减少剂量",
+    "停止用药",
+    "对症治疗",
+    "其他措施"
+   ],
+   "required": "",
+   "repeat": "是（每条不良事件一行）",
+   "old": [
+    "adverse:4"
+   ],
+   "note": ""
+  },
+  {
+   "code": "AE.event.is_sae",
+   "section": "不良反应",
+   "group": "",
+   "label": "是否 SAE",
+   "type": "单选",
+   "unit": "",
+   "range": "",
+   "options": [
+    "否",
+    "是"
+   ],
+   "required": "",
+   "repeat": "是（每条不良事件一行）",
+   "old": [
+    "adverse:5"
+   ],
+   "note": ""
+  },
+  {
+   "code": "AE.event.ae_detail",
+   "section": "不良反应",
+   "group": "",
+   "label": "事件详情 / SAE 分类",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "是（每条不良事件一行）",
+   "old": [
+    "adverse:6"
+   ],
+   "note": ""
+  },
+  {
+   "code": "CASE.progress_note",
+   "section": "随诊病例",
+   "group": "",
+   "label": "随诊病例记录",
+   "type": "长文本",
+   "unit": "",
+   "range": "",
+   "options": [],
+   "required": "",
+   "repeat": "",
+   "old": [
+    "case:0"
+   ],
+   "note": ""
+  }
+ ]
+}
