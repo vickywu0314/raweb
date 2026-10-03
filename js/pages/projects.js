@@ -1,12 +1,12 @@
 /* projects.html 页面脚本（依赖 boot.js → data.js → common.js）
-   数据来自后端接口 POST /project/projectsData（raapi，口径见 raapi/docs/API.md）。 */
+   数据来自后端接口 POST /api/ra/project/projectsData（raapi，口径见 raapi/docs/API.md）。 */
 "use strict";
 document.addEventListener('DOMContentLoaded',async()=>{
   shell('projects');
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
   const pct=(v,digits)=>(v==null?'—':Number(v).toFixed(digits)+'%');
   try{
-    const d=await apiPost('/project/projectsData',{ra:1,doctorId:currentDoctorId()});
+    const d=await apiPost('/api/ra/project/projectsData',{doctorId:currentDoctorId()});
     // 顶部 4 张卡片
     set('pv-enrolled',d.enrolledPatients);           // 已入组患者
     set('pv-completion',pct(d.followUpCompletionRate,0)); // 计划随访完成率（整数 %）
