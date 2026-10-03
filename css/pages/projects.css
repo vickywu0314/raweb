@@ -76,3 +76,14 @@
 .project-overview-cards article:nth-child(4) strong {
   color:#a55f05;
 }
+
+/* 接口加载失败提示 */
+.pv-error {
+  margin:12px 0 0;
+  padding:10px 14px;
+  border:1px solid #f3c7c3;
+  border-radius:8px;
+  background:#fdf1f0;
+  color:#b3261e;
+  font-size:var(--fs-sm);
+}

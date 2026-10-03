@@ -229,3 +229,17 @@ function flashHashTarget(){const t=location.hash&&document.querySelector(locatio
 // 列表页状态（检索词、筛选、分页）：仅在“返回”回到列表时恢复，正常从菜单进入时为默认状态
 function loadListState(key,defaults){try{const nav=performance.getEntriesByType('navigation')[0];if(nav&&nav.type==='back_forward'){const s=JSON.parse(sessionStorage.getItem('list:'+key));if(s)return {...defaults,...s}}}catch(e){}return {...defaults}}
 function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.stringify(state))}catch(e){}}
+
+// ===== 后端接口（raapi） =====
+// API_BASE：后端地址 + context-path；部署到其它环境时只改这里。
+// 统一返回 DataResult：{success, code, message, data}；success=false 时抛出 message。
+const API_BASE='http://localhost:8065/gk';
+const DEFAULT_DOCTOR_ID=5065; // 登录接口接入前，演示账号没有医生 ID 时使用
+const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
+async function apiPost(path,params){
+  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(params||{})});
+  if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
+  const r=await res.json();
+  if(!r.success)throw new Error(r.message||'接口返回失败');
+  return r.data;
+}
