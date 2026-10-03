@@ -24,7 +24,7 @@ const cycleLabel=m=>m?`每 ${m} 个月`:'未设置';
 // 未脱落患者：有访视 → 上次随访 + 周期；尚无访视 → 以「随访观察起始」（或建档日期）作为首次应访日期
 function nextFollowup(p){
   if(p.lost)return null;
-  const cycle=+p.followCycle||6, first=!p.visits||!p.last;
+  const cycle=+p.followCycle||12, first=!p.visits||!p.last;
   const base=first?(p.followStart||p.created):p.last; if(!base)return null;
   const due=first?new Date(base):addMonths(base,cycle), days=Math.round((due-TODAY)/DAY_MS);
   return {cycle,due:ymd(due),days,first,status:days<0?'overdue':days<=14?'soon':'later'};
@@ -231,9 +231,9 @@ function loadListState(key,defaults){try{const nav=performance.getEntriesByType(
 function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.stringify(state))}catch(e){}}
 
 // ===== 后端接口（raapi） =====
-// API_BASE：后端地址 + context-path；部署到其它环境时只改这里。
+// API_BASE：后端地址；接口路径为 /api/<病种>/...，部署到其它环境时只改这里。
 // 统一返回 DataResult：{success, code, message, data}；success=false 时抛出 message。
-const API_BASE='http://localhost:8065/gk';
+const API_BASE='http://localhost:8065';
 const DEFAULT_DOCTOR_ID=5065; // 登录接口接入前，演示账号没有医生 ID 时使用
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
 async function apiPost(path,params){

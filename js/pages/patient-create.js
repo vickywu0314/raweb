@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         height: v('height') ? +v('height') : null, weight: v('weight') ? +v('weight') : null,
         code, subtype: hasCase ? subtypeLabel(data.history?.subtype) : null, das28: hasCase ? (data.assessment?.das28Crp ?? null) : null,
         visits: hasCase ? 1 : 0, last: visitDate, due: false, incomplete: true, missing: '缺 DAS28 评分', abnormal: false, lost: false,
-        followCycle: +v('followCycle') || 6, followStart: v('followStart') || visitDate || today, comorbid: cm.comorbid, comorbidNone: cm.none, created: today };
+        followCycle: +v('followCycle') || 12, followStart: v('followStart') || visitDate || today, comorbid: cm.comorbid, comorbidNone: cm.none, created: today };
       { const m = caseMissing(p, hasCase ? data : null); p.incomplete = !!m; p.missing = m || ''; }
       store.added.push(p);
       if (hasCase) store.visits[id] = [{ id: 'n' + Date.now(), type: '基线访视', date: visitDate, method: METHOD_LABEL[data.method] || '门诊随访', doctor: u ? u.name : '陈医生', status: 'completed', summary: data.caseRecord?.note || '完成建档与基线资料采集。', dropout: false, dropoutReasons: [], form: data, entries: describeEntries(data) }];
