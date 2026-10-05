@@ -28,10 +28,32 @@ function renderHero(){
  $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><div class="patient-name-line"><h1>${escapeHTML(p.name)}</h1>${lost?`<span class="patient-dropout">已脱落</span>${p.withdrawReason?`<span class="patient-dropout-reason">脱落原因：${escapeHTML(p.withdrawReason)}</span>`:''}`:''}</div><div class="basic-tags">${badge('研究编号: '+(p.studyNo||'—'))} ${badge('ID号: '+p.patientId)} ${badge('疾病分型: '+(p.subtype||'待补充'))} ${p.sex?badge(p.sex):''} ${badge(birth)}</div></div><div class="heading-actions"><button class="button" id="ai-import" type="button">AI纸质病历拍照导入</button><button class="button" id="ask-ai" type="button">问问AI</button><button class="button danger-outline" id="delete-visit" type="button">删除本次随访</button><a class="button" id="edit-visit" href="visit-create.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(v.visitId)}">编辑本次随访</a><button class="button primary" id="download-one" type="button">下载本次病历</button></div></div>
  <div class="reference-basic-grid"><div><span>本次访视</span><b>${escapeHTML(v.visitType)} · ${val(v.visitDate)}</b></div><div><span>记录医生</span><b>${val(v.doctorName||(v.doctorId?`医生 ID ${v.doctorId}`:null))}</b></div><div><span>患者手机号</span><b>${val(p.mobile)}</b></div><div><span>患者身份证号</span><b class="identity-value"><em id="identity-no">${val(p.cardNoMasked)}</em>${p.hasCardNo?`<button class="identity-toggle" id="identity-toggle" type="button" aria-label="显示完整身份证号" aria-pressed="false">${EYE}</button>`:''}</b></div><div><span>民族</span><b>${val(p.nation)}</b></div><div><span>婚史</span><b>${val(p.marryLabel||(p.marry==null?null:`代码 ${p.marry}`))}</b></div><div><span>建档日期</span><b>${val(p.createDate)}</b></div><div><span>随访观察起始</span><b>${val(p.followStartDate)}</b></div></div>`;
  $('#download-one').onclick=()=>notReady('下载本次病历');
- $('#delete-visit').onclick=()=>notReady('删除本次随访');
+ $('#delete-visit').onclick=openDeleteDialog;
  $('#ask-ai').onclick=()=>notReady('问问AI');
  $('#ai-import').onclick=()=>notReady('AI纸质病历拍照导入');
  bindIdentityToggle();
+}
+
+// 删除本次随访：物理删除，不可恢复；必须填写原因（写入修改记录）。删除后回到该患者的随访记录
+function openDeleteDialog(){
+ let d=document.getElementById('delete-dialog');
+ if(!d){
+  d=document.createElement('dialog');d.id='delete-dialog';
+  d.innerHTML=`<form method="dialog" class="dialog-form"><div class="dialog-header"><h2>删除本次随访</h2><button class="icon-button" value="cancel" formnovalidate aria-label="关闭">×</button></div><p class="dialog-note">将删除 ${escapeHTML(p.name)} 的「${escapeHTML(v.visitType)} ${escapeHTML(v.visitDate||'日期未填')}」。<b>删除后数据不可恢复</b>（老系统中也会一并删除），随访次数、最近随访日期会按剩下的随访重新计算；${v.baseline?'删除基线访视后，日期最早的下一次随访会成为基线访视；':''}删除原因会写入修改记录。</p><label class="form-field"><span>删除原因 <b class="required">*</b></span><textarea name="reason" rows="3" maxlength="500" required placeholder="如：重复录入；录错患者"></textarea></label><p class="delete-error" hidden></p><div class="dialog-footer"><button class="button" value="cancel" formnovalidate>取消</button><button class="button danger" value="ok" id="confirm-delete">确认删除</button></div></form>`;
+  document.body.appendChild(d);
+  d.querySelector('form').addEventListener('submit',async e=>{
+   if(e.submitter&&e.submitter.value!=='ok')return;
+   e.preventDefault();
+   const reason=d.querySelector('[name=reason]').value.trim(),err=d.querySelector('.delete-error'),btn=d.querySelector('#confirm-delete');
+   if(!reason){err.hidden=false;err.textContent='请填写删除原因';return}
+   btn.disabled=true;btn.textContent='删除中…';err.hidden=true;
+   try{
+    await apiPost('/api/ra/visit/deleteVisit',{doctorId:currentDoctorId(),visitId:v.visitId,reason});
+    location.replace(withFrom(`patient-visits.html?id=${encodeURIComponent(p.patientId)}`));
+   }catch(ex){err.hidden=false;err.textContent=`删除失败：${ex.message}`;btn.disabled=false;btn.textContent='确认删除'}
+  });
+ }
+ d.querySelector('[name=reason]').value='';d.querySelector('.delete-error').hidden=true;d.showModal();
 }
 
 // 身份证号：默认打码；点「眼睛」向后端取一次明文
