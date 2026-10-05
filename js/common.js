@@ -234,7 +234,7 @@ function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.st
 // API_BASE：后端地址；接口路径为 /api/<病种>/...，部署到其它环境时只改这里。
 // 统一返回 DataResult：{success, code, message, data}；success=false 时抛出 message。
 const API_BASE='http://localhost:8065';
-const DEFAULT_DOCTOR_ID=5065; // 登录接口接入前，演示账号没有医生 ID 时使用
+const DEFAULT_DOCTOR_ID=82394; // 登录接口接入前，演示账号没有医生 ID 时使用
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
 async function apiPost(path,params){
   const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(params||{})});
