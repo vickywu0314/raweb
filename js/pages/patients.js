@@ -79,8 +79,7 @@ function exportPatients(){const list=pageRows.filter(p=>selected.has(String(p.pa
  const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download=`患者列表-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(u),500)}
 $('#ai-analysis').onclick=()=>{if(selected.size)location.href=`ai-cohort.html?ids=${[...selected].map(encodeURIComponent).join(',')}`};
 $('#search-form').addEventListener('submit',e=>{e.preventDefault();state.q=$('#query').value.trim();state.status=$('#visit-status').value;state.data=$('#data-status').value;state.page=1;load()});
-$('#visit-status').addEventListener('change',e=>{state.status=e.target.value;state.page=1;load()});
-$('#data-status').addEventListener('change',e=>{state.data=e.target.value;state.page=1;load()});
+// 检索条件（关键字、随访状态、数据完整性）选好后，点「查询」才查询；选下拉不会触发查询
 $('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};$('#query').value='';$('#visit-status').value='';$('#data-status').value='missing';load()});
 $('#export-data').onclick=exportPatients;
 $('#pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b){state.page=+b.dataset.page;load()}});
