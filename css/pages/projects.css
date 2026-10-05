@@ -87,3 +87,21 @@
   color:#b3261e;
   font-size:var(--fs-sm);
 }
+
+/* 加载中占位条（数字位置） */
+.pv-skeleton {
+  width:96px;
+  max-width:70%;
+  height:30px;
+}
+
+.cohort-result .pv-skeleton {
+  width:72px;
+  height:24px;
+}
+
+.pv-skeleton-note {
+  width:110px;
+  height:12px;
+  margin-top:6px;
+}

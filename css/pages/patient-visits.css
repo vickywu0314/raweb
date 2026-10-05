@@ -357,3 +357,14 @@
     text-align:left;
   }
 }
+
+/* 详情加载失败提示 */
+.pv-load-error {
+  margin:0;
+  padding:10px 14px;
+  border:1px solid #f3c7c3;
+  border-radius:8px;
+  background:#fdf1f0;
+  color:#b3261e;
+  font-size:var(--fs-sm);
+}
