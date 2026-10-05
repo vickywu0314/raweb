@@ -780,3 +780,64 @@
   color:#b3261e;
   font-size:var(--fs-sm);
 }
+
+/* 结构化病历：单位、未查、清单表格、图片 */
+.field-unit {
+  margin-left:4px;
+  color:#8492a2;
+  font-size:var(--fs-xs);
+  font-weight:400;
+}
+
+.detail-field.not-checked strong {
+  color:#a0aab6;
+  font-weight:400;
+}
+
+.table-count {
+  margin-left:6px;
+  color:#8492a2;
+  font-size:var(--fs-xs);
+  font-weight:400;
+}
+
+.visit-table-wrap {
+  overflow-x:auto;
+}
+
+.visit-table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:var(--fs-sm);
+}
+
+.visit-table th,
+.visit-table td {
+  padding:8px 10px;
+  border-bottom:1px solid #edf1f5;
+  text-align:left;
+  vertical-align:top;
+  white-space:pre-wrap;
+}
+
+.visit-table th {
+  background:#f6f8fb;
+  color:#5b6878;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.visit-images {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.visit-images img {
+  width:120px;
+  height:90px;
+  object-fit:cover;
+  border:1px solid #e4e9ef;
+  border-radius:8px;
+  background:#f6f8fb;
+}

@@ -1,7 +1,8 @@
 /* visit-detail.html 页面脚本（依赖 boot.js → data.js → common.js）
    数据来自后端（同时请求）：
    - POST /api/ra/patient/patientDetail：顶部患者基本信息
-   - POST /api/ra/visit/visitDetail：本次随访的 7 个病历模块（随访表 bsbq / fzjc / bqpg / zyzd / zlfa / blsj / bblsj） */
+   - POST /api/ra/visit/visitDetail：本次随访的 7 个病历模块（随访表 bsbq / fzjc / bqpg / zyzd / zlfa / blsj / bblsj），
+     后端按字段字典（raapi docs/随访字段字典.md）分好组、转好中文 */
 "use strict";
 shell(pageOrigin().nav);
 const patientId=queryParam('id'), visitId=queryParam('visit');
@@ -47,12 +48,20 @@ function bindIdentityToggle(){
  });
 }
 
-// 7 个病历模块：{record, date} 显示记录内容和日期；其它结构逐项列出；没内容显示「本次未记录」
+// 7 个病历模块（按后端字段字典分组）：字段组、清单（西药等）、图片；普通文字或 {record, date} 显示记录内容；没内容显示「本次未记录」
 function moduleBody(m){
  if(!m.filled)return '<p class="module-empty">本次未记录</p>';
  let html='';
  if(m.record)html+=`<div class="visit-record">${escapeHTML(m.record)}</div>`;
- if(m.items&&m.items.length)html+=`<div class="detail-fields">${m.items.map(i=>`<div class="detail-field"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.after)}</strong></div>`).join('')}</div>`;
+ (m.groups||[]).forEach(g=>{
+  html+=`<div class="subcard">${g.title?`<h3>${escapeHTML(g.title)}</h3>`:''}<div class="detail-fields">${g.items.map(i=>`<div class="detail-field${i.notChecked?' not-checked':''}"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.value)}${i.unit?`<small class="field-unit">${escapeHTML(i.unit)}</small>`:''}</strong></div>`).join('')}</div></div>`;
+ });
+ (m.tables||[]).forEach(t=>{
+  html+=`<div class="subcard"><h3>${escapeHTML(t.title)} <small class="table-count">${t.rows.length} 项</small></h3><div class="visit-table-wrap"><table class="visit-table"><thead><tr>${t.columns.map(c=>`<th>${escapeHTML(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHTML(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+ });
+ (m.images||[]).forEach(g=>{
+  html+=`<div class="subcard"><h3>${escapeHTML(g.title)} <small class="table-count">${g.urls.length} 张</small></h3><div class="visit-images">${g.urls.map((u,i)=>`<a href="${escapeHTML(u)}" target="_blank" rel="noopener" title="点击查看原图"><img src="${escapeHTML(u)}" alt="${escapeHTML(g.title)} ${i+1}" loading="lazy"></a>`).join('')}</div></div>`;
+ });
  if(m.recordDate)html+=`<p class="record-date">记录日期：${escapeHTML(m.recordDate)}</p>`;
  return html;
 }
