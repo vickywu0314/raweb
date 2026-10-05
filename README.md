@@ -1,6 +1,15 @@
 # RA 患者数据研究平台 · 前端原型（v1.1）
 
-直接用浏览器打开 `index.html`，会进入登录页，无需 npm 或构建。
+直接用浏览器打开 `index.html`，会进入登录页；页面是纯 HTML/CSS/JS，无需构建。
+
+本地开发推荐用 npm 起一个静态服务（不缓存，改完刷新即生效）：
+
+```bash
+npm install     # 首次执行，只安装本地静态服务 http-server
+npm run dev     # 启动并自动打开 http://localhost:8090
+```
+
+后端接口地址在 `js/common.js` 的 `API_BASE`（默认 `http://localhost:8065`）。
 
 ## 登录（演示版）
 
