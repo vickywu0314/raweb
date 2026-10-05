@@ -1,8 +1,10 @@
 /* login.html 页面脚本（依赖 boot.js）。演示版：账号写在前端，接入后端后改为登录接口。 */
 "use strict";
+// doctorId：对应后端 user.id / patient_relation_doctor.doctor_id，接口按它只返回该医生名下的患者。
+// 测试期两个账号都用 82394（库里患者最多的医生），接入登录接口后由后端返回。
 const DEMO_USERS = [
-  { username: 'chen', password: 'ra2026', name: '陈医生', role: '研究者' },
-  { username: 'admin', password: 'ra2026', name: '李敏', role: '数据管理员' }
+  { username: 'chen', password: 'ra2026', name: '陈医生', role: '研究者', doctorId: 82394 },
+  { username: 'admin', password: 'ra2026', name: '李敏', role: '数据管理员', doctorId: 82394 }
 ];
 const REMEMBER_KEY = 'ra-remember-user';
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!hit) { showErr('用户名或密码错误'); pw.select(); return; }
     const btn = document.getElementById('login-submit'); btn.disabled = true; btn.textContent = '登录中…';
     try { remember.checked ? localStorage.setItem(REMEMBER_KEY, u) : localStorage.removeItem(REMEMBER_KEY); } catch (e2) {}
-    signIn({ username: hit.username, name: hit.name, role: hit.role }, remember.checked);
+    signIn({ username: hit.username, name: hit.name, role: hit.role, doctorId: hit.doctorId }, remember.checked);
     setTimeout(go, 350);
   });
 });
