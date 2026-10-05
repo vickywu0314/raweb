@@ -1,0 +1,161 @@
+/* visit-edit.html 页面专属样式（在 case-form.css、visit-create.css 之后加载） */
+.visit-date-section {
+  margin-bottom:12px;
+}
+
+.visit-type-note {
+  margin:6px 0 0;
+  color:#5b6878;
+}
+
+.field-unit {
+  margin-left:4px;
+  color:#8492a2;
+  font-weight:400;
+}
+
+.auto-tag {
+  margin-left:6px;
+  padding:1px 6px;
+  border-radius:8px;
+  background:#eef4ff;
+  color:#1f63c6;
+  font-size:11px;
+  font-style:normal;
+}
+
+.computed-input {
+  background:#f6f8fb;
+  color:#5b6878;
+}
+
+.wx-check {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  color:#687b94;
+  font-size:var(--fs-xs);
+}
+
+.visit-table-wrap {
+  overflow-x:auto;
+}
+
+.visit-table {
+  width:100%;
+  border-collapse:collapse;
+  font-size:var(--fs-sm);
+}
+
+.visit-table th,
+.visit-table td {
+  padding:6px 6px;
+  border-bottom:1px solid #edf1f5;
+  text-align:left;
+  vertical-align:top;
+}
+
+.visit-table th {
+  background:#f6f8fb;
+  color:#5b6878;
+  font-weight:600;
+  white-space:nowrap;
+}
+
+.edit-table .table-input {
+  width:100%;
+  min-width:96px;
+}
+
+.row-add {
+  margin-top:10px;
+}
+
+.visit-images {
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+
+.visit-images img {
+  width:110px;
+  height:82px;
+  object-fit:cover;
+  border:1px solid #e4e9ef;
+  border-radius:8px;
+  background:#f6f8fb;
+}
+
+.table-count {
+  margin-left:6px;
+  color:#8492a2;
+  font-size:var(--fs-xs);
+  font-weight:400;
+}
+
+.detail-fields {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+
+.detail-field {
+  display:grid;
+  gap:4px;
+  padding:10px 12px;
+  border:1px solid #edf1f5;
+  border-radius:8px;
+}
+
+.detail-field span {
+  color:#8492a2;
+  font-size:var(--fs-xs);
+}
+
+.visit-record {
+  padding:12px 14px;
+  border:1px solid #e4e9ef;
+  border-radius:10px;
+  background:#fbfcfe;
+  white-space:pre-wrap;
+}
+
+.module-readonly-note,
+.module-empty {
+  margin:0 0 10px;
+  color:#8492a2;
+}
+
+.pv-load-error {
+  margin:0 0 12px;
+  padding:10px 14px;
+  border:1px solid #f3c7c3;
+  border-radius:8px;
+  background:#fdf1f0;
+  color:#b3261e;
+  font-size:var(--fs-sm);
+}
+
+.form-field textarea,
+.edit-table textarea {
+  width:100%;
+  min-width:160px;
+  resize:vertical;
+}
+
+/* 本页模块标题只有 标题 / 说明 / 展开按钮 三部分 */
+#edit-form .create-section-head {
+  grid-template-columns:minmax(150px,max-content) 1fr 20px;
+}
+
+/* 「未查」勾选框不受 .form-grid input 的 100% 宽度影响 */
+.form-grid .wx-check {
+  justify-self:start;
+  white-space:nowrap;
+}
+
+.form-grid .wx-check input {
+  display:inline-block;
+  width:auto;
+  margin:0;
+}

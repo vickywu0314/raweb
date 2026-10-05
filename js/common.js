@@ -243,3 +243,11 @@ async function apiPost(path,params){
   if(!r.success)throw new Error(r.message||'接口返回失败');
   return r.data;
 }
+// JSON 请求体的接口（如编辑随访保存）
+async function apiPostJson(path,body){
+  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json;charset=UTF-8'},body:JSON.stringify(body)});
+  if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
+  const r=await res.json();
+  if(!r.success)throw new Error(r.message||'接口返回失败');
+  return r.data;
+}
