@@ -95,18 +95,32 @@
   color:#1d6b3a;
 }
 
-/* 疾病资料：DAS28-CRP 疾病活动度（缓解绿、低蓝灰、中橙、高红） */
-.das28-level {
-  align-self: flex-start;
-  margin-top: 2px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 18px;
-  white-space: nowrap;
+/* 列宽：患者信息、研究信息收窄，疾病资料加宽（RF / CCP / DAS28-CRP 在一行） */
+@media (min-width:1200px) {
+  .patient-columns.selectable {
+    grid-template-columns:34px minmax(185px,1.5fr) minmax(155px,1.2fr) minmax(240px,2.3fr) minmax(96px,.85fr) minmax(128px,1fr) minmax(92px,.75fr) 16px;
+  }
+  .patient-card-link {
+    grid-template-columns:minmax(185px,1.5fr) minmax(155px,1.2fr) minmax(240px,2.3fr) minmax(96px,.85fr) minmax(128px,1fr) minmax(92px,.75fr) 16px;
+  }
 }
-.das28-level.remission { color: #137333; background: #e6f4ea; }
-.das28-level.low { color: #3c4a5c; background: #eef2f7; }
-.das28-level.moderate { color: #b06000; background: #fef3e0; }
-.das28-level.high { color: #c5221f; background: #fce8e6; }
+
+.disease-note {
+  line-height:1.7;
+}
+
+/* 疾病资料：DAS28-CRP 疾病活动度（缓解绿、低灰、中橙、高红），跟在分值后面 */
+.das28-level {
+  display:inline-block;
+  margin-left:4px;
+  padding:0 6px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  line-height:18px;
+  white-space:nowrap;
+}
+.das28-level.remission { color:#137333; background:#e6f4ea; }
+.das28-level.low { color:#3c4a5c; background:#eef2f7; }
+.das28-level.moderate { color:#b06000; background:#fef3e0; }
+.das28-level.high { color:#c5221f; background:#fce8e6; }
