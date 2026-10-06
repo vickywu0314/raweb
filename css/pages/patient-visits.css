@@ -377,3 +377,21 @@
   font-weight: 400;
   color: var(--muted);
 }
+
+/* DAS28-CRP 疾病活动度标签（同患者列表：缓解绿、低灰、中橙、高红） */
+.das28-level {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
+  align-self: flex-start;
+  width: fit-content;
+}
+.das28-level.remission { color: #137333; background: #e6f4ea; }
+.das28-level.low { color: #3c4a5c; background: #eef2f7; }
+.das28-level.moderate { color: #b06000; background: #fef3e0; }
+.das28-level.high { color: #c5221f; background: #fce8e6; }
