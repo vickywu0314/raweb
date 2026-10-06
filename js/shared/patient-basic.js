@@ -39,6 +39,9 @@ function patientBasicGridHTML(p){
   ['身高(cm)',basicVal(p.height)],
   ['体重(kg)',basicVal(p.weight)],
   ['BMI',basicVal(p.bmi)],
+  ['腰围(cm)',basicVal(p.waistline)],
+  ['心率(次/分)',basicVal(p.heartRate)],
+  ['血压(mmHg)',p.systolic||p.diastolic?`${escapeHTML(p.systolic||'—')} / ${escapeHTML(p.diastolic||'—')}<small class="antibody-date">收缩压 / 舒张压</small>`:'未提供'],
   ['吸烟史',basicVal(p.smoking)],
   ['过敏史',basicVal(p.allergy)],
   ['家族史',basicVal(p.familyHistory)]
