@@ -1,6 +1,6 @@
 /* visit-detail.html 页面脚本（依赖 boot.js → data.js → common.js）
    数据来自后端（同时请求）：
-   - POST /api/ra/patient/patientDetail：顶部患者基本信息
+   - POST /api/ra/patient/patientDetail：顶部患者基本信息（显示与患者详情页共用 js/shared/patient-basic.js）
    - POST /api/ra/visit/visitDetail：本次随访的 7 个病历模块（随访表 bsbq / fzjc / bqpg / zyzd / zlfa / blsj / bblsj），
      后端按字段字典（raapi docs/随访字段字典.md）分好组、转好中文 */
 "use strict";
@@ -20,18 +20,29 @@ document.querySelector('.detail-anchor').classList.add('is-loading');
 
 const val=x=>escapeHTML(x==null||x===''?'未提供':x);
 const notReady=name=>alert(`「${name}」功能的后端接口正在开发中，暂不可用。`);
-const EYE=`<svg class="eye-icon eye-open" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg><svg class="eye-icon eye-closed" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 6.1A10.8 10.8 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.1 2.8M6.1 6.1C3.8 7.7 2.5 12 2.5 12s3.5 6 9.5 6c1.4 0 2.7-.3 3.8-.8M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>`;
+
+// 基础信息（与患者详情页一致，js/shared/patient-basic.js）默认收起，医生点开后记住选择（仅本机浏览器）
+const BASIC_OPEN_KEY='ra:visit-basic-open';
+function basicOpenPref(){try{return localStorage.getItem(BASIC_OPEN_KEY)==='1'}catch(e){return false}}
 
 function renderHero(){
  document.title=`${p.name} · ${v.visitType} ${v.visitDate||''} · 患者数据研究平台`;
- const lost=p.followStatus==='withdrawn', birth=p.birthYear==null?'出生年份未知':`${p.birthYear}年出生（${p.age} 岁）`;
- $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><div class="patient-name-line"><h1>${escapeHTML(p.name)}</h1>${lost?`<span class="patient-dropout">已脱落</span>${p.withdrawReason?`<span class="patient-dropout-reason">脱落原因：${escapeHTML(p.withdrawReason)}</span>`:''}`:''}</div><div class="basic-tags">${badge('研究编号: '+(p.studyNo||'—'))} ${badge('ID号: '+p.patientId)} ${badge('疾病分型: '+(p.subtype||'待补充'))} ${p.sex?badge(p.sex):''} ${badge(birth)}</div></div><div class="heading-actions"><button class="button" id="ai-import" type="button">OCR识别录入</button><button class="button" id="ask-ai" type="button">问问AI</button><button class="button danger-outline" id="delete-visit" type="button">删除本次随访</button><a class="button" id="edit-visit" href="${withFrom(`visit-edit.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(v.visitId)}`)}">编辑本次随访</a><button class="button primary" id="download-one" type="button">下载本次病历</button></div></div>
- <div class="reference-basic-grid"><div><span>本次访视</span><b>${escapeHTML(v.visitType)} · ${val(v.visitDate)}</b></div><div><span>记录医生</span><b>${val(v.doctorName||(v.doctorId?`医生 ID ${v.doctorId}`:null))}</b></div><div><span>患者手机号</span><b>${val(p.mobile)}</b></div><div><span>患者身份证号</span><b class="identity-value"><em id="identity-no">${val(p.cardNoMasked)}</em>${p.hasCardNo?`<button class="identity-toggle" id="identity-toggle" type="button" aria-label="显示完整身份证号" aria-pressed="false">${EYE}</button>`:''}</b></div><div><span>民族</span><b>${val(p.nation)}</b></div><div><span>婚史</span><b>${val(p.marryLabel||(p.marry==null?null:`代码 ${p.marry}`))}</b></div><div><span>建档日期</span><b>${val(p.createDate)}</b></div><div><span>随访观察起始</span><b>${val(p.followStartDate)}</b></div></div>`;
+ const lost=p.followStatus==='withdrawn';
+ // 按钮分组：查看分析 ｜ 录入编辑 ｜ 危险操作（与患者详情页同一顺序）
+ const actions=actionGroupsHTML([
+  ['<button class="button" id="ask-ai" type="button">问问AI</button>','<button class="button" id="download-one" type="button">下载本次病历</button>'],
+  ['<button class="button ai-soft" id="ai-import" type="button">OCR识别录入</button>',`<a class="button primary" id="edit-visit" href="${withFrom(`visit-edit.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(v.visitId)}`)}">编辑本次随访</a>`],
+  ['<button class="button danger-outline" id="delete-visit" type="button">删除本次随访</button>']
+ ]);
+ $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><div class="patient-name-line"><h1>${escapeHTML(p.name)}</h1>${lost?`<span class="patient-dropout">已脱落</span>${p.withdrawReason?`<span class="patient-dropout-reason">脱落原因：${escapeHTML(p.withdrawReason)}</span>`:''}`:''}</div>${patientTagsHTML(p)}</div>${actions}</div>
+ <div class="reference-basic-grid visit-meta"><div><span>本次访视</span><b>${escapeHTML(v.visitType)} · ${val(v.visitDate)}</b></div><div><span>记录医生</span><b>${val(v.doctorName||(v.doctorId?`医生 ID ${v.doctorId}`:null))}</b></div></div>
+ <details class="basic-collapse" id="basic-collapse"${basicOpenPref()?' open':''}><summary><span class="basic-collapse-title">患者基础信息</span><span class="basic-collapse-hint">手机号、身份证号、确诊日期、DAS28-CRP、RF / 抗CCP、病史等</span></summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p)}</details>`;
  $('#download-one').onclick=()=>notReady('下载本次病历');
  $('#delete-visit').onclick=openDeleteDialog;
  $('#ask-ai').onclick=()=>notReady('问问AI');
  $('#ai-import').onclick=()=>notReady('OCR识别录入');
- bindIdentityToggle();
+ $('#basic-collapse').addEventListener('toggle',e=>{try{localStorage.setItem(BASIC_OPEN_KEY,e.target.open?'1':'0')}catch(err){}});
+ bindPatientBasic($('#basic-collapse'),p);
 }
 
 // 删除本次随访：物理删除，不可恢复；必须填写原因（写入修改记录）。删除后回到该患者的随访记录
@@ -54,20 +65,6 @@ function openDeleteDialog(){
   });
  }
  d.querySelector('[name=reason]').value='';d.querySelector('.delete-error').hidden=true;d.showModal();
-}
-
-// 身份证号：默认打码；点「眼睛」向后端取一次明文
-function bindIdentityToggle(){
- const t=$('#identity-toggle');if(!t)return;let full=null;
- t.addEventListener('click',async()=>{
-  const box=$('#identity-no'),shown=t.getAttribute('aria-pressed')==='true';
-  if(shown){box.textContent=p.cardNoMasked;}
-  else{
-   if(full==null){t.disabled=true;try{full=await apiPost('/api/ra/patient/patientSensitive',{doctorId:currentDoctorId(),patientId:p.patientId})||''}catch(e){alert(`获取身份证号失败：${e.message}`);return}finally{t.disabled=false}}
-   box.textContent=full||p.cardNoMasked;
-  }
-  t.setAttribute('aria-pressed',String(!shown));t.setAttribute('aria-label',shown?'显示完整身份证号':'隐藏身份证号');
- });
 }
 
 // 7 个病历模块（按后端字段字典分组）：字段组、清单（西药等）、图片；普通文字或 {record, date} 显示记录内容；没内容显示「本次未记录」

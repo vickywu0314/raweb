@@ -847,3 +847,53 @@
   color:#b3261e;
   font-size:var(--fs-sm);
 }
+
+/* 患者基础信息：默认收起，点标题展开（内容与患者详情页一致） */
+.basic-collapse {
+  margin-top:18px;
+  border-top:1px solid var(--line);
+  padding-top:14px;
+}
+
+.basic-collapse > summary {
+  display:flex;
+  align-items:baseline;
+  gap:12px;
+  cursor:pointer;
+  list-style:none;
+  user-select:none;
+}
+
+.basic-collapse > summary::-webkit-details-marker {
+  display:none;
+}
+
+.basic-collapse > summary::before {
+  content:"";
+  align-self:center;
+  width:7px;
+  height:7px;
+  border-right:2px solid #60738e;
+  border-bottom:2px solid #60738e;
+  transform:rotate(-45deg);
+  transition:transform .15s;
+}
+
+.basic-collapse[open] > summary::before {
+  transform:rotate(45deg);
+}
+
+.basic-collapse-title {
+  color:#3d5170;
+  font-size:var(--fs-md);
+  font-weight:700;
+}
+
+.basic-collapse-hint {
+  color:var(--muted);
+  font-size:var(--fs-xs);
+}
+
+.basic-collapse[open] .basic-collapse-hint {
+  display:none;
+}
