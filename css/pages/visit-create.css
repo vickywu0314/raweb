@@ -45,3 +45,23 @@
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 }
+
+/* 基本信息（只读）：内容同患者详情页（css/shared/patient-basic.css） */
+#basic-readonly .basic-tags {
+  margin-bottom:4px;
+}
+
+#basic-readonly .reference-basic-grid {
+  grid-template-columns:repeat(4,minmax(0,1fr));
+}
+
+@media (max-width:900px) {
+  #basic-readonly .reference-basic-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+
+.locked-loading {
+  color:var(--muted);
+  font-size:var(--fs-sm);
+}
