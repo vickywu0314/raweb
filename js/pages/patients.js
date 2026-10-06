@@ -82,6 +82,7 @@ $('#search-form').addEventListener('submit',e=>{e.preventDefault();state.q=$('#q
 // 检索条件（关键字、随访状态、数据完整性）选好后，点「查询」才查询；选下拉不会触发查询
 $('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};$('#query').value='';$('#visit-status').value='';$('#data-status').value='missing';load()});
 $('#export-data').onclick=exportPatients;
+$('#ocr-entry').onclick=()=>alert('「OCR识别录入」功能正在开发中，暂不可用。');
 $('#pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b){state.page=+b.dataset.page;load()}});
 $('#page-size').addEventListener('change',e=>{state.perPage=+e.target.value;state.page=1;load()});
 $('#reset').onclick=()=>{state={q:'',status:'',data:'',page:1,perPage:state.perPage};$('#query').value='';$('#visit-status').value='';$('#data-status').value='';load()};

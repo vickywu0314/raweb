@@ -29,3 +29,30 @@
   color:#8a98ab;
   font-size:var(--fs-md);
 }
+
+/* OCR识别录入：放在「数据导出」旁，比普通按钮更醒目 */
+.button.ocr-entry {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:44px;
+  padding:0 22px;
+  border:0;
+  border-radius:10px;
+  background:linear-gradient(135deg,#0b57d0,#6a4ce6);
+  color:#fff;
+  font-size:var(--fs-md,15px);
+  font-weight:700;
+  box-shadow:0 6px 16px rgba(11,87,208,.28);
+}
+
+.button.ocr-entry:hover {
+  filter:brightness(1.06);
+  box-shadow:0 8px 20px rgba(11,87,208,.34);
+}
+
+.button.ocr-entry svg {
+  width:20px;
+  height:20px;
+}
+
