@@ -32,6 +32,7 @@ function patientBasicGridHTML(p){
   ['随访观察起始',basicVal(p.followStartDate)],
   ['确诊日期',basicVal(p.confirmDate)],
   ['<span title="首次出现相关症状日期">发病时间</span>',basicVal(p.happenDate)],
+  ['<span title="类风湿关节炎分类标准：受累关节、血清学、滑膜炎持续时间、急性时相反应物 4 项相加，≥6 分可分类为 RA">ACR/EULAR 2010</span>',p.acrEularScore==null?'未评估':`${escapeHTML(p.acrEularScore)} 分<small class="antibody-date">${escapeHTML(p.acrEularLabel||'')}</small>`],
   ['随访周期',`${cycleLabel(p.followCycle)}${nextDueText(p)}`],
   ['DAS28-CRP',das28Text(p)],
   ['类风湿因子 RF',antibodyText(p.rf)],
