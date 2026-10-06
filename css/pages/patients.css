@@ -56,3 +56,41 @@
   height:20px;
 }
 
+/* 数据导出弹窗 */
+.export-dialog {
+  width:min(520px,calc(100vw - 32px));
+}
+
+.export-dates {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+.export-hint {
+  margin:4px 0 0;
+  padding:10px 12px;
+  border-radius:8px;
+  background:#f1f6ff;
+  color:#1f4f9c;
+  font-size:var(--fs-sm);
+}
+
+.export-hint.need-apply {
+  background:#fff6e6;
+  color:#8a5a10;
+}
+
+.export-error {
+  margin:0;
+  color:#b3261e;
+  font-size:var(--fs-sm);
+}
+
+.export-done {
+  margin:0;
+  padding:12px;
+  border-radius:8px;
+  background:#eef8f1;
+  color:#1d6b3a;
+}

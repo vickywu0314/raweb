@@ -32,7 +32,7 @@ function card(p){const id=String(p.patientId);return `<div class="patient-card s
 function updateSelectionUI(){const n=selected.size;const b=$('#ai-analysis');b.disabled=!n;b.textContent=n?`AI智能分析（已选 ${n} 人）`:'AI智能分析';const all=$('#select-all');if(all){const checked=pageRows.filter(p=>selected.has(String(p.patientId))).length;all.checked=pageRows.length>0&&checked===pageRows.length;all.indeterminate=checked>0&&checked<pageRows.length}}
 
 function render(d){
-  pageRows=d.items||[];
+  pageRows=d.items||[];lastTotal=d.total;
   $('#patient-summary').innerHTML=`共 ${d.totalPatients} 位患者已建档 · <button type="button" class="summary-link" id="show-incomplete" title="筛选资料待补全的患者">${d.incompleteCount}</button> 位资料待补全`;
   $('#patients').innerHTML=pageRows.map(card).join('');
   $('#empty').hidden=!!d.total;$('#empty').querySelector('h2').textContent='未找到匹配患者';
@@ -72,17 +72,65 @@ $('#patients').addEventListener('click',chipOpen);
 $('#patients').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.comorbid-chip'))chipOpen(e)});
 $('#patients').addEventListener('change',e=>{if(!e.target.matches('.patient-check'))return;e.target.checked?selected.add(e.target.value):selected.delete(e.target.value);updateSelectionUI()});
 $('#select-all').addEventListener('change',e=>{pageRows.forEach(p=>e.target.checked?selected.add(String(p.patientId)):selected.delete(String(p.patientId)));$('#patients').querySelectorAll('.patient-check').forEach(c=>c.checked=e.target.checked);updateSelectionUI()});
-// 数据导出（前端演示 CSV，完整导出需后端导出接口 PT03）：导出当前页中勾选的患者；未勾选则导出当前页
-function exportPatients(){const list=pageRows.filter(p=>selected.has(String(p.patientId)));const rows0=list.length?list:pageRows;if(!rows0.length){alert('当前没有可导出的患者数据');return}
- const cols=[['ID号',p=>p.patientId],['姓名',p=>p.name],['性别',p=>p.sex],['出生年份',p=>p.birthYear],['研究编号',p=>p.studyNo],['分型',p=>p.subtype],['DAS28-CRP',p=>p.latestDas28],['随访次数',p=>p.visitCount],['最近随访',p=>p.lastVisitDate],['随访周期(月)',p=>p.followCycle],['其他病史',p=>(p.comorbidities||[]).map(c=>c.code+' '+c.name).join('；')||'无'],['随访状态',p=>p.followStatusLabel],['数据完整性',p=>p.incomplete?'数据缺失':'数据完整']];
- const cell=v=>{v=v==null?'':String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v};
- const csv='﻿'+cols.map(c=>c[0]).join(',')+'\n'+rows0.map(p=>cols.map(c=>cell(c[1](p))).join(',')).join('\n');
- const u=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=u;a.download=`患者列表-${new Date().toISOString().slice(0,10)}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(u),500)}
+// ===== 数据导出：弹窗选随访日期范围；近半年内直接下载，更早的需填写申请（发到指定邮箱，邮件功能后续实现） =====
+let exportRange=null, lastTotal=0;
+function exportParams(extra){
+ const p={doctorId:currentDoctorId(),...extra};
+ if(selected.size)p.patientIds=[...selected].join(',');
+ else{if(state.q)p.keyword=state.q;if(state.status)p.followStatus=STATUS_PARAM[state.status];if(state.data)p.completeness=state.data}
+ return p;
+}
+async function openExportDialog(){
+ try{exportRange=exportRange||await apiPost('/api/ra/export/range',{})}catch(e){alert(`数据导出暂不可用：${e.message}`);return}
+ let d=document.getElementById('export-dialog');
+ if(!d){d=document.createElement('dialog');d.id='export-dialog';d.className='export-dialog';document.body.appendChild(d)}
+ const r=exportRange, scope=selected.size?`已勾选的 ${selected.size} 位患者`:`当前查询结果（共 ${lastTotal} 位患者）`;
+ d.innerHTML=`<form method="dialog" class="dialog-form" id="export-form"><div class="dialog-header"><h2>数据导出</h2><button class="icon-button" value="cancel" formnovalidate aria-label="关闭">×</button></div>
+  <p class="dialog-note">导出范围：<b>${escapeHTML(scope)}</b><br>导出内容：所选时间段内的随访记录，每次随访一行（姓名已脱敏，不含身份证号、手机号）。</p>
+  <div class="export-dates"><label class="form-field"><span>随访日期从 <b class="required">*</b></span><input type="date" name="start" required value="${r.freeStartDate}" max="${r.today}"></label><label class="form-field"><span>到 <b class="required">*</b></span><input type="date" name="end" required value="${r.today}" max="${r.today}"></label></div>
+  <p class="export-hint" id="export-hint"></p>
+  <label class="form-field" id="apply-reason" hidden><span>申请原因 / 用途 <b class="required">*</b></span><textarea name="reason" rows="3" maxlength="1000" placeholder="如：课题结题统计，需要 2024 年以来的全部随访数据"></textarea></label>
+  <p class="export-error" id="export-error" hidden></p>
+  <div class="dialog-footer"><button class="button" value="cancel" formnovalidate>取消</button><button class="button primary" value="ok" id="export-submit">下载</button></div></form>`;
+ const f=d.querySelector('form'),hint=d.querySelector('#export-hint'),reason=d.querySelector('#apply-reason'),btn=d.querySelector('#export-submit'),err=d.querySelector('#export-error');
+ const needApply=()=>f.start.value&&f.start.value<r.freeStartDate;
+ const sync=()=>{const apply=needApply();hint.classList.toggle('need-apply',apply);
+  hint.textContent=apply?`开始日期早于 ${r.freeStartDate}：超过半年的数据需要提交申请，填写原因后发送到指定邮箱，审批通过后再下载。`:`近半年（${r.freeStartDate} 至今）的数据可直接下载。`;
+  reason.hidden=!apply;btn.textContent=apply?'提交申请':'下载';err.hidden=true};
+ f.start.addEventListener('change',sync);f.end.addEventListener('change',sync);sync();
+ f.addEventListener('submit',async e=>{
+  if(e.submitter&&e.submitter.value!=='ok')return;
+  e.preventDefault();err.hidden=true;
+  const start=f.start.value,end=f.end.value;
+  if(!start||!end){err.hidden=false;err.textContent='请选择开始和结束日期';return}
+  if(start>end){err.hidden=false;err.textContent='开始日期不能晚于结束日期';return}
+  btn.disabled=true;const label=btn.textContent;btn.textContent=needApply()?'提交中…':'导出中…';
+  try{
+   if(needApply()){
+    const text=f.reason.value.trim();if(!text){throw new Error('请填写申请原因 / 用途')}
+    const id=await apiPost('/api/ra/export/apply',exportParams({startDate:start,endDate:end,reason:text}));
+    f.querySelector('.dialog-footer').innerHTML='<button class="button primary" value="cancel" formnovalidate>知道了</button>';
+    [hint,reason,f.querySelector('.export-dates')].forEach(x=>x.hidden=true);
+    f.querySelector('.dialog-note').outerHTML=`<p class="export-done">申请已提交（编号 ${escapeHTML(id)}）：${escapeHTML(start)} 至 ${escapeHTML(end)}。审批通过后会发送到指定邮箱。${r.mailConfigured?'':'（邮件发送功能开发中，请同时联系项目管理员。）'}</p>`;
+    return;
+   }
+   await downloadVisitsCsv(start,end);d.close();
+  }catch(ex){err.hidden=false;err.textContent=ex.message;if(/需要提交申请/.test(ex.message))sync()}
+  finally{btn.disabled=false;if(btn.isConnected&&/中…$/.test(btn.textContent))btn.textContent=label}
+ });
+ d.showModal();
+}
+async function downloadVisitsCsv(start,end){
+ const res=await fetch(API_BASE+'/api/ra/export/visitsCsv',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(exportParams({startDate:start,endDate:end}))});
+ if(!res.ok)throw new Error(`导出失败（HTTP ${res.status}）`);
+ if(!(res.headers.get('Content-Type')||'').includes('text/csv')){const r=await res.json();throw new Error(r.message||'导出失败')}
+ const u=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=u;a.download=`RA随访数据-${start}至${end}.csv`;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u)},1000);
+}
 $('#ai-analysis').onclick=()=>{if(selected.size)location.href=`ai-cohort.html?ids=${[...selected].map(encodeURIComponent).join(',')}`};
 $('#search-form').addEventListener('submit',e=>{e.preventDefault();state.q=$('#query').value.trim();state.status=$('#visit-status').value;state.data=$('#data-status').value;state.page=1;load()});
 // 检索条件（关键字、随访状态、数据完整性）选好后，点「查询」才查询；选下拉不会触发查询
 $('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};$('#query').value='';$('#visit-status').value='';$('#data-status').value='missing';load()});
-$('#export-data').onclick=exportPatients;
+$('#export-data').onclick=openExportDialog;
 $('#ocr-entry').onclick=()=>alert('「OCR识别录入」功能正在开发中，暂不可用。');
 $('#pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b){state.page=+b.dataset.page;load()}});
 $('#page-size').addEventListener('change',e=>{state.perPage=+e.target.value;state.page=1;load()});
