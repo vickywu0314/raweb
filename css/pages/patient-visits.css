@@ -368,3 +368,12 @@
   color:#b3261e;
   font-size:var(--fs-sm);
 }
+
+/* RF / 抗CCP 的化验日期：值下面单独一行 */
+.reference-basic-grid .antibody-date {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
