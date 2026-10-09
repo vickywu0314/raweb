@@ -6,9 +6,13 @@
   "scripts": {
     "dev": "http-server . -p 8090 -c-1 -o /index.html",
     "start": "http-server . -p 8090 -c-1",
-    "mock": "node mock/server.js"
+    "mock": "node mock/server.js",
+    "test:unit": "node tests/support/run-suite.mjs unit",
+    "test:e2e": "node tests/support/run-suite.mjs e2e",
+    "test:integration": "node --test-reporter=tap tests/support/run-integration.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.0",
     "http-server": "^14.1.1"
   }
 }
