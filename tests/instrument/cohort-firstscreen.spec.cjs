@@ -1,7 +1,8 @@
 const {test,expect}=require('@playwright/test');
 const {writeFile}=require('node:fs/promises');
+const {U,EMPTY,UNKNOWN_PATIENT}=require('../fixtures/cohort-p02.json');
 const ids=['9223372036854775807','11','9','8','7','6','5','4','3','2'];
-const firstscreen={success:true,code:'200',message:'成功',data:{n:12,studyTotal:20,analysisId:'11111111-1111-1111-1111-111111111111',patients:{total:12,returnedCount:10,hasMore:true,nextCursor:'opaque-firstscreen-cursor',items:[{patientId:'9223372036854775807',name:'合成<甲>',studyNo:'RA-001'},{patientId:'11',name:'合成乙1',studyNo:null},{patientId:'9',name:'合成乙2',studyNo:null},{patientId:'8',name:'合成乙3',studyNo:null},{patientId:'7',name:'合成乙4',studyNo:null},{patientId:'6',name:'合成乙5',studyNo:null},{patientId:'5',name:'合成乙6',studyNo:null},{patientId:'4',name:'合成乙7',studyNo:null},{patientId:'3',name:'合成乙8',studyNo:null},{patientId:'2',name:'合成乙9',studyNo:null}]}}};
+const firstscreen={success:true,code:'200',message:'成功',data:{...U,n:12,studyTotal:20,analysisId:'11111111-1111-1111-1111-111111111111',patients:{total:12,returnedCount:10,hasMore:true,nextCursor:'opaque-firstscreen-cursor',items:[{...structuredClone(UNKNOWN_PATIENT),patientId:'9223372036854775807',name:'合成<甲>',studyNo:'RA-001'},{...structuredClone(UNKNOWN_PATIENT),patientId:'11',name:'合成乙1',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'9',name:'合成乙2',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'8',name:'合成乙3',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'7',name:'合成乙4',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'6',name:'合成乙5',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'5',name:'合成乙6',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'4',name:'合成乙7',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'3',name:'合成乙8',studyNo:null},{...structuredClone(UNKNOWN_PATIENT),patientId:'2',name:'合成乙9',studyNo:null}]}}};
 async function setup({page,context,browser},scenario,reply=()=>({status:200,body:firstscreen})) {
   const origin=process.env.RA_STATIC_URL,requests=[],allowed=[],blocked=[],pageErrors=[];
   page.on('pageerror',error=>pageErrors.push(error.message));
@@ -56,7 +57,7 @@ test('cohort:empty-errors',async ({page,context,browser})=>{
   const success=async()=>{response={status:200,body:firstscreen};await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await expect(page.locator('#patient-rows .ai-row')).toHaveCount(10);};
   try {
     await page.goto(`${observed.origin}/ai-cohort.html`,{waitUntil:'load'});await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');
-    response={status:200,body:{success:true,code:'200',message:'成功',data:{n:0,studyTotal:20,analysisId:'11111111-1111-1111-1111-111111111111',patients:{total:0,returnedCount:0,hasMore:false,nextCursor:null,items:[]}}}};
+    response={status:200,body:{success:true,code:'200',message:'成功',data:{...EMPTY,n:0,studyTotal:20,analysisId:'11111111-1111-1111-1111-111111111111',patients:{total:0,returnedCount:0,hasMore:false,nextCursor:null,items:[]}}}};
     await page.locator('#f-sex').selectOption('F');await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','empty');
     await expect(page.locator('#cohort-n')).toHaveText('0');await expect(page.locator('#study-total')).toHaveText('20');await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);await expect(page.locator('#no-result')).toBeVisible();await expect(page.locator('#analysis-error')).toBeHidden();
     for(const failed of [
@@ -93,7 +94,7 @@ test('cohort:no-demo-actions',async ({page,context,browser})=>{
     await page.locator('#question').fill('TNFi 治疗6个月后高活动');await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-note')).toContainText('开发中');expect(observed.requests.length).toBe(before);
     await expect(page.locator('#export')).toBeDisabled();
     await page.locator('#export').evaluate(button=>button.click());expect(observed.requests.length).toBe(before);expect(downloads).toEqual([]);
-    expect(await page.locator('#patient-rows a').count()).toBe(0);await expect(page.locator('#clinical-panels')).toBeHidden();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
+    expect(await page.locator('#patient-rows a').count()).toBe(0);await expect(page.locator('#clinical-panels')).toBeVisible();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
     expect(observed.requests.every(request=>new URL(request.url).origin===observed.origin&&new URL(request.url).pathname==='/api/ra/ai/cohort')).toBe(true);
     expect(observed.pageErrors).toEqual([]);
   }finally{await observed.save();}

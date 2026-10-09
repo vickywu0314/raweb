@@ -1,5 +1,5 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b57d0"><link rel="icon" href="img/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="css/common.css?v=53"><link rel="stylesheet" href="css/shared/ai-analytics.css?v=53"><link rel="stylesheet" href="css/pages/ai-cohort.css?v=55"><script src="js/boot.js?v=53" defer></script><script src="js/data.js?v=53" defer></script><script src="js/common.js?v=62" defer></script><script src="js/pages/ai-cohort-api.js?v=2" defer></script><script src="js/pages/ai-cohort-conditions.js?v=3" defer></script><script src="js/pages/ai-cohort.js?v=57" defer></script><title>队列分析 · 患者数据研究平台</title></head><body><header class="app-header"><a class="brand" href="projects.html"><img src="img/logo.svg" width="38" height="38" alt=""><span>患者数据研究平台<small>Patient Data Research Platform</small></span></a><div class="header-actions"><div class="account"><span class="avatar">陈</span><span>陈医生<small>研究者</small></span></div></div></header><div class="app-layout"><aside class="sidebar"></aside><main id="main"><div class="breadcrumb">智能分析 <span>/</span> <a href="ai-analysis.html">AI 智能分析</a> <span>/</span> 队列分析</div>
-<div class="page-heading"><div><h1>群体智能分析 · 队列分析</h1><p>按条件实时分析当前授权 RA 研究库，查看人数与服务端分页名单。</p></div><span class="demo-flag">真实接口 · 条件与分页</span></div>
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b57d0"><link rel="icon" href="img/logo.svg" type="image/svg+xml"><link rel="stylesheet" href="css/common.css?v=53"><link rel="stylesheet" href="css/shared/ai-analytics.css?v=53"><link rel="stylesheet" href="css/pages/ai-cohort.css?v=57"><script src="js/boot.js?v=53" defer></script><script src="js/data.js?v=53" defer></script><script src="js/common.js?v=62" defer></script><script src="js/pages/ai-cohort-api.js?v=2" defer></script><script src="js/pages/ai-cohort-conditions.js?v=3" defer></script><script src="js/pages/ai-cohort.js?v=61" defer></script><title>队列分析 · 患者数据研究平台</title></head><body><header class="app-header"><a class="brand" href="projects.html"><img src="img/logo.svg" width="38" height="38" alt=""><span>患者数据研究平台<small>Patient Data Research Platform</small></span></a><div class="header-actions"><div class="account"><span class="avatar">陈</span><span>陈医生<small>研究者</small></span></div></div></header><div class="app-layout"><aside class="sidebar"></aside><main id="main"><div class="breadcrumb">智能分析 <span>/</span> <a href="ai-analysis.html">AI 智能分析</a> <span>/</span> 队列分析</div>
+<div class="page-heading"><div><h1>群体智能分析 · 队列分析</h1><p>按条件实时分析当前授权 RA 研究库，查看同次卡图与服务端分页名单。</p></div><span class="demo-flag">真实接口 · 同次统计与分页</span></div>
 <section class="ai-panel builder"><form id="question-form" class="ask-row"><input id="question" autocomplete="off" placeholder="用一句话描述研究问题，例如：TNFi 治疗 6 个月后仍处于中高疾病活动的患者"><button class="button ai-button" type="submit">按条件分析</button></form>
 <p class="parse-note">研究问题解析开发中；当前请使用下方条件筛选。</p>
 <p class="parse-note" id="parse-note" hidden></p>
@@ -16,16 +16,24 @@
 </div><div class="adv-actions"><button class="button" type="button" id="reset">清空条件</button></div></details></section>
 <p id="cohort-state" role="status" aria-live="polite" data-state="idle">等待分析</p>
 <button class="button compact" type="button" id="cancel-analysis" hidden>取消等待</button>
-<section class="stat-row" id="stats"><div class="stat-tile"><span>队列人数</span><strong id="cohort-n">—</strong><em>本次条件</em></div><div class="stat-tile"><span>研究库人数</span><strong id="study-total">—</strong><em>当前授权 RA 研究库</em></div></section>
+<section class="stat-row" id="stats">
+<div class="stat-tile"><span>队列人数</span><strong id="cohort-n">—</strong><em id="cohort-detail">—</em><small>研究库人数 <b id="study-total">—</b></small></div>
+<div class="stat-tile"><span>年龄中位</span><strong id="age-median">—</strong><em id="age-detail">—</em><small id="female-detail">—</small></div>
+<div class="stat-tile"><span>病程中位</span><strong id="duration-median">—</strong><em id="duration-detail">—</em><small id="sero-detail">—</small></div>
+<div class="stat-tile"><span>达标率</span><strong id="target-rate">—</strong><em id="target-detail">—</em></div>
+<div class="stat-tile"><span>资料完整</span><strong id="complete-rate">—</strong><em id="complete-detail">—</em><small id="qc-detail">—</small></div>
+</section>
 <section class="ai-panel" id="analysis-error" role="alert" hidden><h2>分析未完成</h2><p id="error-message"></p><p id="error-trace"></p><a id="login-return" href="login.html?next=ai-cohort.html" hidden>登录入口（真实会话待接入）</a></section>
 <div id="no-result" class="empty-state" hidden><h2>当前条件下没有患者</h2><p>请删除部分条件后重试。</p></div>
 <div class="panel-grid" id="clinical-panels" hidden>
-<section class="ai-panel"><header><h2>疾病活动分布</h2></header><p>开发中</p></section>
-<section class="ai-panel"><header><h2>按当前治疗分组的达标率</h2></header><p>开发中</p></section>
-<section class="ai-panel"><header><h2>亚组对比</h2></header><p>开发中</p></section>
-<section class="ai-panel"><header><h2>治疗路径</h2></header><p>开发中</p></section>
+<section class="ai-panel"><header><h2>疾病活动分布</h2></header><p id="crp-policy">DAS28-CRP：缓解&lt;2.3，低2.3～2.7，中&gt;2.7且≤4.1，高&gt;4.1；达标≤2.7</p><p id="activity-summary"></p><h3>基线</h3><div id="activity-base"></div><h3>本次评估</h3><div id="activity-current"></div></section>
+<section class="ai-panel"><header><h2>按当前治疗分组的达标率</h2></header><div id="tx-groups"></div><p id="tx-summary"></p><p id="study-target"></p><p id="tx-test" class="statistics-explanation"></p><p id="tx-notice"></p></section>
+<section class="ai-panel"><header><h2>治疗路径</h2></header><div id="line-groups"></div><p id="line-summary"></p></section>
+<section class="ai-panel"><header><h2>FM亚组对比</h2></header><p id="fm-summary"></p><p id="fm-note"></p><div class="statistics-table-wrap"><table id="fm-table"><thead><tr><th>指标</th><th>FM</th><th>非FM</th><th>差值</th><th>状态与检验</th></tr></thead><tbody id="fm-rows"></tbody></table></div></section>
 </div>
+<p id="analysis-policy" class="statistics-explanation" hidden></p>
 <div id="results" hidden><section class="ai-panel"><header><div><h2>队列患者</h2><p id="list-count"></p></div><button class="button compact" type="button" id="export" disabled>导出队列 · 开发中</button></header>
-<div class="ai-row ai-row-head"><span>姓名</span><span>研究编号</span><span>患者 ID</span></div>
+<p id="numeric-computed-at" class="patient-read-time"></p><p id="display-read-at" class="patient-read-time"></p>
+<div class="ai-row ai-row-head"><span>患者及临床</span><span>治疗</span><span>方案时长</span><span>DAS28-CRP</span><span>活动</span><span>CRP</span><span>合并症</span></div>
 <div id="patient-rows" class="ai-rows" role="list"></div><button class="button more" type="button" id="more" disabled hidden>加载更多患者</button></section></div>
-<p class="app-footnote">人数和分页名单来自服务端本次保留分析；结果失效时需显式重新分析。临床卡图、私有定义、比较、问题解析、导出与真实患者档案入口尚在开发中。</p></main></div></body></html>
+<p class="app-footnote">人数和分页名单来自服务端本次保留分析；结果失效时需显式重新分析。私有定义、比较、问题解析、导出与真实患者档案入口尚在开发中。</p></main></div></body></html>

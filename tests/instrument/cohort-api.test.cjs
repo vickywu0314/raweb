@@ -31,7 +31,7 @@ function pageClock() {
 }
 test('cohort:api-contract', async () => {
   const controller = new AbortController();
-  const envelope = {success:true,code:'200',message:'成功',data:{n:12,studyTotal:20,patients:{items:[{patientId:'9223372036854775807'}]}}};
+  const envelope = {success:true,code:'200',message:'成功',data:{...require('../fixtures/cohort-p02.json').U,n:12,studyTotal:20,patients:{items:[{...require('../fixtures/cohort-p02.json').CLINICAL.patients.items[0],patientId:'9223372036854775807'}]}}};
   const success = client(()=>new Response(JSON.stringify(envelope),{status:200,headers:{'Content-Type':'application/json','X-Trace-Id':'trace-success'}}));
   const result = await success.api.cohort({studyCode:'RA',at:'now',sex:'F'},{signal:controller.signal});
   assert.equal(success.requests[0].url,'/api/ra/ai/cohort');

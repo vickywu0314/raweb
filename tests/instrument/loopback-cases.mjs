@@ -1,3 +1,5 @@
+import {clinicalBrowser} from './cohort-clinical-browser.mjs';
+import {statisticsBrowser,literalStatistics} from './cohort-statistics-browser.mjs';
 import {paginationBrowser} from './cohort-pagination-browser.mjs';
 import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
@@ -82,3 +84,21 @@ for(const id of ['cohort:browser-pagination','cohort:browser-ids','cohort:browse
     for(const observation of r.events.filter(event=>event.type==='http-observation')){assert.equal(observation.active,0);assert.equal(observation.borrowed,observation.returned);}
   };
 }
+
+// P02普通六人场景，无额外stdin控制或HTTP路径。
+browserRegistry['cohort:browser-statistics']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p02']);const ready=await owner.ready(r,200);literalStatistics(ready.json.data);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,statisticsBrowser);
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+// 本run普通六人owned库内追加两个普通访视，实际SQL核准后走真实页面请求。
+browserRegistry['cohort:browser-clinical-source']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p02']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,6);assert.equal(ready.json.data.studyTotal,6);
+ await owner.mysqlQuery(`INSERT INTO ra_synthetic_test.patient_follow_up_history (id,patient_basic_info_id,research_type,follow_up_date,bqpg,fzjc,zlfa) VALUES
+ (130,1,0,'2026-10-07','{"result":{"crpScore":3,"ytgjs":2,"zzgjs":1},"hqaScore":1.2,"tjScore":15}','{"cfydb":8}','{"xyList":[{"drugName":"甲氨蝶呤","startTime":"2026-04-06","endTime":null}]}'),
+ (131,1,0,'2026-10-07','{"result":{"ytgjs":2,"zzgjs":1},"hqaScore":1.2,"tjScore":15}','{"cfydb":12}','{"xyList":[{"drugName":"甲氨蝶呤","startTime":"2026-04-06","endTime":null}]}')`);
+ const observed=await owner.mysqlQuery("SELECT id,patient_basic_info_id,DATE(follow_up_date),JSON_UNQUOTE(JSON_EXTRACT(bqpg,'$.result.crpScore')),JSON_UNQUOTE(JSON_EXTRACT(fzjc,'$.cfydb')) FROM ra_synthetic_test.patient_follow_up_history WHERE id IN (130,131) ORDER BY id");assert.equal(observed.trim(),'130\t1\t2026-10-07\t3\t8\n131\t1\t2026-10-07\tNULL\t12');
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,clinicalBrowser);
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
