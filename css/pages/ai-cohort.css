@@ -155,3 +155,15 @@ a.ai-row:hover {
     gap:6px;
   }
 }
+
+/* 本片只显示真实基础投影；不沿用演示临床列。 */
+#patient-rows .ai-row, .ai-row-head { grid-template-columns:minmax(150px,1fr) minmax(120px,1fr) minmax(200px,1.5fr); }
+#cohort-state[data-state="error"], #error-message { color:#a32626; }
+#error-trace { overflow-wrap:anywhere; color:#52606f; }
+#clinical-panels[hidden], #results[hidden], #analysis-error[hidden], #no-result[hidden] { display:none; }
+#patient-rows .ai-row { overflow-wrap:anywhere; }
+@media (max-width:600px) { #patient-rows .ai-row { grid-template-columns:1fr; } }
+
+#cancel-analysis { margin-bottom:12px; }
+#cancel-analysis[hidden] { display:none; }
+#cohort-state[data-state="expired"], #cohort-state[data-state="scope-changed"] { color:#a32626; }

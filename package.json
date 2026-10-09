@@ -4,8 +4,8 @@
   "private": true,
   "description": "RA 患者数据研究平台 · 前端（纯 HTML/CSS/JS 静态页面，无需构建）",
   "scripts": {
-    "dev": "http-server . -p 8090 -c-1 -o /index.html",
-    "start": "http-server . -p 8090 -c-1",
+    "dev": "node scripts/dev-server.mjs",
+    "start": "node scripts/dev-server.mjs",
     "mock": "node mock/server.js",
     "test:unit": "node tests/support/run-suite.mjs unit",
     "test:e2e": "node tests/support/run-suite.mjs e2e",

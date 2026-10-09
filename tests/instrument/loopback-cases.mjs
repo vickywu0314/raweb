@@ -1,4 +1,7 @@
+import {paginationBrowser} from './cohort-pagination-browser.mjs';
 import assert from 'node:assert/strict';
+import {expect} from '@playwright/test';
+import {cohortBrowserScenario} from './cohort-browser.mjs';
 export const browserCases=['instrument:browser-cohort-loopback','instrument:browser-anonymous-loopback'];
 export function literalSuccess(response) {
   assert.equal(response.status,200);assert.ok(response.trace);assert.equal(response.json.success,true);assert.equal(response.json.code,'200');
@@ -42,3 +45,40 @@ export const cases={
     assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
   }
 };
+
+// 浏览器专用选择不进入原五项默认集合。
+export const browserRegistry=Object.fromEntries(browserCases.map(id=>[id,async(owner,probe)=>{
+  const identity=id==='instrument:browser-anonymous-loopback'?'anonymous':'synthetic';
+  const r=await owner.fixture([`--identity=${identity}`]);await owner.ready(r,identity==='anonymous'?401:200);
+  const port=await owner.proxy(r);await owner.browserScenario(port,identity,probe);
+  const observations=r.events.filter(e=>e.type==='http-observation');
+  assert.ok(observations.length>=2);for(const e of observations){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);if(identity==='anonymous')assert.equal(e.borrowed,0);}
+}]));
+
+// 真实产品页面case显式加入registry；原五项默认与两instrument断言不变。
+for(const id of ['cohort:browser-firstscreen','cohort:browser-unauthenticated','cohort:browser-unavailable']) {
+  browserRegistry[id]=async owner=>{
+    const identity=id==='cohort:browser-unauthenticated'?'anonymous':'synthetic';
+    const r=await owner.fixture([`--identity=${identity}`,...(id==='cohort:browser-unavailable'?['--sql-failure']:[])]);
+    const status=identity==='anonymous'?401:id==='cohort:browser-unavailable'?503:200;
+    const ready=await owner.ready(r,status);
+    if(status===200)literalSuccess(ready);else failure(ready,status,status===401?'UNAUTHENTICATED':'SERVICE_UNAVAILABLE');
+    const port=await owner.proxy(r);
+    await owner.browserScenario(port,identity,undefined,(context,port,identity,owner,probe,pid)=>cohortBrowserScenario(context,port,identity,owner,probe,pid,id));
+    await expect.poll(()=>r.events.filter(event=>event.type==='http-observation').length,{timeout:5000}).toBe(id==='cohort:browser-firstscreen'?4:2);
+    const observations=r.events.filter(event=>event.type==='http-observation');
+    for(const event of observations){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);if(identity==='anonymous')assert.equal(event.borrowed,0);}
+    if(id==='cohort:browser-unavailable'){assert.ok(observations.every(event=>event.mysqlFailures>0));assert.ok(observations.every(event=>event.mysqlError===1146&&event.sqlState==='42S02'));}
+  };
+}
+
+// P01b独立37人场景；仅owned stdin改变合成上下文，原默认五项与两仪器case不变。
+for(const id of ['cohort:browser-pagination','cohort:browser-ids','cohort:browser-resource-errors']) {
+  browserRegistry[id]=async owner=>{
+    const r=await owner.fixture(['--identity=synthetic','--scenario=p01b']);const ready=await owner.ready(r,200);
+    assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
+    const port=await owner.proxy(r);
+    await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>paginationBrowser(context,port,identity,owner,probe,pid,id,r));
+    for(const observation of r.events.filter(event=>event.type==='http-observation')){assert.equal(observation.active,0);assert.equal(observation.borrowed,observation.returned);}
+  };
+}

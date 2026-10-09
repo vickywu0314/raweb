@@ -231,9 +231,9 @@ function loadListState(key,defaults){try{const nav=performance.getEntriesByType(
 function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.stringify(state))}catch(e){}}
 
 // ===== 后端接口（raapi） =====
-// API_BASE：后端地址；接口路径为 /api/<病种>/...，部署到其它环境时只改这里。
+// API_BASE：默认同源；仅由加载脚本前明确设置的 RA_CONFIG.apiBase 指定环境。
 // 统一返回 DataResult：{success, code, message, data}；success=false 时抛出 message。
-const API_BASE='http://localhost:8065';
+const API_BASE=typeof window.RA_CONFIG?.apiBase==='string'?window.RA_CONFIG.apiBase:'';
 const DEFAULT_DOCTOR_ID=82394; // 登录接口接入前，演示账号没有医生 ID 时使用
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
 async function apiPost(path,params){
