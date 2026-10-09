@@ -42,13 +42,25 @@ test('cohort:api-contract', async () => {
   assert.equal(success.requests[0].options.headers['Content-Type'],'application/json;charset=UTF-8');
   assert.equal(result.status,200); assert.equal(result.traceId,'trace-success');
   assert.deepEqual(JSON.parse(JSON.stringify(result.data)),envelope.data);
-  assert.deepEqual(Object.keys(success.api),['cohort','cohortPatients']);
+  assert.deepEqual(Object.keys(success.api),['cohort','cohortPatients','save','list','open','rename','delete']);
   await success.api.cohortPatients('11111111-1111-1111-1111-111111111111','opaque.A.10',{signal:controller.signal});
   assert.equal(success.requests[1].url,'/api/ra/ai/cohortPatients');
   assert.equal(success.requests[1].options.body,'{"analysisId":"11111111-1111-1111-1111-111111111111","cursor":"opaque.A.10"}');
   assert.equal(success.requests[1].options.signal,controller.signal);assert.equal(success.requests[1].options.credentials,'same-origin');
   assert.deepEqual(Object.keys(success.requests[1].options.headers),['Content-Type']);
   await success.api.cohort({studyCode:'RA',at:'now',ids:null});assert.equal(success.requests[2].options.body,'{"filters":{"studyCode":"RA","at":"now"}}');
+  const command={name:'  Trial  ',note:'',filters:{studyCode:'RA',at:'now',act:'target',ids:['9223372036854775807']},requestId:'00000000-0000-0000-0000-000000000001'};
+  for(const [method,body] of [['save',command],['list',{page:1,size:20}],['open',{cohortId:'00000000-0000-0000-0000-000000000100'}],['rename',{cohortId:'00000000-0000-0000-0000-000000000100',version:1,requestId:command.requestId,name:'\u00a0Trial2\u00a0'}],['rename',{cohortId:'00000000-0000-0000-0000-000000000100',version:2,requestId:command.requestId,note:null}],['rename',{cohortId:'00000000-0000-0000-0000-000000000100',version:3,requestId:command.requestId,note:''}],['delete',{cohortId:'00000000-0000-0000-000000000100',version:4,requestId:command.requestId}]]){
+    const wire=client(()=>new Response(JSON.stringify(envelope),{status:200,headers:{'Content-Type':'application/json','X-Trace-Id':'private-trace'}}),'http://127.0.0.1:9000');
+    const reply=await wire.api[method](body,{signal:controller.signal});
+    assert.equal(wire.requests[0].url,'http://127.0.0.1:9000/api/ra/cohort/'+method);assert.deepEqual(JSON.parse(wire.requests[0].options.body),body);assert.equal(wire.requests[0].options.credentials,'same-origin');assert.equal(wire.requests[0].options.signal,controller.signal);assert.deepEqual(Object.keys(wire.requests[0].options.headers),['Content-Type']);assert.equal(reply.traceId,'private-trace');
+    for(const [status,code] of [[400,'INVALID_REQUEST'],[401,'UNAUTHENTICATED'],[404,'RESOURCE_NOT_FOUND'],[409,'NAME_CONFLICT'],[409,'VERSION_CONFLICT'],[409,'IDEMPOTENCY_CONFLICT'],[413,'LIMIT_EXCEEDED'],[503,'SERVICE_UNAVAILABLE']]){
+      const failed=client(new Response(JSON.stringify({success:false,code,message:'私有安全错误',data:null}),{status,headers:{'Content-Type':'application/json','X-Trace-Id':'private-error'}}));
+      await assert.rejects(()=>failed.api[method](body),e=>e.status===status&&e.code===code&&e.traceId==='private-error'&&e.data===null);assert.equal(failed.requests.length,1);
+    }
+    const nonjson=client(new Response('<html>bad',{status:503,headers:{'Content-Type':'text/html','X-Trace-Id':'private-nonjson'}}));await assert.rejects(()=>nonjson.api[method](body),e=>e.code==='INVALID_RESPONSE'&&e.traceId==='private-nonjson');
+    const offline=client(()=>{throw new TypeError('disconnected');});await assert.rejects(()=>offline.api[method](body),e=>e.code==='NETWORK_ERROR'&&e.status===0);
+  }
   const rejected = client(new Response(JSON.stringify({success:false,code:'UNAUTHENTICATED',message:'会话<失效>',data:null}),{status:401,headers:{'Content-Type':'application/json','X-Trace-Id':'trace-401'}}));
   await assert.rejects(()=>rejected.api.cohort({studyCode:'RA',at:'now'}),error=>{
     assert.equal(error.status,401);assert.equal(error.success,false);assert.equal(error.code,'UNAUTHENTICATED');assert.equal(error.message,'会话<失效>');assert.equal(error.data,null);assert.equal(error.traceId,'trace-401');return true;

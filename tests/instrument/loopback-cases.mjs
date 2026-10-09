@@ -1,3 +1,4 @@
+import {privateBrowser,dynamicPrivateBrowser,commandsPrivateBrowser} from './cohort-private-browser.mjs';
 import {clinicalBrowser} from './cohort-clinical-browser.mjs';
 import {statisticsBrowser,literalStatistics} from './cohort-statistics-browser.mjs';
 import {paginationBrowser} from './cohort-pagination-browser.mjs';
@@ -44,6 +45,11 @@ export const cases={
     assert.equal(result.code,0,'fixture must preserve preexisting sentinel at highest-loss CREATE cut');assert.equal(r.port,null);
     assert.ok(r.events.some(e=>e.type==='create-conflict'&&e.mysqlError===1050));
     assert.ok(r.events.some(e=>e.type==='schema-ownership-observed'&&e.beforeFallback===true&&e.ownedTableAbsent===true&&e.sentinel===8675309));await owner.stop(r);
+    assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
+    const privateRun=await owner.fixture(['--scenario=p03','--mode=schema-conflict-check']);const privateResult=await owner.bounded(privateRun.finished,30000,'private-schema-conflict');
+    assert.equal(privateResult.code,0,'private second CREATE collision must preserve the preexisting sentinel');assert.equal(privateRun.port,null);
+    assert.ok(privateRun.events.some(e=>e.type==='private-schema-ownership-observed'&&e.beforeFallback&&e.ownedTableAbsent&&e.sentinel===8675309));
+    assert.deepEqual(privateRun.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition']);await owner.stop(privateRun);
     assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
   }
 };
@@ -100,5 +106,25 @@ browserRegistry['cohort:browser-clinical-source']=async owner=>{
  (131,1,0,'2026-10-07','{"result":{"ytgjs":2,"zzgjs":1},"hqaScore":1.2,"tjScore":15}','{"cfydb":12}','{"xyList":[{"drugName":"甲氨蝶呤","startTime":"2026-04-06","endTime":null}]}')`);
  const observed=await owner.mysqlQuery("SELECT id,patient_basic_info_id,DATE(follow_up_date),JSON_UNQUOTE(JSON_EXTRACT(bqpg,'$.result.crpScore')),JSON_UNQUOTE(JSON_EXTRACT(fzjc,'$.cfydb')) FROM ra_synthetic_test.patient_follow_up_history WHERE id IN (130,131) ORDER BY id");assert.equal(observed.trim(),'130\t1\t2026-10-07\t3\t8\n131\t1\t2026-10-07\tNULL\t12');
  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,clinicalBrowser);
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+// P03仅三路私有Controller的真实37人浏览器消费，仍由原唯一owner关闭全部资源。
+browserRegistry['cohort:browser-private-open']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p03']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>privateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-open',r));
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+browserRegistry['cohort:browser-private-dynamic']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p03']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>dynamicPrivateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-dynamic',r));
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+// P03b使用同一个registry/owner，仅扩真实元信息与删除消费者。
+browserRegistry['cohort:browser-private-commands']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p03']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>commandsPrivateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-commands',r));
  for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
 };
