@@ -59,17 +59,21 @@ try {
   report.selection = selected || '*'; report.probe = probe || null;
   const id = {unit: 'instrument:literal', e2e: 'instrument:page-load'}[mode];
   if (!id) throw new Error('unknown suite');
-  if (selected && selected !== id) { report.exit = 2; throw new Error(`no-match:${selected}`); }
+  const unitRegistry = {'instrument:literal':'literal.test.cjs','cohort:api-contract':'cohort-api.test.cjs','cohort:legacy-compat':'cohort-compat.test.cjs','cohort:dev-proxy':'cohort-proxy.test.cjs','cohort:conditions':'cohort-conditions.test.cjs'};
+  const e2eRegistry = {'instrument:page-load':'(^| )instrument:page-load$','cohort:request-firstscreen':'(^| )cohort:request-firstscreen$','cohort:empty-errors':'(^| )cohort:empty-errors$','cohort:no-demo-actions':'(^| )cohort:no-demo-actions$','cohort:url-ids':'(^| )cohort:url-ids$','cohort:late-isolation':'(^| )cohort:late-isolation$','cohort:terminal-states':'(^| )cohort:terminal-states$'};
+  const registry = mode === 'unit' ? unitRegistry : e2eRegistry;
+  if (selected && !Object.hasOwn(registry, selected)) { report.exit = 2; throw new Error(`no-match:${selected}`); }
   if (probe && !['assert-fail', 'startup-never-ready', 'server-start-fail', 'browser-start-fail', 'suite-timeout'].includes(probe)) throw new Error('unknown probe');
+  if (probe && selected && selected !== id) throw new Error('probes require original instrument case');
   if (mode === 'unit' && probe && probe !== 'assert-fail') throw new Error('startup/resource probes require e2e');
   let args, env = {...process.env, RA_RUN_DIR: dir, RA_PROBE: probe || ''};
   if (mode === 'unit') {
-    let file = resolve(root, 'tests/instrument/literal.test.cjs');
+    let file = resolve(root, 'tests/instrument', unitRegistry[selected || id]);
     if (probe === 'assert-fail') {
       file = `${dir}/assert-fail.test.cjs`;
       await writeFile(file, `const test = require('node:test'); const assert = require('node:assert/strict'); test('instrument:literal', {timeout:30000}, () => assert.equal(2+3,6));\n`);
     }
-    args = ['--test', '--test-reporter=tap', '--test-name-pattern=^instrument:literal$', file];
+    args = ['--test', '--test-reporter=tap', `--test-name-pattern=^${selected || id}$`, file];
   } else {
     const startupAt = Date.now();
     startupTimer = setTimeout(() => fail('startup-timeout:30000ms'), 30_000);
@@ -98,7 +102,7 @@ try {
       const temporary = source.replace("require('@playwright/test')", `require(${JSON.stringify(resolve(root, 'node_modules/@playwright/test'))})`).replace('expect(2 + 3).toBe(5)', 'expect(2 + 3).toBe(6)');
       await writeFile(`${dir}/assert-fail.spec.cjs`, temporary); env.RA_PROBE_DIR = dir;
     }
-    args = [resolve(root, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(root, 'playwright.config.js'), '--grep', '(^| )instrument:page-load$', '--output', resolve(dir, 'playwright-artifacts')];
+    args = [resolve(root, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(root, 'playwright.config.js'), '--grep', e2eRegistry[selected || id], '--output', resolve(dir, 'playwright-artifacts')];
     if (probe === 'suite-timeout') args = ['-e', 'setInterval(() => {}, 1000)'];
   }
   controller.signal.throwIfAborted();

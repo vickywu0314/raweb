@@ -1,5 +1,6 @@
 // 真实CLI回归：只发现原页面用例或执行无browser字面fixture，不启动浏览器/服务。
 import test from 'node:test';
+import vm from 'node:vm';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -18,7 +19,10 @@ async function fixture() {
   const runner = await readFile(resolve(root, 'tests/support/run-suite.mjs'), 'utf8');
   const lines = runner.split('\n').filter(line => line.includes("args = [resolve(root, 'node_modules/@playwright/test/cli.js')"));
   assert.equal(lines.length, 1, '必须找到唯一真实Playwright参数行');
-  const grep = lines[0].match(/'--grep', '([^']+)'/)?.[1];
+  assert.match(lines[0], /'--grep', e2eRegistry\[selected \|\| id\]/);
+  const registryLine = runner.split('\n').find(line => line.includes('const e2eRegistry ='));
+  const registry = vm.runInNewContext('(' + registryLine.trim().replace('const e2eRegistry =', '').replace(/;$/, '') + ')');
+  const grep = registry['instrument:page-load'];
   assert.ok(grep, '真实参数行必须声明grep');
   const output = lines[0].match(/'--output', resolve\(dir, '([^']+)'\)/)?.[1];
   assert.equal(lines[0].includes("'--output'"), Boolean(output), '拒绝无法提取的output参数');

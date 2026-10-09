@@ -1,0 +1,28 @@
+const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),{readFileSync}=require('node:fs'),{resolve}=require('node:path');
+const context=vm.createContext({window:{},URLSearchParams});
+vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-conditions.js'),'utf8'),context);
+const codec=context.window.RACohortConditions;
+const plain=value=>JSON.parse(JSON.stringify(value));
+test('cohort:conditions',()=>{
+  assert.equal(codec.decode('').ids,null);
+  assert.deepEqual(plain(codec.decode('?ids=').ids),[]);
+  assert.deepEqual(plain(codec.decode('?ids=9223372036854775807,1').ids),['9223372036854775807','1']);
+  for(const value of ['0','01','-1','1,','1,,2',' 1','1e3','9223372036854775808']) assert.throws(()=>codec.decode('?ids='+encodeURIComponent(value)),undefined,value);
+  assert.throws(()=>codec.decode('?ids='+Array(5001).fill('1').join(',')));
+  assert.equal(codec.decode('?ids='+Array(5000).fill('1').join(',')).ids.length,5000);
+  assert.throws(()=>codec.decode('?ids=1&ids=2'));
+  assert.equal(codec.decode('?sex=%E5%A5%B3&age=043-067&at=6m&tx=TNFi').sex,'F');
+  assert.deepEqual(plain(codec.decode('')),{studyCode:'RA',sex:'',age:'',sero:'',tx:'',at:'now',act:'',cm:'',data:'',ids:null});
+  for(const [key,values] of Object.entries({sex:['F','M'],sero:['1'],tx:['csDMARD','bio','TNFi','JAKi','IL-6i','Abatacept'],at:['now','6m'],act:['target','mod-high','remission','low','moderate','high'],cm:['FM','AS','none'],data:['complete','missing']})) for(const value of values)assert.equal(codec.decode('?'+key+'='+value)[key],value);
+  for(const age of ['43-67','043-067','0-','0-120'])assert.equal(codec.decode('?age='+age).age,age);
+  for(const query of ['?age=121-','?age=68-43','?age=-12','?age=1.1-4','?age=0000-1','?sex=X','?at=1m','?tx=x','?act=x','?cm=x','?sero=0','?data=x','?studyCode=AS','?sex=F&sex=M','?q=TNFi','?preset=1','?similar=9','?index=1','?analysisId=x','?cursor=x','?compareResultId=x','?host=x','?doctorId=101','?header=x','?foo='])assert.throws(()=>codec.decode(query),undefined,query);
+  assert.equal(codec.encode(codec.decode('?ids=')),'?ids=');
+  assert.equal(codec.encode(codec.decode('')),'');
+  assert.equal(codec.encode(codec.decode('?studyCode=RA&at=now&sex=&ids=9223372036854775807,1')),'?ids=9223372036854775807%2C1');
+  assert.equal(codec.encode(codec.decode('?sex=男&age=043-067')),'?sex=M&age=043-067');
+  assert.deepEqual(plain(codec.decode(codec.encode(codec.decode('?ids=9223372036854775807,1&at=6m'))).ids),['9223372036854775807','1']);
+  assert.throws(()=>codec.encode({ids:[1]}),undefined,'编码不得将数值ID变成字符串');
+  assert.throws(()=>codec.encode({ids:Array(5001).fill('1')}));
+  assert.throws(()=>codec.encode({host:''}));
+  assert.throws(()=>codec.encode({sex:false}));
+});

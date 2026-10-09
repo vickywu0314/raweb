@@ -1,8 +1,10 @@
 import { spawn } from 'node:child_process';
-import { readFile, mkdir, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { readFile, mkdir, writeFile, realpath, stat } from 'node:fs/promises';
+import { resolve, extname, sep } from 'node:path';
 import http from 'node:http';
 import net from 'node:net';
+import { chromium } from '@playwright/test';
+import { browserLoopbackScenario } from '../instrument/loopback-browser.mjs';
 
 export const sleep = ms => new Promise(r => setTimeout(r, ms));
 export async function portOpen(port) {
@@ -19,7 +21,7 @@ export async function pidLive(pid) {
 }
 export class LoopbackOwner {
   constructor({repo,dir,report,event}) {
-    Object.assign(this,{repo,dir,report,event});this.controller=new AbortController();this.children=[];this.proxies=[];this.closed=false;
+    Object.assign(this,{repo,dir,report,event});this.controller=new AbortController();this.children=[];this.proxies=[];this.closed=false;this.browserRecords=[];
   }
   fail(cause) {if(!this.controller.signal.aborted){this.report.cause ||= cause;this.controller.abort(new Error(cause));this.event('terminal',{cause});}}
   async bounded(promise,ms,label) {
@@ -57,7 +59,7 @@ export class LoopbackOwner {
     await this.command('mvn',['-B','org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath','-DincludeScope=test',`-Dmdep.outputFile=${this.classpathFile}`],{cwd:source,env:this.javaEnv},'build-classpath',120000);
     this.classpath=`${source}/target/test-classes:${source}/target/classes:${(await readFile(this.classpathFile,'utf8')).trim()}`;
     if(!this.classpath.includes('tomcat-embed-core'))throw new Error('test-classpath-missing-provided-tomcat');
-    this.report.toolchain={node:process.version,java:await this.javaVersion(),javaHome:this.javaEnv.JAVA_HOME,mavenHome:this.javaEnv.MAVEN_HOME};
+    this.report.toolchain={node:process.version,java:await this.javaVersion(),maven:(await this.command('mvn',['-version'],{cwd:source,env:this.javaEnv},'maven-version',5000)).trim(),javaHome:this.javaEnv.JAVA_HOME,mavenHome:this.javaEnv.MAVEN_HOME};
     this.event('prepared',{providedTomcat:true});
   }
   async javaVersion() {await this.command(`${this.javaEnv.JAVA_HOME}/bin/java`,['-version'],{env:this.javaEnv},'java-version',5000);return this.children[this.children.length-1].stderr.trim();}
@@ -83,6 +85,7 @@ export class LoopbackOwner {
     const base=`${this.dir}/tomcat-${this.children.length}`;await mkdir(base,{recursive:true});
     const env={...this.javaEnv,...this.mysqlEnv,RA_WEB_FIXTURE_DIR:base,...envOverrides};
     const r=this.child(`${this.javaEnv.JAVA_HOME}/bin/java`,['-cp',this.classpath,'com.wenwen.ai.cohort.WebLoopbackApiFixture',...args],{env,cwd:this.repo},'fixture');
+    r.scenario=args.includes('--scenario=p01b')?'p01b':'default';
     let buffer='';r.ready=new Promise((yes,no)=>{
       r.child.stdout.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,end).trim();buffer=buffer.slice(end+1);
         if(line.startsWith('RA_WEB_FIXTURE_EVENT ')){const data=JSON.parse(line.slice(21));r.events.push(data);if(data.type==='held-not-ready'){r.port=data.port;this.report.resources.find(x=>x.pid===r.child.pid).port=data.port;}this.event('fixture-event',{pid:r.child.pid,...data});}
@@ -90,6 +93,24 @@ export class LoopbackOwner {
           if(!this.controller.signal.aborted&&!this.closed){this.event('fixture-ready',{pid:r.child.pid,...data});yes(data);}else this.event('late-ready-ignored',{pid:r.child.pid});}
       }});r.finished.then(result=>no(new Error(`fixture-before-ready:${result.code??result.signal}`)));
     });r.ready.catch(()=>{});return r;
+  }
+  async control(r,command) {
+    this.controller.signal.throwIfAborted();
+    if(this.closed||r.ended||!this.children.includes(r)||r.key!=='fixture'||r.scenario!=='p01b'||!r.port)throw new Error('control-requires-live-owned-p01b-fixture');
+    if(!['IDENTITY_101','IDENTITY_202','IDENTITY_ANONYMOUS','ADVANCE_TTL'].includes(command))throw new Error('unknown-fixture-control');
+    if(r.controlFlight)throw new Error('fixture-control-already-pending');
+    const seq=(r.controlSeq||0)+1;r.controlSeq=seq;r.controlFlight=seq;let buffer='',receive;
+    const ack=new Promise((yes,no)=>{
+      receive=chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,end).trim();buffer=buffer.slice(end+1);if(!line.startsWith('RA_WEB_FIXTURE_EVENT '))continue;
+        let event;try{event=JSON.parse(line.slice(21));}catch{no(new Error('invalid-fixture-control-ack'));return;}
+        if(event.type==='control-ack'&&event.seq===seq){if(event.command!==command||event.accepted!==true)no(new Error('fixture-control-rejected'));else yes(event);}
+      }};
+      r.child.stdout.on('data',receive);r.finished.then(()=>no(new Error('fixture-exited-before-control-ack')));
+      this.controller.signal.throwIfAborted();if(this.closed||r.ended){no(new Error('control-after-owner-fence'));return;}
+      r.child.stdin.write(`CONTROL ${seq} ${command}\n`,error=>{if(error)no(error);});
+    });
+    try{return await this.bounded(ack,5000,'fixture-control');}
+    finally{r.child.stdout.removeListener('data',receive);if(r.controlFlight===seq)r.controlFlight=null;}
   }
   async ready(r,status) {
     const deadline=Date.now()+30000;const data=await this.bounded(r.ready,30000,'fixture-ready');
@@ -110,14 +131,59 @@ export class LoopbackOwner {
   async proxy(r) {
     this.controller.signal.throwIfAborted();if(this.closed)throw new Error('owner-already-closed');
     const server=http.createServer(async(request,response)=>{
-      if(request.url==='/'&&request.method==='GET'){response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});response.end('<!doctype html><title>loopback instrument</title>');return;}
-      if(request.url!=='/api/ra/ai/cohort'||request.method!=='POST'){response.writeHead(404);response.end();return;}
+      if(['GET','HEAD'].includes(request.method)){
+        try {
+          if(!request.url.startsWith('/')||request.url.startsWith('//'))throw new Error('invalid-static-path');
+          const pathname=decodeURIComponent(new URL(request.url,'http://127.0.0.1').pathname);
+          if(pathname.split('/').some(part=>part.startsWith('.'))||pathname.includes('\\'))throw new Error('hidden-or-traversal');
+          const root=await realpath(resolve(this.repo,'raweb')),file=resolve(root,`.${pathname==='/'?'/ai-cohort.html':pathname}`);
+          const canonical=await realpath(file);if(!file.startsWith(root+sep)||!canonical.startsWith(root+sep))throw new Error('static-root-escape');
+          if(!(await stat(canonical)).isFile())throw new Error('not-static-file');
+          const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.json':'application/json','.ico':'image/x-icon'};
+          response.writeHead(200,{'Content-Type':types[extname(canonical)]||'application/octet-stream','Cache-Control':'no-store'});response.end(request.method==='HEAD'?undefined:await readFile(canonical));
+        }catch{response.writeHead(404);response.end();}return;
+      }
+      if(!['/api/ra/ai/cohort','/api/ra/ai/cohortPatients'].includes(request.url)||request.method!=='POST'){response.writeHead(404);response.end();return;}
       try{const chunks=[];for await(const c of request)chunks.push(c);const backend=await fetch(`http://127.0.0.1:${r.port}${request.url}`,{method:'POST',headers:{'Content-Type':'application/json','X-Doctor-Id':request.headers['x-doctor-id']||'202'},body:Buffer.concat(chunks),signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(5000)])});
         response.writeHead(backend.status,{'Content-Type':backend.headers.get('content-type'),'X-Trace-Id':backend.headers.get('x-trace-id')});response.end(Buffer.from(await backend.arrayBuffer()));
       }catch(e){response.writeHead(502);response.end();}
     });this.proxies.push(server);
     await this.bounded(new Promise((yes,no)=>{server.once('error',no);server.listen(0,'127.0.0.1',yes);}),5000,'proxy-start');
     this.controller.signal.throwIfAborted();const port=server.address().port;this.report.resources.push({key:'proxy',port});this.event('proxy-ready',{port,backendPort:r.port});return port;
+  }
+  async browserScenario(port,identity,probe,scenario=browserLoopbackScenario) {
+    this.controller.signal.throwIfAborted();if(this.closed)throw new Error('owner-already-closed');
+    const record={server:null,browser:null,context:null,pid:null};this.browserRecords.push(record);
+    record.launching=chromium.launchServer({executablePath:probe==='browser-start-fail'?`${this.dir}/missing-chromium`:chromium.executablePath(),headless:true,chromiumSandbox:true,timeout:30000});
+    record.launching.catch(()=>{});
+    record.acquiring=(async()=>{
+      record.server=await record.launching;
+      record.pid=record.server.process().pid;this.report.resources.push({key:'browser',pid:record.pid});
+      if(this.closed||this.controller.signal.aborted){this.event('late-browser-fenced',{pid:record.pid});throw this.controller.signal.reason||new Error('owner-already-closed');}
+      record.browser=await chromium.connect(record.server.wsEndpoint(),{timeout:5000});
+      this.controller.signal.throwIfAborted();if(this.closed)throw new Error('owner-already-closed');
+      record.context=await record.browser.newContext({serviceWorkers:'block'});
+      this.controller.signal.throwIfAborted();if(this.closed)throw new Error('owner-already-closed');
+      this.report.browser.push({pid:record.pid,version:record.browser.version(),executablePath:chromium.executablePath(),chromiumSandbox:true});
+      this.event('browser-ready',{pid:record.pid,port,version:record.browser.version()});
+      return record.context;
+    })();record.acquiring.catch(()=>{});
+    const context=await this.bounded(record.acquiring,30000,'browser-start');
+    return this.bounded(scenario(context,port,identity,this,probe,record.pid),['browser-pending','browser-suite-timeout'].includes(probe)?120000:30000,'browser-case');
+  }
+  async cleanupWait(promise,ms,label) {
+    let timer;try{return await Promise.race([promise,new Promise((_,no)=>{timer=setTimeout(()=>no(new Error(`${label}-timeout:${ms}ms`)),ms);})]);}finally{clearTimeout(timer);}
+  }
+  async closeBrowser(record) {
+    // If launch resolves late, close that exact server before waiting on its context RPC.
+    try{record.server ||= await this.cleanupWait(record.launching,31000,'browser-launch-settle');}catch(e){if(!record.server){if(e.message.startsWith('browser-launch-settle-timeout:'))throw e;return;}}
+    record.pid ||= record.server.process().pid;const errors=[];let forced=false;
+    if(record.context)try{await this.cleanupWait(record.context.close(),5000,'context-close');this.event('context-closed',{pid:record.pid});}catch(e){errors.push(e.message);}
+    if(record.browser)try{await this.cleanupWait(record.browser.close(),5000,'browser-disconnect');}catch(e){errors.push(e.message);}
+    try{await this.cleanupWait(record.server.close(),5000,'browser-close');}catch(e){errors.push(e.message);forced=true;try{await this.cleanupWait(record.server.kill(),2000,'browser-kill');}catch(k){errors.push(k.message);}}
+    try{await this.cleanupWait(record.acquiring.catch(()=>{}),2000,'browser-acquisition-settle');}catch(e){errors.push(e.message);}
+    const live=await pidLive(record.pid);this.event('browser-closed',{pid:record.pid,live,forced});if(live)errors.push('browser-pid-leaked');
+    if(errors.length)throw new Error(`browser-cleanup-failed:${errors.join(';')}`);
   }
   signal(r,signal) {
     if(['test-compile','build-classpath','environment'].includes(r.key)) {
@@ -139,7 +205,8 @@ export class LoopbackOwner {
     if(r.events.some(e=>e.type==='closed'&&e.clean===false))throw new Error('fixture-cleanup-failed');
   }
   async close() {
-    if(this.closed)return;this.closed=true;const errors=[];
+    if(this.closed)return;this.closed=true;const errors=[...(this.report.cleanupErrors||[])];
+    for(const record of this.browserRecords)try{await this.closeBrowser(record);}catch(e){errors.push(e.message);}
     for(const server of this.proxies)try{const port=server.address()?.port;server.closeAllConnections();await new Promise((yes,no)=>server.close(e=>e?no(e):yes()));if(port&&await portOpen(port))throw new Error('proxy-listener-leaked');this.event('proxy-closed',{port});}catch(e){errors.push(e.message);}
     for(const r of [...this.children].reverse())if(r!==this.db)try{await this.stop(r);}catch(e){errors.push(e.message);}
     try{await this.stop(this.db,{database:true});}catch(e){errors.push(e.message);}
