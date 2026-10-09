@@ -3,7 +3,7 @@
 window.RACohortAPI = (()=>{
   async function post(path, body, {signal} = {}) {
     let response;
-    try { response = await fetch(API_BASE + '/api/ra/ai/' + path, {
+    try { response = await fetch(API_BASE + '/api/ra/' + path, {
       method: 'POST', credentials: 'same-origin', signal,
       headers: {'Content-Type': 'application/json;charset=UTF-8'},
       body: JSON.stringify(body)
@@ -29,8 +29,13 @@ window.RACohortAPI = (()=>{
   return Object.freeze({
     cohort(filters, options) {
       const input={...filters};if(input.ids===null)delete input.ids;
-      return post('cohort',{filters:input},options);
+      return post('ai/cohort',{filters:input},options);
     },
-    cohortPatients(analysisId,cursor,options) {return post('cohortPatients',{analysisId,cursor},options);}
+    cohortPatients(analysisId,cursor,options) {return post('ai/cohortPatients',{analysisId,cursor},options);},
+    save(command,options) {return post('cohort/save',command,options);},
+    list(input,options) {return post('cohort/list',input,options);},
+    open(input,options) {return post('cohort/open',input,options);},
+    rename(command,options) {return post('cohort/rename',command,options);},
+    delete(command,options) {return post('cohort/delete',command,options);}
   });
 })();

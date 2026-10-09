@@ -15,7 +15,7 @@ function invalidate(error=null) {
 }
 function checkIdentity(){
   const current=identityKey();if(current===identity)return false;
-  identity=current;invalidate({status:401,code:'UNAUTHENTICATED',message:'登录身份已变化，请重新登录后显式分析'});return true;
+  identity=current;clearPrivate();invalidate({status:401,code:'UNAUTHENTICATED',message:'登录身份已变化，请重新登录后显式分析'});return true;
 }
 function isCurrent(operation,kind) {
   return !disposed && !operation.terminal && generation===operation.generation && (kind==='cohort'?flight===operation:pageFlight===operation&&resource===operation.resource&&resource.analysisId===operation.analysisId&&resource.cursor===operation.cursor&&!resource.consumed.has(operation.cursor));
@@ -116,7 +116,7 @@ function clearResults() {
   $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;
   $('#results').hidden = true; $('#no-result').hidden = true; $('#analysis-error').hidden = true;
   $('#login-return').hidden = true; $('#more').hidden = true; $('#more').disabled=true;
-  resource=null;delete $('#results').dataset.analysisId;
+  resource=null;delete $('#results').dataset.analysisId;$('#private-open-meta').textContent='';delete $('#private-open-meta').dataset.cohortId;
 }
 function state(name, message) {
   $('#cohort-state').dataset.state = name; $('#cohort-state').textContent = message;
@@ -130,6 +130,7 @@ function renderChips() {
   }).join('') : (idsChip?'':'<span class="cond-empty">未设置条件 · 将分析当前授权 RA 研究库</span>'))+idsChip;
 }
 function showError(error) {
+  if(error.status===401)clearPrivate();
   const resourceState=error.status===410?'expired':error.status===409&&error.code==='SCOPE_CHANGED'?'scope-changed':'error';
   state(resourceState,resourceState==='expired'?'分析结果已过期，请显式重新分析':resourceState==='scope-changed'?'授权范围已变化，请显式重新分析':error.status===404?'分析资源不存在，请显式重新分析':'分析失败，请确认条件后重新分析');
   $('#analysis-error').hidden = false;
@@ -236,11 +237,13 @@ function finish(operation, result, error) {
   if(!isCurrent(operation,'cohort'))return;
   if(operation.identity!==identityKey()){checkIdentity();return;}
   if(error){endOperation(operation,'cohort',error.code||'REQUEST_FAILED');showError(error);return;}
-  const data = result.data;
-  if (!data || !Number.isInteger(data.n) || !Number.isInteger(data.studyTotal) || data.n<0 || data.studyTotal<data.n || typeof data.analysisId!=='string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(data.analysisId) || !validPatients(data.patients,data.n,0,10) || !validProjection(data)) {
+  const outer=result.data,data=operation.cohortId?outer?.analysis:outer;
+  const normalized=operation.cohortId&&validPrivateItem(outer?.cohort)&&outer.cohort.cohortId===operation.cohortId?privateFilters(outer.cohort.filters):null;
+  if ((operation.cohortId&&(!normalized||!validPrivateMeta(outer,result.traceId))) || !data || !Number.isInteger(data.n) || !Number.isInteger(data.studyTotal) || data.n<0 || data.studyTotal<data.n || typeof data.analysisId!=='string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(data.analysisId) || !validPatients(data.patients,data.n,0,10) || !validProjection(data)) {
     endOperation(operation,'cohort','INVALID_RESPONSE');showError({status:result.status,code:'INVALID_RESPONSE',message:'队列响应不完整',traceId:result.traceId});return;
   }
   endOperation(operation,'cohort','SUCCESS');
+  if(operation.cohortId){applyPrivateFilters(normalized);$('#private-open-meta').textContent=privateDeleted.has(outer.cohort.cohortId)?'该私有定义已删除；本次已开始的分析仍遵循原有效期和授权范围。':privateItemText(outer.cohort);$('#private-open-meta').dataset.cohortId=outer.cohort.cohortId;}
   resource={generation,analysisId:data.analysisId,cursor:data.patients.nextCursor,n:data.n,loaded:data.patients.items.length,consumed:new Set()};
   $('#results').dataset.analysisId=data.analysisId;
   $('#cohort-n').textContent = String(data.n); $('#study-total').textContent = String(data.studyTotal);
@@ -281,7 +284,7 @@ function loadMore() {
 $('#more').addEventListener('click',loadMore);
 function analyze() {
   if (disposed) return;
-  invalidate();identity=identityKey();renderChips();
+  checkIdentity();saveParametersChanged();invalidate();identity=identityKey();renderChips();
   if (blockedEntry) {
     showError(blockedEntry); return;
   }
@@ -316,7 +319,180 @@ $('#reset').addEventListener('click',()=>{
   history.replaceState(null,'',location.pathname+location.hash); analyze();
 });
 $('#cancel-analysis').addEventListener('click',()=>{if(flight||pageFlight)invalidate({code:'REQUEST_CANCELLED',message:'请求已取消，请显式重新分析'});});
-window.addEventListener('pagehide',()=>{disposed=true;invalidate({code:'REQUEST_CANCELLED',message:'已离开页面，请重新分析'});});
+// 私有定义只读元信息；列表与保存独立于分析owner，不自动统计人数。
+let listFlight=null,listToken=0,listPage=1,privateItems=new Map(),privateDeleted=new Set();
+const PRIVATE_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+function privateFilters(filters){
+  if(!filters||typeof filters!=='object'||Array.isArray(filters)||Object.keys(filters).length!==10||!['studyCode',...Object.keys(SELECTS),'ids'].every(key=>Object.hasOwn(filters,key))||filters.studyCode!=='RA'||!['now','6m'].includes(filters.at))return null;
+  const values={studyCode:'RA',ids:filters.ids};
+  for(const key of Object.keys(SELECTS)){if(filters[key]!==null&&typeof filters[key]!=='string')return null;values[key]=filters[key]??'';}
+  try{return window.RACohortConditions.decode(window.RACohortConditions.encode(values));}catch{return null;}
+}
+function validPrivateItem(item){
+  return item&&typeof item==='object'&&!Array.isArray(item)&&typeof item.cohortId==='string'&&PRIVATE_UUID.test(item.cohortId)&&typeof item.name==='string'&&item.name.length>0&&(item.note===null||typeof item.note==='string')&&Number.isInteger(item.version)&&item.version>0&&['createdAt','updatedAt'].every(key=>typeof item[key]==='string'&&/Z$/.test(item[key])&&Number.isFinite(Date.parse(item[key])))&&item.currentN===null&&privateFilters(item.filters)!==null;
+}
+function validPrivateMeta(data,trace){return data?.meta&&typeof data.meta.traceId==='string'&&(!trace||data.meta.traceId===trace);}
+function privateItemText(item){return `${item.name} · 备注：${item.note===null?'未填写':item.note} · 版本 ${Number.isSafeInteger(item.version)?item.version:'超出安全显示范围'} · 创建 ${item.createdAt} · 更新 ${item.updatedAt} · 条件 ${JSON.stringify(item.filters)} · 打开后计算`;}
+function applyPrivateFilters(filters){
+  for(const [key,selector] of Object.entries(SELECTS)){
+    const select=$(selector);
+    if(key==='age'&&filters.age&&!Array.from(select.options||[]).some(option=>option.value===filters.age)){const option=document.createElement('option');option.value=filters.age;option.textContent=filters.age+' 岁';select.append(option);}
+    select.value=filters[key];
+  }
+  entryIds=filters.ids===null?null:[...filters.ids];blockedEntry=false;
+  history.replaceState(null,'',location.pathname+window.RACohortConditions.encode(filters)+location.hash);renderChips();saveParametersChanged();
+}
+function listState(name,message){$('#private-list-state').dataset.state=name;$('#private-list-state').textContent=message;}
+function clearPrivate(){
+  cancelSave();cancelPrivateCommand();privateItems.clear();privateDeleted.clear();const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='IDENTITY_ENDED';clearTimeout(previous.timer);previous.controller.abort();}
+  $('#private-edit-name').value='';$('#private-edit-note').value='';$('#private-edit-note-mode').value='preserve';$('#private-command-target').textContent='';listPage=1;$('#private-items').replaceChildren();$('#private-page').textContent='';$('#private-prev').disabled=true;$('#private-open-meta').textContent='';$('#private-name').value='';$('#private-note').value='';listState('idle','尚未加载');
+}
+function loadPrivateList(page=listPage,refreshEdit=false){
+  if(disposed||checkIdentity()||!Number.isSafeInteger(page)||page<1)return;
+  const editing=refreshEdit?privateEdit:null;
+  if(editing){endPrivateCommand('REFRESHED');privateCommand=null;}else cancelPrivateCommand();
+  const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='SUPERSEDED';clearTimeout(previous.timer);previous.controller.abort();}
+  listPage=page;const operation={token:listToken,identity,page,controller:new AbortController(),timer:null,terminal:null};listFlight=operation;
+  privateItems.clear();$('#private-items').replaceChildren();$('#private-prev').disabled=page===1;$('#private-page').textContent=`第 ${page} 页 · 每页 20 条 · 总数待确认`;listState('loading','正在读取私有条件定义');
+  const finishList=(result,error)=>{
+    if(disposed||operation.terminal||listFlight!==operation||operation.token!==listToken)return;
+    if(operation.identity!==identityKey()){checkIdentity();return;}
+    const data=result?.data;
+    if(!error&&(!data||!validPrivateMeta(data,result.traceId)||data.page!==operation.page||data.size!==20||!Number.isSafeInteger(data.total)||data.total<0||!Array.isArray(data.items)||data.items.length>20||data.items.length>data.total||!data.items.every(validPrivateItem)||new Set(data.items.map(item=>item.cohortId)).size!==data.items.length))error={status:result?.status,code:'INVALID_RESPONSE',message:'私有定义列表响应不完整',traceId:result?.traceId};
+    operation.terminal=error?.code||'SUCCESS';listFlight=null;clearTimeout(operation.timer);
+    if(error){if(error.status===401){clearPrivate();invalidate(error);return;}if(editing&&privateEdit===editing){$('#private-version-refresh').hidden=false;$('#private-command-confirm').disabled=true;commandState('error',`元信息刷新失败：${error.code||'REQUEST_FAILED'} ${error.message} ${error.traceId?'Trace：'+error.traceId:''}；原输入已保留，请显式再次刷新。`);}listState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${error.traceId?'Trace：'+error.traceId:''}`);return;}
+    $('#private-page').textContent=`第 ${data.page} 页 · 每页 ${data.size} 条 · 共 ${data.total} 条`;
+    for(const item of data.items){privateItems.set(item.cohortId,item);const row=textNode('div',privateItemText(item),'private-item');row.dataset.privateCohort=item.cohortId;row.setAttribute('role','listitem');const button=textNode('button','打开并重新分析','button');button.type='button';button.dataset.openCohort=item.cohortId;row.append(button);const edit=textNode('button','修改名称/备注','button');edit.type='button';edit.dataset.editCohort=item.cohortId;edit.disabled=!Number.isSafeInteger(item.version);row.append(edit);const remove=textNode('button','删除','button');remove.type='button';remove.dataset.deleteCohort=item.cohortId;remove.disabled=!Number.isSafeInteger(item.version);row.append(remove);if(!Number.isSafeInteger(item.version))row.append(textNode('small','版本超出安全整数范围，只能读取或打开'));$('#private-items').append(row);}
+    if(editing&&privateEdit===editing){const item=privateItems.get(editing.item.cohortId);if(item){editing.item=item;editing.versionConflict=false;$('#private-command-target').textContent=privateItemText(item);$('#private-command-confirm').disabled=!Number.isSafeInteger(item.version);commandState('idle',Number.isSafeInteger(item.version)?'元信息已刷新，请核对输入后确认新命令':'版本超出安全整数范围，只能读取或打开');}else{cancelPrivateCommand();commandState('error','当前页未找到该定义，请加载对应页后重新选择。');}}
+    listState(data.items.length?'success':'empty',data.items.length?'列表已读取，人数在打开后计算':'当前页没有私有定义');
+  };
+  operation.timer=setTimeout(()=>{finishList(null,{code:'REQUEST_TIMEOUT',message:'列表请求超过30秒，请显式重试'});operation.controller.abort();},30000);
+  window.RACohortAPI.list({page,size:20},{signal:operation.controller.signal}).then(result=>finishList(result),error=>finishList(null,error));
+}
+function openPrivate(cohortId){
+  if(disposed||checkIdentity()||!PRIVATE_UUID.test(cohortId))return;
+  invalidate();const operation={controller:new AbortController(),timer:null,terminal:null,identity,generation,cohortId};flight=operation;waiting();state('loading','正在打开私有条件并重新分析');
+  operation.timer=setTimeout(()=>{finish(operation,null,{code:'REQUEST_TIMEOUT',message:'打开请求超过30秒，请显式重试'});operation.controller.abort();},30000);
+  window.RACohortAPI.open({cohortId},{signal:operation.controller.signal}).then(result=>finish(operation,result),error=>finish(operation,null,error));
+}
+$('#private-list-load').addEventListener('click',()=>loadPrivateList(listPage));
+$('#private-prev').addEventListener('click',()=>loadPrivateList(listPage-1));
+$('#private-next').addEventListener('click',()=>loadPrivateList(listPage+1));
+$('#private-items').addEventListener('click',event=>{const button=event.target.closest('[data-open-cohort]');if(button)openPrivate(button.dataset.openCohort);const edit=event.target.closest('[data-edit-cohort]');if(edit)beginPrivateEdit(edit.dataset.editCohort);const remove=event.target.closest('[data-delete-cohort]');if(remove)beginPrivateEdit(remove.dataset.deleteCohort,'delete');});
+// 元信息命令只依据实际列表条目；回执从不组装或恢复列表。
+let privateEdit=null,privateCommand=null,privateCommandFlight=null,privateCommandToken=0;
+function commandState(name,message){$('#private-command-state').dataset.state=name;$('#private-command-state').textContent=message;}
+function endPrivateCommand(cause){
+  privateCommandToken++;const old=privateCommandFlight;privateCommandFlight=null;
+  if(old){old.terminal=cause;clearTimeout(old.timer);}
+  $('#private-command-confirm').disabled=Boolean(privateEdit?.versionConflict);$('#private-command-retry').hidden=true;$('#private-version-refresh').hidden=!privateEdit?.versionConflict;
+  if(old)old.controller.abort();
+}
+function cancelPrivateCommand(){privateCommand=null;privateEdit=null;$('#private-command-dialog').hidden=true;commandState('idle','');endPrivateCommand('CANCELLED');}
+function beginPrivateEdit(cohortId,action='rename'){
+  if(disposed||checkIdentity())return;const item=privateItems.get(cohortId);if(!item||!Number.isSafeInteger(item.version))return;
+  cancelPrivateCommand();privateEdit={action,item};$('#private-command-dialog').hidden=false;$('#private-command-title').textContent=action==='delete'?'确认删除私有定义':'修改名称/备注';$('#private-edit-fields').hidden=action==='delete';$('#private-command-confirm').textContent=action==='delete'?'确认删除':'确认修改';$('#private-command-target').textContent=privateItemText(item);$('#private-edit-name').value=item.name;$('#private-edit-note').value=item.note??'';$('#private-edit-note-mode').value='preserve';
+}
+function privateCommandFields(){
+  if(!privateEdit)return null;const item=privateEdit.item,fields={cohortId:item.cohortId,version:item.version};
+  if(privateEdit.action==='delete')return fields;
+  if($('#private-edit-name').value!==item.name)fields.name=$('#private-edit-name').value;
+  const mode=$('#private-edit-note-mode').value;
+  if(mode==='clear'&&item.note!==null)fields.note=null;
+  if(mode==='value'&&$('#private-edit-note').value!==item.note)fields.note=$('#private-edit-note').value;
+  return fields;
+}
+function privateParametersChanged(){
+  if(!privateEdit)return;
+  if(privateCommand&&JSON.stringify(privateCommandFields())===JSON.stringify(privateCommand.fields))return;
+  endPrivateCommand('PARAMETERS_CHANGED');privateCommand=null;commandState('idle','输入已变化，下次确认将使用新命令');
+}
+function confirmPrivateCommand(retry=false){
+  if(disposed||checkIdentity()||!privateEdit)return;
+  privateParametersChanged();if(privateEdit.versionConflict){commandState('error','VERSION_CONFLICT：请先显式刷新元信息，再确认新命令');$('#private-version-refresh').hidden=false;return;}if(retry&&!privateCommand)return;
+  const fields=privateCommandFields();if(!Number.isSafeInteger(fields.version)||fields.version<1){commandState('error','版本超出安全整数范围，只能读取或打开');return;}
+  if(!retry&&privateEdit.action==='rename'&&!Object.hasOwn(fields,'name')&&!Object.hasOwn(fields,'note')){commandState('idle','名称和备注未变化，无需提交');return;}
+  const pending=privateCommand||{action:privateEdit.action,fields,body:{...fields,requestId:crypto.randomUUID()}};
+  endPrivateCommand('SUPERSEDED');privateCommand=pending;
+  const operation={token:privateCommandToken,identity,edit:privateEdit,pending,controller:new AbortController(),timer:null,terminal:null};privateCommandFlight=operation;
+  $('#private-command-confirm').disabled=true;commandState('loading',retry?'正在重试原命令':'正在提交元信息命令');
+  const finishCommand=(result,error)=>{
+    if(disposed||operation.terminal||privateCommandFlight!==operation||operation.token!==privateCommandToken||privateCommand!==pending||privateEdit!==operation.edit)return;
+    if(operation.identity!==identityKey()){checkIdentity();return;}
+    const data=result?.data;
+    if(!error&&(!data||data.cohortId!==pending.body.cohortId||!Number.isInteger(data.version)||data.version<1||!validPrivateMeta(data,result.traceId)))error={status:result?.status,code:'INVALID_RESPONSE',message:'元信息回执不完整',traceId:result?.traceId};
+    operation.terminal=error?.code||'SUCCESS';privateCommandFlight=null;clearTimeout(operation.timer);$('#private-command-confirm').disabled=false;
+    if(error){
+      if(error.status===401){clearPrivate();invalidate(error);return;}
+      const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
+      const instruction=unknown?'结果尚未确认，不能确定是否已提交。可显式重试原命令。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新确认。':error.code==='VERSION_CONFLICT'?'版本冲突，请显式刷新元信息，再核对输入并确认新命令。':error.code==='IDEMPOTENCY_CONFLICT'?'原请求标识对应不同参数，请核对输入；不要盲目重试。':error.status===404?'定义不存在、已删除或不属于当前身份，请重新加载列表。':'';
+      if(error.status===404){privateItems.delete(pending.body.cohortId);$(`[data-private-cohort="${pending.body.cohortId}"]`)?.remove();listState('error','条目已不可用，请显式重新加载列表');}
+      if(error.code==='VERSION_CONFLICT'){privateEdit.versionConflict=true;$('#private-command-confirm').disabled=true;}
+      $('#private-command-retry').hidden=!unknown;$('#private-version-refresh').hidden=error.code!=='VERSION_CONFLICT';if(!unknown)privateCommand=null;
+      commandState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${instruction} ${error.traceId?'Trace：'+error.traceId:''}`);return;
+    }
+    if(pending.action==='delete')privateDeleted.add(pending.body.cohortId);
+    if(pending.action==='delete'&&$('#private-open-meta').dataset.cohortId===pending.body.cohortId){$('#private-open-meta').textContent='该私有定义已删除；当前已保留分析仍遵循原有效期和授权范围。';delete $('#private-open-meta').dataset.cohortId;}
+    privateCommand=null;privateEdit=null;$('#private-command-dialog').hidden=true;
+    loadPrivateList(listPage);commandState('success',Number.isSafeInteger(data.version)?'元信息命令已确认，按当前列表读取结果':'命令已确认；回执版本超出安全整数范围，刷新后只按安全列表版本操作');
+  };
+  operation.timer=setTimeout(()=>{finishCommand(null,{code:'REQUEST_TIMEOUT',message:'元信息请求超过30秒'});operation.controller.abort();},30000);
+  window.RACohortAPI[pending.action](pending.body,{signal:operation.controller.signal}).then(result=>finishCommand(result),error=>finishCommand(null,error));
+}
+$('#private-command-confirm').addEventListener('click',()=>confirmPrivateCommand());
+$('#private-command-retry').addEventListener('click',()=>confirmPrivateCommand(true));
+$('#private-command-cancel').addEventListener('click',cancelPrivateCommand);
+$('#private-version-refresh').addEventListener('click',()=>loadPrivateList(listPage,true));
+$('#private-edit-name').addEventListener('input',privateParametersChanged);
+$('#private-edit-note').addEventListener('input',()=>{$('#private-edit-note-mode').value='value';privateParametersChanged();});
+$('#private-edit-note-mode').addEventListener('change',privateParametersChanged);
+// 保存命令拥有独立身份；分析代次不改变点击时的冻结参数。
+let saveFlight=null,saveCommand=null,saveToken=0;
+function saveState(name,message){$('#private-save-state').dataset.state=name;$('#private-save-state').textContent=message;}
+function cancelSave(){
+  saveToken++;const old=saveFlight;saveFlight=null;saveCommand=null;
+  if(old){old.terminal='CANCELLED';clearTimeout(old.timer);old.controller.abort();}
+  $('#private-save').disabled=false;$('#private-retry').hidden=true;$('#private-save-dialog').hidden=true;saveState('idle','');
+}
+function saveParametersChanged(){
+  if(!saveCommand)return;
+  const signature=command=>JSON.stringify({name:command.name,note:command.note,filters:command.filters});
+  if(signature(saveCommand)===signature({name:$('#private-name').value,note:$('#private-note').value,filters:currentFilters()}))return;
+  saveToken++;const old=saveFlight;saveFlight=null;saveCommand=null;
+  if(old){old.terminal='PARAMETERS_CHANGED';clearTimeout(old.timer);old.controller.abort();}
+  $('#private-save').disabled=false;$('#private-retry').hidden=true;saveState('idle','参数已变化，下次保存将使用新命令');
+}
+function saveCurrent(retry=false){
+  if(disposed||checkIdentity()||blockedEntry)return;
+  saveParametersChanged();if(retry&&!saveCommand)return;
+  const command=retry?saveCommand:{name:$('#private-name').value,note:$('#private-note').value,filters:currentFilters(),requestId:crypto.randomUUID()};
+  saveToken++;const previous=saveFlight;saveFlight=null;if(previous){previous.terminal='SUPERSEDED';clearTimeout(previous.timer);previous.controller.abort();}
+  saveCommand=command;const operation={token:saveToken,identity,command,controller:new AbortController(),timer:null,terminal:null};saveFlight=operation;
+  saveState('loading',retry?'正在重试原保存命令':'正在保存条件，请稍候');$('#private-save').disabled=true;$('#private-retry').hidden=true;
+  const finishSave=(result,error)=>{
+    if(disposed||operation.terminal||saveFlight!==operation||operation.token!==saveToken||saveCommand!==operation.command)return;
+    if(operation.identity!==identityKey()){checkIdentity();return;}
+    const data=result?.data;
+    if(!error&&(!data||typeof data.cohortId!=='string'||!PRIVATE_UUID.test(data.cohortId)||data.version!==1||!validPrivateMeta(data,result.traceId)))error={status:result?.status,code:'INVALID_RESPONSE',message:'保存回执不完整',traceId:result?.traceId};
+    operation.terminal=error?.code||'SUCCESS';saveFlight=null;clearTimeout(operation.timer);$('#private-save').disabled=false;
+    if(error){
+      if(error.status===401){clearPrivate();invalidate(error);return;}
+      const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
+      const instruction=unknown?'保存结果尚未确认，不能确定是否已提交。可显式重试原命令。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新保存。':error.code==='IDEMPOTENCY_CONFLICT'?'请求标识对应不同参数，请核对输入后发起新命令。':'';
+      $('#private-retry').hidden=!unknown;if(!unknown)saveCommand=null;
+      saveState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${instruction} ${error.traceId?'Trace：'+error.traceId:''}`);return;
+    }
+    saveCommand=null;$('#private-retry').hidden=true;saveState('success','私有条件已保存');loadPrivateList(listPage);
+  };
+  operation.timer=setTimeout(()=>{finishSave(null,{code:'REQUEST_TIMEOUT',message:'保存请求超过30秒'});operation.controller.abort();},30000);
+  window.RACohortAPI.save(command,{signal:operation.controller.signal}).then(result=>finishSave(result),error=>finishSave(null,error));
+}
+$('#save-cohort').addEventListener('click',()=>{if(disposed||checkIdentity())return;if(blockedEntry){showError(blockedEntry);return;}cancelSave();$('#private-save-dialog').hidden=false;});
+$('#private-cancel').addEventListener('click',cancelSave);
+$('#private-save').addEventListener('click',()=>saveCurrent());
+$('#private-retry').addEventListener('click',()=>saveCurrent(true));
+for(const selector of ['#private-name','#private-note'])$(selector).addEventListener('input',saveParametersChanged);
+window.addEventListener('pagehide',()=>{disposed=true;clearPrivate();invalidate({code:'REQUEST_CANCELLED',message:'已离开页面，请重新分析'});});
 window.addEventListener('pageshow',event=>{if(event.persisted){disposed=false;invalidate();restoreEntry();analyze();}});
 window.addEventListener('popstate',()=>{if(!disposed){invalidate();restoreEntry();analyze();}});
 window.addEventListener('storage',event=>{if(event.key==='ra-auth')checkIdentity();});

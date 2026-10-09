@@ -203,3 +203,9 @@ a.ai-row:hover {
 .patient-sources span, .patient-sources strong { display:block; overflow-wrap:anywhere; }
 .patient-read-time { color:#52606f; font-size:var(--fs-sm); overflow-wrap:anywhere; }
 @media (max-width:600px) { .patient-sources { grid-template-columns:minmax(0,1fr); } }
+
+.private-cohorts{margin-top:20px}.private-cohorts header,.private-actions{display:flex;gap:12px;align-items:center;justify-content:space-between}.private-cohorts label{display:block;margin:12px 0}.private-cohorts input,.private-cohorts textarea{display:block;width:100%;max-width:600px;padding:10px;border:1px solid var(--border,#dce1e8);border-radius:6px}#private-save-dialog{border-top:1px solid #dce1e8;padding-top:12px}#private-save-state[data-state="error"]{color:#a12b20}
+
+.private-item{padding:14px 0;border-bottom:1px solid #dce1e8;overflow-wrap:anywhere}.private-item button{display:block;margin-top:10px}.private-cohorts [data-state="error"]{color:#a12b20}#private-open-meta{overflow-wrap:anywhere}
+
+#private-command-dialog{border-top:1px solid #dce1e8;padding-top:12px}#private-command-target{overflow-wrap:anywhere;white-space:pre-wrap}.private-cohorts select{padding:8px;max-width:100%}.private-cohorts [hidden]{display:none}
