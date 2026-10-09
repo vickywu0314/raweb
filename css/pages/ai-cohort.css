@@ -167,3 +167,39 @@ a.ai-row:hover {
 #cancel-analysis { margin-bottom:12px; }
 #cancel-analysis[hidden] { display:none; }
 #cohort-state[data-state="expired"], #cohort-state[data-state="scope-changed"] { color:#a32626; }
+
+#stats { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; }
+#stats small { display:block; color:#52606f; overflow-wrap:anywhere; }
+#stats em { white-space:normal; overflow-wrap:anywhere; }
+@media (max-width:1100px) { #stats { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:600px) { #stats { grid-template-columns:1fr; } }
+
+.statistics-bucket { padding:10px; margin:8px 0; border-radius:8px; background:linear-gradient(to right,#e4efff var(--share,0%),#f7f9fc var(--share,0%)); overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+.statistics-bucket small { display:block; color:#52606f; }
+.statistics-explanation { overflow-wrap:anywhere; white-space:pre-wrap; color:#52606f; font-size:var(--fs-sm); }
+.statistics-table-wrap { overflow-x:auto; }
+#fm-table { width:100%; border-collapse:collapse; }
+#fm-table td,#fm-table th { padding:10px; border-bottom:1px solid #edf1f6; text-align:left; vertical-align:top; }
+#analysis-policy[hidden] { display:none; }
+
+#fm-table .highlight { background:#fff1d2; font-weight:650; }
+#fm-table .significant { display:inline-block; margin-left:8px; color:#a32626; }
+
+/* 同次首屏与后页使用共同七类临床行。 */
+#patient-rows .ai-row, .ai-row-head { grid-template-columns:1.3fr 1fr 1fr 1.1fr .7fr 1.4fr .8fr; align-items:start; gap:12px; }
+.patient-clinical span { display:block; }
+.patient-activity { border-radius:6px; padding:4px; background:#eef2f6; }
+.activity-remission { background:#e8f5ec; color:#186235; }
+.activity-low { background:#e7f0ff; color:#235391; }
+.activity-moderate { background:#fff3dd; color:#7e5200; }
+.activity-high { background:#fee9e7; color:#9d2721; }
+@media (max-width:1100px) { #patient-rows .ai-row { grid-template-columns:repeat(2,minmax(0,1fr)); } .ai-row-head { display:none; } }
+@media (max-width:600px) { #patient-rows .ai-row { grid-template-columns:1fr; } }
+
+.patient-provenance { grid-column:1 / -1; font-size:var(--fs-sm); }
+.patient-provenance summary { cursor:pointer; color:#235391; }
+.patient-sources { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; margin-top:12px; }
+.patient-sources > div { background:#f6f8fb; padding:10px; border-radius:6px; }
+.patient-sources span, .patient-sources strong { display:block; overflow-wrap:anywhere; }
+.patient-read-time { color:#52606f; font-size:var(--fs-sm); overflow-wrap:anywhere; }
+@media (max-width:600px) { .patient-sources { grid-template-columns:minmax(0,1fr); } }
