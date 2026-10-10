@@ -4,6 +4,7 @@ shell('ai');
 const SELECTS = {sex:'#f-sex',age:'#f-age',sero:'#f-sero',tx:'#f-tx',at:'#f-at',act:'#f-act',cm:'#f-cm',data:'#f-data'};
 let flight = null, pageFlight = null, resource = null, disposed = false, blockedEntry = false, entryIds = null, generation = 0;
 let identity=identityKey();
+let parseFlight=null,parseCandidate=null,parseToken=0,questionVersion=0,applyFlight=null,applyToken=0;
 function identityKey(){return JSON.stringify(currentUser());}
 function waiting(){ $('#cancel-analysis').hidden=!(flight||pageFlight); }
 function invalidate(error=null) {
@@ -306,13 +307,126 @@ $('#chips').addEventListener('click',event=>{
   else $(SELECTS[button.dataset.key]).value=button.dataset.key==='at'?'now':'';
   analyze();
 });
-$('#question-form').addEventListener('submit',event=>{
-  event.preventDefault(); if (disposed) return;
-  if ($('#question').value.trim()) {
-    $('#parse-note').hidden=false; $('#parse-note').textContent='研究问题解析开发中，请使用下方条件筛选。'; return;
-  }
-  analyze();
-});
+function parseState(name,message){$('#parse-state').dataset.state=name;$('#parse-state').textContent=message;}
+const PARSE_FIELDS={sex:['F','M'],sero:['1'],tx:['csDMARD','bio','TNFi','JAKi','IL-6i','Abatacept'],at:['now','6m'],act:['target','mod-high','remission','low','moderate','high'],cm:['FM','AS','none'],data:['complete','missing']};
+const PARSE_ORDER=['tx','at','act','sex','age','cm','sero','data'];
+const PARSE_FALLBACKS=['AI_NOT_ENABLED','AI_NOT_APPROVED','AI_CONFIG_UNAVAILABLE','AI_NOT_APPLICABLE','AI_SAFETY_BLOCKED','AI_BUSY','AI_TIMEOUT','AI_HTTP_ERROR','AI_IO_ERROR','AI_INVALID_RESPONSE'];
+function validParse(data,trace){
+ const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v),exact=(v,keys)=>object(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k)),count=n=>Number.isSafeInteger(n)&&n>=0;
+ if(!exact(data,['questionRef','candidateFilters','parseStatus','applyMode','engine','matched','unrecognized','rejectedFields','warnings','notice','fallbackReason','meta'])||!(typeof data.questionRef==='string'&&PRIVATE_UUID.test(data.questionRef))||!['RULE','AI'].includes(data.engine)||!(data.fallbackReason===null||PARSE_FALLBACKS.includes(data.fallbackReason))||typeof data.notice!=='string'||[...data.notice].length>200)return false;
+ if(!exact(data.meta,['traceId','ruleVersion','schemaVersion','modelVersion','promptVersion','durationMs'])||data.meta.traceId!==trace||data.meta.ruleVersion!=='dev-parse-rules-v02'||data.meta.schemaVersion!=='dev-parse-schema-v01'||!count(data.meta.durationMs)||!['modelVersion','promptVersion'].every(k=>data.meta[k]===null||typeof data.meta[k]==='string'))return false;
+ const modes={OK:'REPLACE_EXCEPT_IDS',PARTIAL:'REQUIRE_CONFIRMATION',EMPTY:'KEEP_CURRENT',UNRECOGNIZED:'KEEP_CURRENT',UNSUPPORTED:'KEEP_CURRENT'};
+ if(!Object.hasOwn(modes,data.parseStatus)||data.applyMode!==modes[data.parseStatus])return false;
+ const candidate=data.candidateFilters;
+ if(['OK','PARTIAL'].includes(data.parseStatus)){if(!object(candidate)||!Object.keys(candidate).length)return false;}else if(candidate!==null)return false;
+ for(const [key,value] of Object.entries(candidate||{})){
+  if(typeof value!=='string'||!PARSE_ORDER.includes(key))return false;
+  if(key==='age'){const parts=value.match(/^(\d{1,3})-(\d{1,3})?$/);if(!parts||Number(parts[1])>120||(parts[2]!==undefined&&(Number(parts[2])>120||Number(parts[1])>Number(parts[2]))))return false;}
+  else if(!PARSE_FIELDS[key].includes(value))return false;
+ }
+ const expected=PARSE_ORDER.filter(k=>Object.hasOwn(candidate||{},k));
+ if(!Array.isArray(data.matched)||data.matched.length!==expected.length||!data.matched.every((x,i)=>exact(x,['field','value'])&&x.field===expected[i]&&x.value===candidate[x.field]))return false;
+ if(!Array.isArray(data.unrecognized)||data.unrecognized.length>1||!data.unrecognized.every(x=>exact(x,['reason','count'])&&x.reason==='UNMAPPED_TEXT'&&count(x.count)&&x.count>0))return false;
+ const rejectedFields=[...PARSE_ORDER,'ids','studyCode','doctorId','sql','url','OTHER'],reasons=['FORBIDDEN_FIELD','UNKNOWN_FIELD','INVALID_TYPE','INVALID_VALUE','OUT_OF_RANGE','CONFLICT'];
+ if(!Array.isArray(data.rejectedFields)||data.rejectedFields.length>16||!data.rejectedFields.every(x=>exact(x,['field','reason'])&&rejectedFields.includes(x.field)&&reasons.includes(x.reason))||new Set(data.rejectedFields.map(x=>x.field)).size!==data.rejectedFields.length||(data.engine==='RULE'&&data.rejectedFields.length))return false;
+ return Array.isArray(data.warnings)&&new Set(data.warnings).size===data.warnings.length&&data.warnings.every(x=>[...PARSE_FALLBACKS,'MODEL_FIELDS_REJECTED','PARTIAL_REQUIRES_CONFIRMATION','UNSUPPORTED_OR','UNSUPPORTED_NEGATION','CONFLICTING_CONDITIONS','AGE_OUT_OF_RANGE'].includes(x));
+}
+function clearParse(){$('#parse-apply').hidden=true;$('#parse-note-context').hidden=true;$('#parse-note-context').textContent='';delete $('.parse-panel').dataset.parseStatus;for(const id of ['parse-candidate','parse-details','parse-note'])$('#'+id).textContent='';$('#parse-note').hidden=true;}
+function showParse(data,applied=false){
+ $('.parse-panel').dataset.parseStatus=data.parseStatus;
+ $('#parse-candidate').textContent=Object.entries(data.candidateFilters||{}).map(([key,value])=>`${key}=${value}`).join(' · ')||'暂无可用候选，保留当前条件';
+ $('#parse-details').textContent=`${data.parseStatus} · ${data.applyMode} · engine=${data.engine} · fallback=${data.fallbackReason||'无'} · matched=${JSON.stringify(data.matched)} · unrecognized=${JSON.stringify(data.unrecognized)} · rejectedFields=${JSON.stringify(data.rejectedFields)} · warnings=${data.warnings.join(', ')} · Trace：${data.meta.traceId}`;
+ $('#parse-note').hidden=false;$('#parse-note').textContent=data.notice;$('#parse-note-context').hidden=!applied;$('#parse-note-context').textContent=applied?'解析时说明（应用前）':'';
+ parseState('success',applied?'候选已应用，正在按新条件分析':data.parseStatus==='PARTIAL'?'部分候选尚未应用，需要明确确认后才可应用':'候选尚未应用，当前条件保持不变');
+}
+function settleParse(operation,cause){
+ if(operation.terminal)return false;operation.terminal=cause;
+ if(parseFlight===operation)parseFlight=null;clearTimeout(operation.timer);$('#parse-cancel').hidden=true;
+ return true;
+}
+function endParse(cause='SUPERSEDED'){
+ endApply(cause);
+ const previous=parseFlight;parseToken++;
+ if(previous)settleParse(previous,cause);
+ parseCandidate=null;clearParse();$('#parse-cancel').hidden=true;$('#parse-dismiss').hidden=true;parseState('idle','候选已结束，当前有效条件保持不变');
+ if(previous)previous.controller.abort();
+}
+function isCurrentParse(operation){return !disposed&&!operation.terminal&&parseFlight===operation&&parseToken===operation.token&&questionVersion===operation.questionVersion&&JSON.stringify(currentFilters())===operation.context;}
+function finishParse(operation,result,error){
+ if(!isCurrentParse(operation))return;
+ if(operation.identity!==identityKey()){checkIdentity();return;}
+ if(!error&&(result?.success!==true||result?.code!=='200'||!validParse(result.data,result.traceId)))error={status:result?.status,code:'INVALID_RESPONSE',message:'解析候选响应不完整',traceId:result?.traceId};
+ if(!settleParse(operation,error?.code||'SUCCESS'))return;
+ if(error){
+  parseCandidate=null;clearParse();$('#parse-dismiss').hidden=true;
+  if(error.status===401){clearPrivate();invalidate(error);}
+  parseState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${error.traceId?'Trace：'+error.traceId:''}`);return;
+ }
+ parseCandidate={data:result.data,token:operation.token,identity:operation.identity,questionVersion:operation.questionVersion,context:operation.context};
+ showParse(result.data);$('#parse-dismiss').hidden=result.data.candidateFilters===null;$('#parse-apply').hidden=result.data.parseStatus!=='PARTIAL';if(result.data.parseStatus==='OK')applyCandidate();
+}
+function parseQuestion(){
+ if(disposed||checkIdentity())return;
+ endParse('SUPERSEDED');
+ const operation={token:parseToken,identity:identityKey(),questionVersion,context:JSON.stringify(currentFilters()),controller:new AbortController(),timer:null,terminal:null};parseFlight=operation;
+ $('#parse-cancel').hidden=false;parseState('loading',[...$('#question').value].length>200?'问题超过200个码点，正在由后端校验':'正在解析问题');
+ operation.timer=setTimeout(()=>{finishParse(operation,null,{code:'REQUEST_TIMEOUT',message:'解析等待超过30秒，本地等待已结束；不能确认服务端审计是否已提交'});operation.controller.abort();},30000);
+ window.RACohortAPI.parse($('#question').value,{signal:operation.controller.signal}).then(result=>finishParse(operation,result),error=>finishParse(operation,null,error));
+}
+function validApply(data,command,trace){
+ const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v),exact=(v,keys)=>object(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
+ const mode=command.parseStatus==='OK'?'REPLACE_EXCEPT_IDS':'REQUIRE_CONFIRMATION';
+ if(!exact(data,['questionRef','parseStatus','applyMode','applied','filters','meta'])||data.questionRef!==command.questionRef||data.parseStatus!==command.parseStatus||data.applyMode!==mode||typeof data.applied!=='boolean')return null;
+ if(!exact(data.meta,['traceId','ruleVersion','schemaVersion','modelVersion','promptVersion','durationMs'])||data.meta.traceId!==trace||data.meta.ruleVersion!=='dev-parse-rules-v02'||data.meta.schemaVersion!=='dev-parse-schema-v01'||data.meta.modelVersion!==null||data.meta.promptVersion!==null||!Number.isSafeInteger(data.meta.durationMs)||data.meta.durationMs<0)return null;
+ const filters=privateFilters(data.filters);if(!filters||Object.keys(SELECTS).some(key=>data.filters[key]===''))return null;
+ const expectedIds=command.currentFilters.ids==null?null:[...new Set(command.currentFilters.ids)].sort((a,b)=>a.length-b.length||a.localeCompare(b));
+ if(JSON.stringify(filters.ids)!==JSON.stringify(expectedIds))return null;
+ return filters;
+}
+function settleApply(operation,cause){
+ if(operation.terminal)return false;operation.terminal=cause;
+ if(applyFlight===operation){applyFlight=null;$('#apply-cancel').hidden=true;}
+ clearTimeout(operation.timer);return true;
+}
+function endApply(cause='SUPERSEDED'){
+ const previous=applyFlight;applyToken++;
+ if(previous)settleApply(previous,cause);
+ $('#apply-cancel').hidden=true;
+ if(previous)previous.controller.abort();
+}
+function isCurrentApply(operation){return !disposed&&!operation.terminal&&applyFlight===operation&&applyToken===operation.token&&parseToken===operation.parseToken&&questionVersion===operation.questionVersion&&JSON.stringify(currentFilters())===operation.context;}
+function finishApply(operation,result,error){
+ if(!isCurrentApply(operation))return;
+ if(operation.identity!==identityKey()){checkIdentity();return;}
+ const filters=!error&&validApply(result?.data,operation.command,result?.traceId);
+ if(!error&&(result?.success!==true||result?.code!=='200'||!filters))error={status:result?.status,code:'INVALID_RESPONSE',message:'应用响应不完整',traceId:result?.traceId};
+ if(!settleApply(operation,error?.code||'SUCCESS'))return;
+ parseCandidate=null;$('#parse-apply').hidden=true;$('#parse-dismiss').hidden=true;
+ if(error){
+  clearParse();if(error.status===401){clearPrivate();invalidate(error);}
+  parseState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${error.traceId?'Trace：'+error.traceId:''}`);return;
+ }
+ if(!result.data.applied){parseState('success','候选未应用，当前条件保持不变');return;}
+ // 本owner先退休，再进入原条件/分析链；invalidate单向退休通知不会反调旧完成。
+ applyPrivateFilters(filters);analyze();showParse(operation.data,true);
+}
+function applyCandidate(confirmPartial=false){
+ if(disposed||checkIdentity())return;
+ const candidate=parseCandidate;if(!candidate||candidate.token!==parseToken||candidate.identity!==identityKey()||candidate.questionVersion!==questionVersion||candidate.context!==JSON.stringify(currentFilters())||!['OK','PARTIAL'].includes(candidate.data.parseStatus)||(candidate.data.parseStatus==='PARTIAL'&&!confirmPartial))return;
+ const data=candidate.data,command={currentFilters:JSON.parse(candidate.context),candidateFilters:data.candidateFilters,parseStatus:data.parseStatus,questionRef:data.questionRef};
+ if(confirmPartial)command.confirmPartial=true;
+ endApply();const operation={token:applyToken,parseToken:candidate.token,identity:candidate.identity,questionVersion:candidate.questionVersion,context:candidate.context,data,command,controller:new AbortController(),timer:null,terminal:null};applyFlight=operation;parseCandidate=null;
+ $('#parse-apply').hidden=true;$('#apply-cancel').hidden=false;parseState('loading','正在应用候选条件');
+ operation.timer=setTimeout(()=>{finishApply(operation,null,{code:'REQUEST_TIMEOUT',message:'应用等待超过30秒，本地等待已结束；不能确认服务端审计是否已提交'});operation.controller.abort();},30000);
+ window.RACohortAPI.applyParse(command,{signal:operation.controller.signal}).then(result=>finishApply(operation,result),error=>finishApply(operation,null,error));
+}
+$('#parse-apply').addEventListener('click',()=>applyCandidate(true));
+$('#apply-cancel').addEventListener('click',()=>{if(!applyFlight)return;const operation=applyFlight;finishApply(operation,null,{code:'REQUEST_CANCELLED',message:'本地应用等待已取消；不能确认服务端审计是否已提交'});operation.controller.abort();});
+$('#question-form').addEventListener('submit',event=>{event.preventDefault();parseQuestion();});
+$('#question').addEventListener('input',()=>{questionVersion++;endParse('QUESTION_CHANGED');});
+$('#parse-cancel').addEventListener('click',()=>{if(!parseFlight)return;const operation=parseFlight;finishParse(operation,null,{code:'REQUEST_CANCELLED',message:'本地解析等待已取消；不能确认服务端审计是否已提交'});operation.controller.abort();});
+$('#parse-dismiss').addEventListener('click',()=>endParse('CANDIDATE_CANCELLED'));
+$('#reanalyze').addEventListener('click',analyze);
 $('#reset').addEventListener('click',()=>{
   if (disposed) return;
   Object.entries(SELECTS).forEach(([key,selector])=>$(selector).value=key==='at'?'now':'');
@@ -328,6 +442,7 @@ const comparisonClone=value=>JSON.parse(JSON.stringify(value));
 function comparisonState(name,message){$('#compare-state').dataset.state=name;$('#compare-state').textContent=message;}
 function clearComparisonResult(){comparisonResource=null;$('#compare-read').hidden=true;$('#compare-read').disabled=true;$('#compare-rows').replaceChildren();$('#compare-result').hidden=true;delete $('#compare-result').dataset.compareResultId;for(const id of ['compare-summary','compare-side-a','compare-side-b','compare-policy','compare-definition-note'])$('#'+id).textContent='';}
 function endComparison(cause,clear=true){
+ endParse(cause);
  comparisonGeneration++;const old=comparisonFlight;
  if(old&&!old.terminal)old.terminal=cause;
  comparisonFlight=null;if(old)clearTimeout(old.timer);

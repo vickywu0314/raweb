@@ -85,7 +85,7 @@ export class LoopbackOwner {
     const base=`${this.dir}/tomcat-${this.children.length}`;await mkdir(base,{recursive:true});
     const env={...this.javaEnv,...this.mysqlEnv,RA_WEB_FIXTURE_DIR:base,...envOverrides};
     const r=this.child(`${this.javaEnv.JAVA_HOME}/bin/java`,['-cp',this.classpath,'com.wenwen.ai.cohort.WebLoopbackApiFixture',...args],{env,cwd:this.repo},'fixture');
-    r.scenario=args.includes('--scenario=p04')?'p04':args.includes('--scenario=p03')?'p03':args.includes('--scenario=p01b')?'p01b':'default';
+    r.scenario=args.includes('--scenario=p05-apply-rule')?'p05-apply-rule':args.includes('--scenario=p05-apply-safety')?'p05-apply-safety':args.includes('--scenario=p05-rule')?'p05-rule':args.includes('--scenario=p05-safety')?'p05-safety':args.includes('--scenario=p04')?'p04':args.includes('--scenario=p03')?'p03':args.includes('--scenario=p01b')?'p01b':'default';
     let buffer='';r.ready=new Promise((yes,no)=>{
       r.child.stdout.on('data',chunk=>{buffer+=chunk;let end;while((end=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,end).trim();buffer=buffer.slice(end+1);
         if(line.startsWith('RA_WEB_FIXTURE_EVENT ')){const data=JSON.parse(line.slice(21));r.events.push(data);if(data.type==='held-not-ready'){r.port=data.port;this.report.resources.find(x=>x.pid===r.child.pid).port=data.port;}this.event('fixture-event',{pid:r.child.pid,...data});}
@@ -96,8 +96,8 @@ export class LoopbackOwner {
   }
   async control(r,command) {
     this.controller.signal.throwIfAborted();
-    if(this.closed||r.ended||!this.children.includes(r)||r.key!=='fixture'||!['p01b','p03','p04'].includes(r.scenario)||!r.port)throw new Error('control-requires-live-owned-p01b-p03-or-p04-fixture');
-    if(!['IDENTITY_101','IDENTITY_202','IDENTITY_ANONYMOUS','ADVANCE_TTL'].includes(command))throw new Error('unknown-fixture-control');
+    if(this.closed||r.ended||!this.children.includes(r)||r.key!=='fixture'||!['p01b','p03','p04','p05-safety','p05-apply-safety'].includes(r.scenario)||!r.port)throw new Error('control-requires-live-owned-p01b-p03-or-p04-fixture');
+    if(!(['p05-safety','p05-apply-safety'].includes(r.scenario)?['PARSE_PEER_ASSERT']:['IDENTITY_101','IDENTITY_202','IDENTITY_ANONYMOUS','ADVANCE_TTL']).includes(command))throw new Error('unknown-fixture-control');
     if(r.controlFlight)throw new Error('fixture-control-already-pending');
     const seq=(r.controlSeq||0)+1;r.controlSeq=seq;r.controlFlight=seq;let buffer='',receive;
     const ack=new Promise((yes,no)=>{
@@ -143,7 +143,7 @@ export class LoopbackOwner {
           response.writeHead(200,{'Content-Type':types[extname(canonical)]||'application/octet-stream','Cache-Control':'no-store'});response.end(request.method==='HEAD'?undefined:await readFile(canonical));
         }catch{response.writeHead(404);response.end();}return;
       }
-      if(!['/api/ra/ai/cohort','/api/ra/ai/cohortPatients','/api/ra/cohort/save','/api/ra/cohort/list','/api/ra/cohort/open',...(['p03','p04'].includes(r.scenario)?['/api/ra/cohort/rename','/api/ra/cohort/delete']:[]),...(r.scenario==='p04'?['/api/ra/ai/compare','/api/ra/ai/compareResult']:[])].includes(request.url)||request.method!=='POST'){response.writeHead(404);response.end();return;}
+      if(!['/api/ra/ai/cohort','/api/ra/ai/cohortPatients','/api/ra/cohort/save','/api/ra/cohort/list','/api/ra/cohort/open',...(['p03','p04'].includes(r.scenario)?['/api/ra/cohort/rename','/api/ra/cohort/delete']:[]),...(r.scenario==='p04'?['/api/ra/ai/compare','/api/ra/ai/compareResult']:[]),...(['p05-rule','p05-safety','p05-apply-rule','p05-apply-safety'].includes(r.scenario)?['/api/ra/ai/parse']:[]),...(['p05-rule','p05-safety','p05-apply-rule','p05-apply-safety'].includes(r.scenario)?['/api/ra/ai/applyParse']:[])].includes(request.url)||request.method!=='POST'){response.writeHead(404);response.end();return;}
       try{const chunks=[];for await(const c of request)chunks.push(c);const backend=await fetch(`http://127.0.0.1:${r.port}${request.url}`,{method:'POST',headers:{'Content-Type':'application/json','X-Doctor-Id':request.headers['x-doctor-id']||'202'},body:Buffer.concat(chunks),signal:AbortSignal.any([this.controller.signal,AbortSignal.timeout(5000)])});
         response.writeHead(backend.status,{'Content-Type':backend.headers.get('content-type'),'X-Trace-Id':backend.headers.get('x-trace-id')});response.end(Buffer.from(await backend.arrayBuffer()));
       }catch(e){response.writeHead(502);response.end();}

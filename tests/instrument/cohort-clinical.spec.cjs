@@ -44,7 +44,7 @@ test('cohort:clinical-projection',async({page,context,browser})=>{
   await expect(known.locator('.patient-treatment-source')).toContainText('dictionaryVersion：dev-drug-v04');await expect(known.locator('.patient-treatment-source')).toContainText('startTime：2026-04-06');await expect(known.locator('.patient-qc')).toContainText('MISSING');await expect(known.locator('.patient-qc')).toContainText('M_JWS');await expect(known.locator('.patient-qc')).toContainText('dev-missing-v04');
   expect(await page.locator('main').evaluate(n=>n.outerHTML)).not.toContain('RAW_FORBIDDEN_SENTINEL');expect(page.url()).not.toContain('RAW_FORBIDDEN_SENTINEL');
   await expect(page.locator('#numeric-computed-at')).toHaveText('数值计算时间：2026-10-07T02:00:00Z');await expect(page.locator('#display-read-at')).toHaveText('名单显示字段读取时间：2026-10-07T02:00:00Z');
-  const refresh=async next=>{data=next;await page.locator('#question-form button[type="submit"]').click();};
+  const refresh=async next=>{data=next;await page.locator('#reanalyze').click();};
   // CRP的评价访视与当前化验独立解释，不能借evaluation.crp填充当前原因。
   const missingCrp=structuredClone(CLINICAL),missingPatient=missingCrp.patients.items[0];
   missingPatient.crpAt={value:null,unit:null,sourceVisitId:null,sourceField:null,observedAt:null,missingReason:'NO_EVALUATION',quality:['AT_MISSING']};

@@ -1,0 +1,47 @@
+import assert from 'node:assert/strict';
+import {expect} from '@playwright/test';
+import {readFile,writeFile} from 'node:fs/promises';
+import {fileURLToPath} from 'node:url';
+const gate=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
+const literals=JSON.parse(await readFile(fileURLToPath(new URL('../fixtures/cohort-parse.json',import.meta.url)),'utf8'));
+export async function parseBrowser(context,port,identity,owner,probe,pid,id,fixture){
+ let applyHold=null;
+ const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],reads=[],allowed=[],blocked=[],pageErrors=[];
+ await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
+ await context.route('**/*',async route=>{const r=route.request(),url=new URL(r.url());if(url.origin!==origin||owner.controller.signal.aborted){blocked.push(r.url());return route.abort('blockedbyclient');}allowed.push(r.url());if(url.pathname.startsWith('/api/'))requests.push({url:r.url(),method:r.method(),headers:r.headers(),body:r.postDataJSON()});if(url.pathname==='/api/ra/ai/applyParse'&&applyHold)await applyHold.promise;return route.continue();});
+ const page=await context.newPage();await page.bringToFront();owner.event('page-created',{pid,port});page.on('pageerror',e=>pageErrors.push(e.message));
+ page.on('response',r=>{if(new URL(r.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({url:r.url(),status:r.status(),trace:r.headers()['x-trace-id'],json:await r.json()}))());});
+ const state=()=>page.evaluate(()=>({url:location.href,values:['sex','age','sero','tx','at','act','cm','data'].map(k=>document.querySelector('#f-'+k).value),results:document.querySelector('#results').innerHTML,analysisId:document.querySelector('#results').dataset.analysisId,rows:document.querySelector('#patient-rows').innerHTML}));
+ try{
+  await page.goto(origin+'/ai-cohort.html');await expect(page.locator('#cohort-n')).toHaveText('37');await expect(page.locator('#patient-rows .ai-row')).toHaveCount(10);
+  const more=page.waitForResponse(r=>r.url().endsWith('/ai/cohortPatients'));await page.locator('#more').click();assert.equal((await more).status(),200);await expect(page.locator('#patient-rows .ai-row')).toHaveCount(30);
+  const count=requests.length;assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_analysis_run')).trim(),'2');
+  assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_parse_audit')).trim(),'0');
+  const cases=id==='cohort:browser-parse-safety'?[['TNFi 治疗 6 个月后仍处于中高疾病活动的患者','TNFI']]:[['女性且吸烟','PARTIAL'],['女性','OK'],['  ','EMPTY'],['吸烟','UNRECOGNIZED'],['女性或男性','UNSUPPORTED'],['TNFi 治疗 6 个月后仍处于中高疾病活动的患者','TNFI']];
+  let auditCount=0,analysisCount=2,okCount=0;
+  for(const [question,key] of cases){
+   const old=await state();if(literals[key].parseStatus==='OK')applyHold=gate();
+   await page.locator('#question').fill(question);const awaited=page.waitForResponse(r=>r.url().endsWith('/ai/parse'));await page.locator('#question-form button[type="submit"]').click();const response=await awaited;assert.equal(response.status(),200);const envelope=await response.json(),data=envelope.data;assert.equal(envelope.success,true);assert.equal(envelope.code,'200');
+   assert.deepEqual(Object.keys(data).sort(),['questionRef','candidateFilters','parseStatus','applyMode','engine','matched','unrecognized','rejectedFields','warnings','notice','fallbackReason','meta'].sort());assert.match(data.questionRef,/^[0-9a-f]{8}-[0-9a-f-]{27}$/);assert.equal(data.meta.traceId,response.headers()['x-trace-id']);assert.ok(Number.isSafeInteger(data.meta.durationMs)&&data.meta.durationMs>=0);
+   const expected=structuredClone(literals[key]);if(id==='cohort:browser-parse-safety'){expected.fallbackReason='AI_SAFETY_BLOCKED';expected.warnings=['AI_SAFETY_BLOCKED'];expected.notice='该问题未发送至AI，已使用规则解析。已生成候选条件，尚未应用。';}
+   const {questionRef,meta,...actual}=data,{questionRef:unused,meta:fixedMeta,...fixed}=expected;assert.deepEqual(actual,fixed);assert.deepEqual({...meta,traceId:fixedMeta.traceId,durationMs:3},fixedMeta);
+   await expect(page.locator('#parse-state')).toHaveAttribute('data-state',data.parseStatus==='OK'?'loading':'success');await expect(page.locator('#parse-note')).toHaveText(expected.notice);if(data.parseStatus!=='OK')await expect(page.locator('#parse-state')).toContainText('尚未应用');for(const [field,value] of Object.entries(expected.candidateFilters||{}))await expect(page.locator('#parse-candidate')).toContainText(field+'='+value);assert.deepEqual(await state(),old);
+   const req=requests.filter(r=>r.url.endsWith('/ai/parse')).at(-1);assert.deepEqual(req.body,{question});assert.equal(req.method,'POST');assert.equal(req.headers.authorization,undefined);assert.equal(req.headers['x-doctor-id'],undefined);
+   const event=(await owner.mysqlQuery(`SELECT actor_doctor_id,action,question_ref,trace_id,parse_status,applied,condition_summary,engine,fallback_reason,model_version,prompt_version FROM ra_synthetic_test.ra_ai_parse_audit WHERE question_ref='${data.questionRef}' AND action='PARSE'`)).trim().split('\t');
+   assert.deepEqual(event.slice(0,6),['101','PARSE',data.questionRef,data.meta.traceId,expected.parseStatus,'0']);assert.deepEqual(JSON.parse(event[6]),{candidate:expected.candidateFilters,effective:null});assert.deepEqual(event.slice(7),['RULE',expected.fallbackReason,'NULL','NULL']);assert.ok(!event[6].includes('ids')&&!event[6].includes(question.trim()||'EMPTY')&&!event[6].includes('notice'));
+   assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_parse_audit')).trim(),String(++auditCount));assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_analysis_run')).trim(),String(analysisCount));
+   if(data.parseStatus==='OK'){
+    const waitApply=page.waitForResponse(r=>r.url().endsWith('/ai/applyParse'));applyHold.resolve();applyHold=null;const applyResponse=await waitApply,applied=(await applyResponse.json()).data;assert.equal(applyResponse.status(),200);assert.equal(applied.questionRef,data.questionRef);assert.equal(applied.parseStatus,'OK');assert.equal(applied.applyMode,'REPLACE_EXCEPT_IDS');assert.equal(applied.applied,true);assert.equal(applied.meta.traceId,applyResponse.headers()['x-trace-id']);assert.equal(applied.meta.modelVersion,null);assert.equal(applied.meta.promptVersion,null);
+    const ordinary={sex:null,age:null,sero:null,tx:null,at:'now',act:null,cm:null,data:null,...data.candidateFilters};assert.deepEqual(applied.filters,{studyCode:'RA',...ordinary,ids:null});await expect(page.locator('#parse-state')).toContainText('已应用');await expect(page.locator('#parse-note-context')).toHaveText('解析时说明（应用前）');await expect(page.locator('#parse-note-context')).toBeVisible();await expect(page.locator('#parse-note-context + #parse-note')).toHaveText(expected.notice);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','empty');await expect(page.locator('#cohort-n')).toHaveText('0');assert.notEqual((await state()).analysisId,old.analysisId);assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_analysis_run')).trim(),String(++analysisCount));
+    const appliedEvent=(await owner.mysqlQuery(`SELECT actor_doctor_id,action,question_ref,trace_id,parse_status,applied,condition_summary,engine,fallback_reason,model_version,prompt_version FROM ra_synthetic_test.ra_ai_parse_audit WHERE question_ref='${data.questionRef}' AND action='APPLY'`)).trim().split('\t');assert.deepEqual(appliedEvent.slice(0,6),['101','APPLY',data.questionRef,applied.meta.traceId,'OK','1']);assert.deepEqual(JSON.parse(appliedEvent[6]),{candidate:data.candidateFilters,effective:ordinary});assert.deepEqual(appliedEvent.slice(7),['NONE','NULL','NULL','NULL']);assert.ok(!appliedEvent[6].includes('ids')&&!appliedEvent[6].includes('notice')&&!appliedEvent[6].includes(question));assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_parse_audit')).trim(),String(++auditCount));okCount++;
+   }
+  }
+  if(id==='cohort:browser-parse-safety')await owner.control(fixture,'PARSE_PEER_ASSERT');
+  else{
+   const old=await state();await page.locator('#question').fill('😀'.repeat(201));const wait=page.waitForResponse(r=>r.url().endsWith('/ai/parse'));await page.locator('#question-form button[type="submit"]').click();const response=await wait;assert.equal(response.status(),400);assert.equal((await response.json()).code,'INVALID_REQUEST');await expect(page.locator('#parse-state')).toHaveAttribute('data-state','error');assert.deepEqual(await state(),old);assert.equal((await owner.mysqlQuery('SELECT COUNT(*) FROM ra_synthetic_test.ra_ai_parse_audit')).trim(),String(auditCount));
+  }
+  assert.equal(requests.filter(r=>r.url.endsWith('/ai/cohort')).length,1+okCount);assert.equal(requests.filter(r=>r.url.endsWith('/ai/applyParse')).length,okCount);assert.equal(requests.length,count+cases.length+okCount*2+(id==='cohort:browser-parse-rule'?1:0));assert.deepEqual(blocked,[]);assert.deepEqual(pageErrors,[]);
+ }finally{
+  applyHold?.resolve();await Promise.allSettled(reads);const data={scenario:id,version:owner.report.browser.at(-1)?.version,url:page.url(),requests,responses,allowed,blocked,pageErrors,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(`${owner.dir}/${name}`,JSON.stringify(data,null,2)+'\n');
+ }
+}

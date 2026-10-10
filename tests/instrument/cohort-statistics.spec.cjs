@@ -29,7 +29,7 @@ test('cohort:statistics-six',async({page,context,browser})=>{
 test('cohort:statistics-boundaries',async({page,context,browser})=>{
  const {FM_THREE,FM_TESTS,FM_DEGENERATE}=require('../fixtures/cohort-p02.json');let data=FM_THREE;
  const o=await setup({page,context,browser},'cohort:statistics-boundaries',()=>({status:200,data}));
- const refresh=async value=>{data=value;await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');};
+ const refresh=async value=>{data=value;await page.locator('#reanalyze').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');};
  try {await page.goto(o.origin+'/ai-cohort.html');await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');
  await expect(page.locator('#fm-rows tr')).toHaveCount(6);
  expect(await page.locator('#fm-rows tr').evaluateAll(ns=>ns.map(n=>n.dataset.metric))).toEqual(['das28','tjc','sjc','crp','pain','haq']);
@@ -49,7 +49,7 @@ test('cohort:statistics-boundaries',async({page,context,browser})=>{
 test('cohort:statistics-terminal',async({page,context,browser})=>{
  const {EMPTY,NO_VALID}=require('../fixtures/cohort-p02.json');let reply={status:200,data:U};
  const o=await setup({page,context,browser},'cohort:statistics-terminal',()=>reply);
- const refresh=async value=>{reply=value;await page.locator('#question-form button[type="submit"]').click();};
+ const refresh=async value=>{reply=value;await page.locator('#reanalyze').click();};
  const emptyPanels=async()=>{await expect(page.locator('#clinical-panels')).toBeHidden();for(const selector of ['#activity-base','#activity-current','#tx-groups','#line-groups','#fm-rows'])await expect(page.locator(selector+' > *')).toHaveCount(0);await expect(page.locator('#analysis-policy')).toHaveText('');await expect(page.locator('#analysis-policy')).toBeHidden();};
  try{await page.goto(o.origin+'/ai-cohort.html');await expect(page.locator('#clinical-panels')).toBeVisible();
  await refresh({status:200,data:NO_VALID});await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await expect(page.locator('#cohort-n')).toHaveText('6');await expect(page.locator('#target-rate')).toHaveText('0%');await expect(page.locator('#target-detail')).toHaveText('无数据 · NO_DATA · 0/0 · 未知 6');await expect(page.locator('#age-median')).toHaveText('—');await expect(page.locator('#age-detail')).toContainText('有效 0 · 未知 6');await expect(page.locator('#tx-groups')).toContainText('NO_DATA');await expect(page.locator('#tx-groups .statistics-bucket')).toHaveCount(5);await expect(page.locator('#no-result')).toBeHidden();
