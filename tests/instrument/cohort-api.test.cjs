@@ -42,7 +42,7 @@ test('cohort:api-contract', async () => {
   assert.equal(success.requests[0].options.headers['Content-Type'],'application/json;charset=UTF-8');
   assert.equal(result.status,200); assert.equal(result.traceId,'trace-success');
   assert.deepEqual(JSON.parse(JSON.stringify(result.data)),envelope.data);
-  assert.deepEqual(Object.keys(success.api),['cohort','cohortPatients','save','list','open','rename','delete']);
+  assert.deepEqual(Object.keys(success.api),['cohort','cohortPatients','save','list','open','rename','delete','compare','compareResult']);
   await success.api.cohortPatients('11111111-1111-1111-1111-111111111111','opaque.A.10',{signal:controller.signal});
   assert.equal(success.requests[1].url,'/api/ra/ai/cohortPatients');
   assert.equal(success.requests[1].options.body,'{"analysisId":"11111111-1111-1111-1111-111111111111","cursor":"opaque.A.10"}');
@@ -61,6 +61,23 @@ test('cohort:api-contract', async () => {
     const nonjson=client(new Response('<html>bad',{status:503,headers:{'Content-Type':'text/html','X-Trace-Id':'private-nonjson'}}));await assert.rejects(()=>nonjson.api[method](body),e=>e.code==='INVALID_RESPONSE'&&e.traceId==='private-nonjson');
     const offline=client(()=>{throw new TypeError('disconnected');});await assert.rejects(()=>offline.api[method](body),e=>e.code==='NETWORK_ERROR'&&e.status===0);
   }
+  for(const a of [{source:'FILTERS',filters:{at:'now',ids:null}},{source:'SAVED',cohortId:command.requestId}])for(const b of [{source:'FILTERS',filters:{at:'now',ids:[]}},{source:'SAVED',cohortId:command.requestId}]){
+    const body={a,b,excludeOverlap:false},wire=client(()=>new Response(JSON.stringify(envelope),{status:200,headers:{'Content-Type':'application/json','X-Trace-Id':'compare-trace'}}));
+    await wire.api.compare(body,{signal:controller.signal});assert.equal(wire.requests[0].url,'/api/ra/ai/compare');assert.deepEqual(JSON.parse(wire.requests[0].options.body),body);assert.equal(wire.requests[0].options.signal,controller.signal);assert.equal(wire.requests[0].options.credentials,'same-origin');assert.deepEqual(Object.keys(wire.requests[0].options.headers),['Content-Type']);
+    for(const [status,code] of [[400,'INVALID_REQUEST'],[401,'UNAUTHENTICATED'],[404,'RESOURCE_NOT_FOUND'],[409,'SCOPE_CHANGED'],[410,'COMPARE_EXPIRED'],[413,'LIMIT_EXCEEDED'],[503,'SERVICE_UNAVAILABLE']]){
+      const bad=client(new Response(JSON.stringify({success:false,code,message:'比较失败',data:null}),{status,headers:{'Content-Type':'application/json','X-Trace-Id':'compare-error'}}));await assert.rejects(()=>bad.api.compare(body),e=>e.status===status&&e.code===code&&e.traceId==='compare-error');assert.equal(bad.requests.length,1);
+    }
+  }
+  const longCompare=client(()=>new Response(JSON.stringify(envelope),{status:200,headers:{'Content-Type':'application/json'}}));await longCompare.api.compare({a:{source:'FILTERS',filters:{ids:['9223372036854775807']}},b:{source:'FILTERS',filters:{ids:[]}},excludeOverlap:true});assert.equal(JSON.parse(longCompare.requests[0].options.body).a.filters.ids[0],'9223372036854775807');
+  const readId='00000000-0000-0000-0000-000000000401';
+  const retainedClient=client(()=>new Response(JSON.stringify(envelope),{status:200,headers:{'Content-Type':'application/json','X-Trace-Id':'retained-trace'}}),'http://127.0.0.1:9000');
+  const retainedReply=await retainedClient.api.compareResult(readId,{signal:controller.signal});
+  assert.equal(retainedClient.requests[0].url,'http://127.0.0.1:9000/api/ra/ai/compareResult');assert.deepEqual(JSON.parse(retainedClient.requests[0].options.body),{compareResultId:readId});assert.equal(retainedClient.requests[0].options.signal,controller.signal);assert.equal(retainedClient.requests[0].options.credentials,'same-origin');assert.equal(retainedReply.traceId,'retained-trace');
+  for(const [status,code] of [[400,'INVALID_REQUEST'],[401,'UNAUTHENTICATED'],[404,'RESOURCE_NOT_FOUND'],[409,'SCOPE_CHANGED'],[410,'COMPARE_EXPIRED'],[413,'LIMIT_EXCEEDED'],[503,'SERVICE_UNAVAILABLE']]){
+   const failed=client(new Response(JSON.stringify({success:false,code,message:'重读失败',data:null}),{status,headers:{'Content-Type':'application/json','X-Trace-Id':'retained-error'}}));await assert.rejects(()=>failed.api.compareResult(readId),error=>error.status===status&&error.code===code&&error.traceId==='retained-error'&&error.data===null);assert.equal(failed.requests.length,1);
+  }
+  const brokenRead=client(new Response('<html>',{status:200,headers:{'Content-Type':'text/html','X-Trace-Id':'broken-read'}}));await assert.rejects(()=>brokenRead.api.compareResult(readId),error=>error.code==='INVALID_RESPONSE'&&error.traceId==='broken-read');
+  const offlineRead=client(()=>{throw new TypeError('disconnected');});await assert.rejects(()=>offlineRead.api.compareResult(readId),error=>error.code==='NETWORK_ERROR');assert.equal(offlineRead.requests.length,1);
   const rejected = client(new Response(JSON.stringify({success:false,code:'UNAUTHENTICATED',message:'会话<失效>',data:null}),{status:401,headers:{'Content-Type':'application/json','X-Trace-Id':'trace-401'}}));
   await assert.rejects(()=>rejected.api.cohort({studyCode:'RA',at:'now'}),error=>{
     assert.equal(error.status,401);assert.equal(error.success,false);assert.equal(error.code,'UNAUTHENTICATED');assert.equal(error.message,'会话<失效>');assert.equal(error.data,null);assert.equal(error.traceId,'trace-401');return true;
@@ -77,6 +94,13 @@ test('cohort:api-contract', async () => {
   assert.equal(disconnected.requests.length,1);
   const nonJson = client(new Response('broken<html>',{status:200,headers:{'Content-Type':'text/html','X-Trace-Id':'trace-nonjson'}}));
   await assert.rejects(()=>nonJson.api.cohort({studyCode:'RA',at:'now'}),error=>error.status===200&&error.code==='INVALID_RESPONSE'&&error.traceId==='trace-nonjson');
+  const sourceClock=pageClock(),selectedDefinition=require('../fixtures/cohort-comparison.json').definition;
+  sourceClock.context.selectComparison('b',{source:'SAVED',cohortId:selectedDefinition.cohortId,item:selectedDefinition});assert.ok(sourceClock.get('#compare-source-b').textContent.includes(selectedDefinition.cohortId),'显式SAVED来源摘要须标明选中的独立定义ID');assert.equal(sourceClock.pending.length,1,'选择来源不能暗open或计数');
+  const comparisonClock=pageClock(),comparisonFixture=require('../fixtures/cohort-comparison.json').before;
+  comparisonClock.context.selectComparison('a',{source:'FILTERS',filters:comparisonFixture.a.filters});comparisonClock.context.selectComparison('b',{source:'FILTERS',filters:comparisonFixture.b.filters});comparisonClock.get('#compare-exclude').checked=false;comparisonClock.context.startComparison();
+  assert.equal(comparisonClock.pending.length,2);assert.equal(comparisonClock.pending[1].url,'/api/ra/ai/compare');assert.equal(comparisonClock.get('#compare-state').dataset.state,'loading');
+  comparisonClock.pending[1].resolve(new Response('non-json',{status:200,headers:{'Content-Type':'text/html','X-Trace-Id':'compare-unknown'}}));await new Promise(setImmediate);
+  assert.equal(comparisonClock.get('#compare-state').dataset.state,'error');assert.match(comparisonClock.get('#compare-state').textContent,/INVALID_RESPONSE/);assert.ok(comparisonClock.get('#compare-state').textContent.includes('不能确定是否已提交'));assert.equal(comparisonClock.context.window.RACohortComparison.getResource(),null);assert.equal(comparisonClock.pending.length,2,'未知提交不能隐藏重发');assert.equal(comparisonClock.timers.size,1,'比较结束不能释放仍合法的独立分析等待');
   const clock = pageClock();
   assert.equal(clock.pending.length,1);assert.equal(clock.get('#cohort-state').dataset.state,'loading');assert.equal(clock.get('#f-sex').disabled,false);
   const timer = [...clock.timers.values()][0];assert.equal(timer.ms,30000);

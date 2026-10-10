@@ -1,3 +1,4 @@
+import {comparisonBrowser,statisticsComparisonBrowser,retainedComparisonBrowser,invalidatedComparisonBrowser} from './cohort-comparison-browser.mjs';
 import {privateBrowser,dynamicPrivateBrowser,commandsPrivateBrowser} from './cohort-private-browser.mjs';
 import {clinicalBrowser} from './cohort-clinical-browser.mjs';
 import {statisticsBrowser,literalStatistics} from './cohort-statistics-browser.mjs';
@@ -50,6 +51,11 @@ export const cases={
     assert.equal(privateResult.code,0,'private second CREATE collision must preserve the preexisting sentinel');assert.equal(privateRun.port,null);
     assert.ok(privateRun.events.some(e=>e.type==='private-schema-ownership-observed'&&e.beforeFallback&&e.ownedTableAbsent&&e.sentinel===8675309));
     assert.deepEqual(privateRun.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition']);await owner.stop(privateRun);
+    assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
+    const comparisonRun=await owner.fixture(['--scenario=p04','--mode=schema-conflict-check']);const comparisonResult=await owner.bounded(comparisonRun.finished,30000,'comparison-schema-conflict');
+    assert.equal(comparisonResult.code,0,'comparison CREATE collision must preserve the preexisting new-table sentinel before fallback');assert.equal(comparisonRun.port,null);
+    assert.ok(comparisonRun.events.some(e=>e.type==='comparison-schema-ownership-observed'&&e.beforeFallback===true&&e.ownedTableAbsent===true&&e.sentinel===8675309));
+    assert.deepEqual(comparisonRun.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command']);await owner.stop(comparisonRun);
     assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
   }
 };
@@ -128,3 +134,21 @@ browserRegistry['cohort:browser-private-commands']=async owner=>{
  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>commandsPrivateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-commands',r));
  for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
 };
+
+// P04普通14人同源比较；P04b按原owner准入保留重读。
+browserRegistry['cohort:browser-comparison-create']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p04']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,14);assert.equal(ready.json.data.studyTotal,14);
+ assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run']);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>comparisonBrowser(context,port,identity,owner,probe,pid,'cohort:browser-comparison-create',r));
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+// P04b仅扩原真实browser registry；默认五项、owner和seed机制不变。
+for(const [id,callback] of [['cohort:browser-comparison-statistics',statisticsComparisonBrowser],['cohort:browser-comparison-retained',retainedComparisonBrowser],['cohort:browser-comparison-invalidated',invalidatedComparisonBrowser]]){
+ browserRegistry[id]=async owner=>{
+  const r=await owner.fixture(['--identity=synthetic','--scenario=p04']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,14);assert.equal(ready.json.data.studyTotal,14);
+  assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run']);
+  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>callback(context,port,identity,owner,probe,pid,id,r));
+  for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+ };
+}

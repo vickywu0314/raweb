@@ -209,3 +209,9 @@ a.ai-row:hover {
 .private-item{padding:14px 0;border-bottom:1px solid #dce1e8;overflow-wrap:anywhere}.private-item button{display:block;margin-top:10px}.private-cohorts [data-state="error"]{color:#a12b20}#private-open-meta{overflow-wrap:anywhere}
 
 #private-command-dialog{border-top:1px solid #dce1e8;padding-top:12px}#private-command-target{overflow-wrap:anywhere;white-space:pre-wrap}.private-cohorts select{padding:8px;max-width:100%}.private-cohorts [hidden]{display:none}
+
+.comparison-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.comparison-slots p,#compare-result p{overflow-wrap:anywhere;white-space:pre-wrap}#comparison input[type="checkbox"]{width:auto}@media(max-width:700px){.comparison-slots{grid-template-columns:1fr}}
+
+#compare-table{width:100%;min-width:900px;border-collapse:collapse}#compare-table th,#compare-table td{padding:10px;vertical-align:top;border-bottom:1px solid #d9e2ec;text-align:left;overflow-wrap:anywhere}#compare-table th:first-child{min-width:100px}#compare-table td{min-width:150px}.stat-significant{display:block;color:#6b3f12}
+
+.comparison-coverage{display:block;margin-top:6px;color:#536579;font-size:12px}

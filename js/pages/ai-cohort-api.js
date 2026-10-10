@@ -36,6 +36,8 @@ window.RACohortAPI = (()=>{
     list(input,options) {return post('cohort/list',input,options);},
     open(input,options) {return post('cohort/open',input,options);},
     rename(command,options) {return post('cohort/rename',command,options);},
-    delete(command,options) {return post('cohort/delete',command,options);}
+    delete(command,options) {return post('cohort/delete',command,options);},
+    compare(body,options) {return post('ai/compare',body,options);},
+    compareResult(id,options) {return post('ai/compareResult',{compareResultId:id},options);}
   });
 })();
