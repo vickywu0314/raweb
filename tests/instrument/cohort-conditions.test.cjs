@@ -15,7 +15,7 @@ test('cohort:conditions',()=>{
   assert.deepEqual(plain(codec.decode('')),{studyCode:'RA',sex:'',age:'',sero:'',tx:'',at:'now',act:'',cm:'',data:'',ids:null});
   for(const [key,values] of Object.entries({sex:['F','M'],sero:['1'],tx:['csDMARD','bio','TNFi','JAKi','IL-6i','Abatacept'],at:['now','6m'],act:['target','mod-high','remission','low','moderate','high'],cm:['FM','AS','none'],data:['complete','missing']})) for(const value of values)assert.equal(codec.decode('?'+key+'='+value)[key],value);
   for(const age of ['43-67','043-067','0-','0-120'])assert.equal(codec.decode('?age='+age).age,age);
-  for(const query of ['?age=121-','?age=68-43','?age=-12','?age=1.1-4','?age=0000-1','?sex=X','?at=1m','?tx=x','?act=x','?cm=x','?sero=0','?data=x','?studyCode=AS','?sex=F&sex=M','?q=TNFi','?preset=1','?similar=9','?index=1','?analysisId=x','?cursor=x','?compareResultId=x','?host=x','?doctorId=101','?header=x','?foo='])assert.throws(()=>codec.decode(query),undefined,query);
+  for(const query of ['?age=121-','?age=68-43','?age=-12','?age=1.1-4','?age=0000-1','?sex=X','?at=1m','?tx=x','?act=x','?cm=x','?sero=0','?data=x','?studyCode=AS','?sex=F&sex=M','?preset=1','?similar=9','?index=1','?analysisId=x','?cursor=x','?compareResultId=x','?host=x','?doctorId=101','?header=x','?foo='])assert.throws(()=>codec.decode(query),undefined,query);
   assert.equal(codec.encode(codec.decode('?ids=')),'?ids=');
   assert.equal(codec.encode(codec.decode('')),'');
   assert.equal(codec.encode(codec.decode('?studyCode=RA&at=now&sex=&ids=9223372036854775807,1')),'?ids=9223372036854775807%2C1');

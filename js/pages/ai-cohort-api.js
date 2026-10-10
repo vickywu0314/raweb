@@ -56,10 +56,11 @@ window.RACohortAPI = (()=>{
     exportXlsx,
     applyAnalysis(command,options) {return post('export/applyAnalysis',command,options);},
     retryNotification(command,options) {return post('export/retryNotification',command,options);},
+    resolveEntry(indexPatientId,options) {return post('ai/resolveEntry',{source:'SIMILAR',indexPatientId},options);},
     parse(question,options) {return post('ai/parse',{question},options);},
     applyParse(command,options) {return post('ai/applyParse',command,options);},
     cohort(filters, options) {
-      const input={...filters};if(input.ids===null)delete input.ids;
+      const input={...filters};if(input.ids===null&&!options?.completeFilters)delete input.ids;
       return post('ai/cohort',{filters:input},options);
     },
     cohortPatients(analysisId,cursor,options) {return post('ai/cohortPatients',{analysisId,cursor},options);},

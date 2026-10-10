@@ -37,7 +37,7 @@ test('cohort:url-ids',async ({page,context,browser})=>{
     await expect(page.locator('#f-age')).toHaveValue('043-067');expect(new URL(page.url()).searchParams.get('sex')).toBe('F');
     await page.locator('#f-act').selectOption('target');await expect.poll(()=>observed.requests.length).toBe(4);expect(observed.requests.at(-1).body.filters.age).toBe('043-067');
     await page.locator('#reset').click();await expect.poll(()=>observed.requests.length).toBe(5);expect(new URL(page.url()).search).toBe('');expect(Object.hasOwn(observed.requests.at(-1).body.filters,'ids')).toBe(false);
-    for(const query of ['?ids=01','?ids=9223372036854775808','?ids=1,,2','?ids=1&ids=2','?sex=X','?sex=F&sex=M','?age=68-43','?q=TNFi','?similar=9','?host=x','?doctorId=202','?analysisId=x','?cursor=x','?compareResultId=x','?foo=']){
+    for(const query of ['?ids=01','?ids=9223372036854775808','?ids=1,,2','?ids=1&ids=2','?sex=X','?sex=F&sex=M','?age=68-43','?q=TNFi&q=JAKi','?similar=9','?host=x','?doctorId=202','?analysisId=x','?cursor=x','?compareResultId=x','?foo=']){
       const before=observed.requests.length;await page.goto(`${observed.origin}/ai-cohort.html${query}`,{waitUntil:'load'});await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','error');expect(observed.requests.length).toBe(before);await page.locator('#reanalyze').click();expect(observed.requests.length).toBe(before);
     }
     expect(observed.pageErrors).toEqual([]);

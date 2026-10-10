@@ -1,4 +1,6 @@
+import {patientBrowser} from './cohort-patient-browser.mjs';
 import {applicationBrowser} from './cohort-application-browser.mjs';
+import {entryBrowser} from './cohort-entry-browser.mjs';
 import {exportBrowser,exportComparisonBrowser} from './cohort-export-browser.mjs';
 import {applyBrowser} from './cohort-apply-browser.mjs';
 import {parseBrowser} from './cohort-parse-browser.mjs';
@@ -8,6 +10,7 @@ import {clinicalBrowser} from './cohort-clinical-browser.mjs';
 import {statisticsBrowser,literalStatistics} from './cohort-statistics-browser.mjs';
 import {paginationBrowser} from './cohort-pagination-browser.mjs';
 import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
 import {expect} from '@playwright/test';
 import {cohortBrowserScenario} from './cohort-browser.mjs';
 export const browserCases=['instrument:browser-cohort-loopback','instrument:browser-anonymous-loopback'];
@@ -212,5 +215,48 @@ for(const [id,scenario] of [['cohort:browser-application-replay','p06-applicatio
   r.applicationDropResponseOnce=id==='cohort:browser-application-replay';const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>applicationBrowser(context,port,identity,owner,probe,pid,id,r));
   for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);}
   const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);assert.ok(r.events.some(e=>e.type==='application-context-closed'&&e.active===false));assert.ok(r.events.some(e=>e.type==='application-peer-closed'&&e.failure===null));for(const table of ['export_application','ra_ai_export_request'])assert.ok(r.events.some(e=>e.type==='table-released'&&e.table===table));assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+ };
+}
+
+// P07普通六人fixture只读相似依据；每一次发布均走现Servlet/Service/MyBatis/SQL。
+browserRegistry['cohort:browser-entry']=async owner=>{
+ const id='cohort:browser-entry',r=await owner.fixture(['--identity=synthetic','--scenario=p07-entry']);
+ const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,4);assert.equal(ready.json.data.studyTotal,4);
+ assert.deepEqual(r.events.filter(event=>event.type==='table-owned').map(event=>event.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_ai_parse_audit']);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>entryBrowser(context,port,identity,owner,probe,pid,id,r));
+ await expect.poll(()=>r.events.filter(event=>event.type==='http-observation').length,{timeout:5000}).toBe(12);
+ for(const event of r.events.filter(event=>event.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);assert.equal(event.mysqlFailures,0);}
+ const observation=JSON.parse(await readFile(`${owner.dir}/browser-observation.json`,'utf8'));
+ const responses=observation.responses.filter(response=>new URL(response.url).pathname==='/api/ra/ai/resolveEntry');
+ const resolved=r.events.filter(event=>event.type==='resolve-http-observation');assert.equal(resolved.length,5);assert.equal(responses.length,5);
+ for(const event of resolved){assert.equal(event.selectDelta,5);assert.equal(event.analysisInsertDelta,0);assert.equal(event.active,0);assert.equal(responses.filter(response=>response.trace===event.traceId&&response.status===event.status).length,1);}
+ assert.deepEqual(resolved.map(event=>event.status),[200,200,404,404,404]);
+ for(const type of ['parse-http-observation','apply-http-observation']){const events=r.events.filter(event=>event.type===type);assert.equal(events.length,1);assert.equal(events[0].selectDelta,0);assert.equal(events[0].analysisInsertDelta,0);assert.equal(events[0].active,0);}
+ assert.ok(!r.events.some(event=>event.type==='parse-peer-planned'));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);
+ await owner.stop(r);assert.ok(r.events.some(event=>event.type==='parse-context-closed'&&event.active===false));
+ assert.ok(r.events.some(event=>event.type==='table-released'&&event.table==='ra_ai_parse_audit'));assert.ok(r.events.some(event=>event.type==='closed'&&event.clean&&event.active===0));
+ assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
+ owner.event('entry-normal-owner-exit',{beforeFallback:true,contextActive:false,tablesAbsent:true});
+};
+
+// P07b真实患者零详情链与独立统一context组合，沿既有owner串行释放。
+for(const [id,scenario,callback] of [
+ ['cohort:browser-patient-entry-closed','p07-entry',patientBrowser],
+ ['cohort:browser-feature-gates','p07-composition',async(...args)=>(await import('./cohort-composition-browser.mjs')).featureGatesBrowser(...args)],
+ ['cohort:browser-composition-time','p07-composition-time',async(...args)=>(await import('./cohort-composition-browser.mjs')).compositionTimeBrowser(...args)]
+]){
+ browserRegistry[id]=async owner=>{
+  const r=await owner.fixture(['--identity=synthetic','--scenario='+scenario]);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,scenario==='p07-entry'?4:37);
+  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>callback(context,port,identity,owner,probe,pid,id,r));
+  for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);assert.equal(e.mysqlFailures,0);}
+  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+  assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));
+  assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
+  if(scenario!=='p07-entry'){
+   assert.ok(r.events.some(e=>e.type==='composition-context-closed'&&e.active===false&&e.sqlActive===0&&e.clean&&e.finalOwnerClose===true));assert.ok(r.events.some(e=>e.type==='application-peer-closed'&&e.failure===null));
+   const owned=r.events.filter(e=>e.type==='table-owned').map(e=>e.table),released=r.events.filter(e=>e.type==='table-released').map(e=>e.table);assert.deepEqual(released.slice().sort(),owned.slice().sort());assert.equal(new Set(owned).size,owned.length);
+  }
+  owner.event('p07b-normal-owner-exit',{case:id,beforeFallback:true,tablesAbsent:true});
  };
 }
