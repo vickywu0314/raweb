@@ -7,6 +7,7 @@ let identity=identityKey();
 function identityKey(){return JSON.stringify(currentUser());}
 function waiting(){ $('#cancel-analysis').hidden=!(flight||pageFlight); }
 function invalidate(error=null) {
+  endComparison(error?.code||'ANALYSIS_CHANGED');comparisonState('idle','当前条件或分析已变化，请显式新比较');renderComparisonSources();
   generation++;const previous=[flight,pageFlight];flight=null;pageFlight=null;
   for(const operation of previous)if(operation){if(!operation.terminal)operation.terminal=error?.code||'SUPERSEDED';clearTimeout(operation.timer);}
   clearResults();waiting();lockControls();
@@ -319,6 +320,164 @@ $('#reset').addEventListener('click',()=>{
   history.replaceState(null,'',location.pathname+location.hash); analyze();
 });
 $('#cancel-analysis').addEventListener('click',()=>{if(flight||pageFlight)invalidate({code:'REQUEST_CANCELLED',message:'请求已取消，请显式重新分析'});});
+// 比较拥有独立operation/代次与保留资源，原分析owner不参与发布。
+let comparisonSlots={a:null,b:null},comparisonResource=null,comparisonFlight=null,comparisonGeneration=0;
+const COMPARISON_ROWS=[['n','COUNT'],['age','CONTINUOUS'],['duration','CONTINUOUS'],['das28At','CONTINUOUS'],['crpAt','CONTINUOUS'],['haqAt','CONTINUOUS'],['female','BINARY'],['sero','BINARY'],['target','BINARY'],['complete','BINARY'],['activity','DISTRIBUTION'],['line','DISTRIBUTION']];
+const COMPARISON_POLICIES=['statistics','descriptive','qc','crp','now','clinical','serology','treatment','visitMatcher','drugDictionary','comparison'];
+const comparisonClone=value=>JSON.parse(JSON.stringify(value));
+function comparisonState(name,message){$('#compare-state').dataset.state=name;$('#compare-state').textContent=message;}
+function clearComparisonResult(){comparisonResource=null;$('#compare-read').hidden=true;$('#compare-read').disabled=true;$('#compare-rows').replaceChildren();$('#compare-result').hidden=true;delete $('#compare-result').dataset.compareResultId;for(const id of ['compare-summary','compare-side-a','compare-side-b','compare-policy','compare-definition-note'])$('#'+id).textContent='';}
+function endComparison(cause,clear=true){
+ comparisonGeneration++;const old=comparisonFlight;
+ if(old&&!old.terminal)old.terminal=cause;
+ comparisonFlight=null;if(old)clearTimeout(old.timer);
+ if(clear)clearComparisonResult();$('#compare-cancel').hidden=true;
+ if(old)old.controller.abort();
+}
+function resetComparison(cause='IDENTITY_ENDED'){endComparison(cause);comparisonSlots={a:null,b:null};renderComparisonSources();comparisonState('idle','请选择 A/B 来源');}
+function comparisonAt(slot){return slot?.source==='SAVED'?slot.item.filters.at:slot?.filters.at;}
+function renderComparisonSources(){
+ for(const side of ['a','b']){const slot=comparisonSlots[side];$('#compare-source-'+side).textContent=!slot?'尚未选择':slot.source==='FILTERS'?`已选条件 · ${JSON.stringify(slot.filters)}`:`已选私有定义 · source=SAVED · cohortId=${slot.cohortId} · ${privateItemText(slot.item)}`;}
+ const mismatch=comparisonSlots.a&&comparisonSlots.b&&comparisonAt(comparisonSlots.a)!==comparisonAt(comparisonSlots.b);
+ $('#compare-start').disabled=!comparisonSlots.a||!comparisonSlots.b||Boolean(mismatch);
+ if(mismatch)comparisonState('error','INVALID_REQUEST：A/B评估时点 at 须相同，请显式重选来源');
+}
+function selectComparison(side,slot){
+ if(disposed||checkIdentity()||blockedEntry)return;
+ endComparison('SOURCE_CHANGED');comparisonSlots[side]=slot;comparisonState('idle','来源已选择，请显式比较');renderComparisonSources();
+}
+for(const side of ['a','b'])$('#compare-current-'+side).addEventListener('click',()=>selectComparison(side,{source:'FILTERS',filters:{...currentFilters(),ids:entryIds===null?null:[...entryIds]}}));
+function selectSavedComparison(side,cohortId){const item=privateItems.get(cohortId);if(!item)return;selectComparison(side,{source:'SAVED',cohortId,item:comparisonClone(item)});}
+function comparisonBody(){const side=slot=>slot.source==='SAVED'?{source:'SAVED',cohortId:slot.cohortId}:{source:'FILTERS',filters:comparisonClone(slot.filters)};return {a:side(comparisonSlots.a),b:side(comparisonSlots.b),excludeOverlap:$('#compare-exclude').checked};}
+function normalizedComparisonFilters(filters){
+ const normalized=privateFilters(filters);if(!normalized)return null;
+ const result={studyCode:'RA'};for(const key of Object.keys(SELECTS))result[key]=normalized[key]||null;result.at=normalized.at;
+ result.ids=normalized.ids===null?null:[...new Set(normalized.ids)].sort((a,b)=>a.length-b.length||a.localeCompare(b));
+ if(result.age){const [min,max]=result.age.split('-');result.age=String(Number(min))+'-'+(max===''?'':String(Number(max)));}
+ return result;
+}
+function sameComparisonFilters(a,b){const x=normalizedComparisonFilters(a),y=normalizedComparisonFilters(b);return x&&y&&JSON.stringify(x)===JSON.stringify(y);}
+function validComparisonRow(row){
+ const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value),count=value=>Number.isSafeInteger(value)&&value>=0,number=value=>typeof value==='number'&&Number.isFinite(value),nullable=value=>value===null||number(value);
+ if(!nullable(row.difference))return false;
+ for(const side of ['a','b']){
+  const value=row[side];
+  if(row.kind==='COUNT'){if(!count(value.n)||row.difference!==null||row.test!==null)return false;continue;}
+  if(!['OK','NO_DATA'].includes(value.status))return false;
+  if(row.kind==='CONTINUOUS'){if(!['validN','unknownN'].every(key=>count(value[key]))||!['q1','median','q3','iqr'].every(key=>nullable(value[key])))return false;}
+  else if(row.kind==='BINARY'){if(!['numerator','denominator','knownN','unknownN'].every(key=>count(value[key]))||!number(value.value))return false;}
+  else{
+   const categories=row.metric==='activity'?['remission','low','moderate','high']:['1','2','3'];
+   if(row.difference!==null||!['denominator','knownN','unknownN'].every(key=>count(value[key]))||!Array.isArray(value.groups)||value.groups.length!==categories.length||!value.groups.every((group,index)=>object(group)&&group.category===categories[index]&&count(group.count)&&number(group.value)))return false;
+  }
+ }
+ if(row.kind==='COUNT')return true;
+ const t=row.test;
+ if(!['OK','OVERLAP','INSUFFICIENT_SAMPLE','DEGENERATE'].includes(t.status)||!count(t.nA)||!count(t.nB)||!nullable(t.pValue)||typeof t.displayP!=='string'||!t.displayP||!(t.significant===null||typeof t.significant==='boolean')||!(t.reason===null||['COHORTS_OVERLAP','VALID_N_LT_5','ZERO_RANK_VARIANCE','ZERO_MARGIN'].includes(t.reason))||!Array.isArray(t.warnings)||!t.warnings.every(value=>['SMALL_SAMPLE_TIES','SPARSE_EXPECTED_COUNTS'].includes(value))||typeof t.policyVersion!=='string'||!t.policyVersion)return false;
+ const denominator=row.kind==='CONTINUOUS'?'NON_MISSING_METRIC':row.metric==='target'?'EVALUABLE_TARGET':row.metric==='activity'?'EVALUABLE_ACTIVITY':row.metric==='line'?'KNOWN_LINE':'KNOWN_CATEGORY';
+ if(t.testDenominator!==denominator)return false;
+ if(t.status==='OK'){if(!['FISHER_EXACT','CHI_SQUARE','MANN_WHITNEY_EXACT','MANN_WHITNEY_ASYMPTOTIC'].includes(t.method)||!number(t.pValue)||typeof t.significant!=='boolean')return false;}
+ else if(t.method!==null||t.pValue!==null||t.significant!==null||t.displayP!=='—'||t.reason===null)return false;
+ if(row.kind!=='CONTINUOUS'&&!['expectedBelow5Cells','expectedCellCount'].every(key=>t[key]===null||count(t[key])))return false;
+ return true;
+}
+
+function validComparison(data,operation,trace){
+ const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value),count=value=>Number.isSafeInteger(value)&&value>=0;
+ const instant=value=>typeof value==='string'&&/Z$/.test(value)&&Number.isFinite(Date.parse(value));
+ if(!object(data)||typeof data.compareResultId!=='string'||!PRIVATE_UUID.test(data.compareResultId)||!count(data.studyTotal)||!count(data.overlapN)||typeof data.excludeOverlap!=='boolean'||data.excludeOverlap!==operation.body.excludeOverlap||!Array.isArray(data.rows)||data.rows.length!==12||!object(data.meta))return false;
+ for(const side of ['a','b']){
+  const value=data[side],sent=operation.body[side];
+  if(!object(value)||value.source!==sent.source||!normalizedComparisonFilters(value.filters)||!['nBeforeExclusion','n','evalN'].every(key=>count(value[key]))||value.n>value.nBeforeExclusion||value.nBeforeExclusion>data.studyTotal||value.evalN>value.n||data.overlapN>value.nBeforeExclusion||!['submittedUniqueIdsN','effectiveIdsN'].every(key=>value[key]===null||count(value[key])))return false;
+  if(sent.source==='FILTERS'){
+   if(value.cohortId!==null||value.cohortVersion!==null||!sameComparisonFilters(value.filters,sent.filters))return false;
+  }else if(value.cohortId!==sent.cohortId||!Number.isInteger(value.cohortVersion)||value.cohortVersion<1)return false;
+ }
+ for(let i=0;i<COMPARISON_ROWS.length;i++){
+  const row=data.rows[i],[metric,kind]=COMPARISON_ROWS[i];if(!object(row)||row.metric!==metric||row.kind!==kind||!object(row.a)||!object(row.b)||!Object.hasOwn(row,'difference')||(kind==='COUNT'?row.test!==null:!object(row.test))||!validComparisonRow(row))return false;
+ }
+ const meta=data.meta;
+ if(meta.at!==data.a.filters.at||meta.at!==data.b.filters.at||meta.at!==operation.at||typeof meta.asOfDate!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(meta.asOfDate)||!['readStartedAt','readCompletedAt','computedAt','expiresAt'].every(key=>instant(meta[key]))||typeof meta.traceId!=='string'||!meta.traceId||Boolean(trace&&meta.traceId!==trace)||meta.completion!=='P04_COMPARE'||!object(meta.policyVersions)||!COMPARISON_POLICIES.every(key=>typeof meta.policyVersions[key]==='string'&&meta.policyVersions[key].length>0)||typeof meta.statisticalDisclosure!=='string'||!meta.statisticalDisclosure||!object(meta.sourceDateCoverage))return false;
+ for(const side of ['a','b']){
+  const coverage=meta.sourceDateCoverage[side];if(!object(coverage))return false;
+  for(const [metric] of COMPARISON_ROWS.slice(1)){
+   const value=coverage[metric];if(!object(value)||!['validN','datedN','undatedN','missingN'].every(key=>count(value[key]))||!['KNOWN','PARTIAL','UNKNOWN','NO_DATA'].includes(value.status)||!['minDate','maxDate'].every(key=>value[key]===null||(typeof value[key]==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value[key]))))return false;
+  }
+ }
+ return true;
+}
+const COMPARISON_LABELS={n:'人数',age:'年龄（岁）',duration:'病程（年）',das28At:'DAS28-CRP',crpAt:'CRP（mg/L）',haqAt:'HAQ',female:'女性',sero:'血清学阳性',target:'DAS28 达标',complete:'资料完整',activity:'活动分布',line:'治疗线数'};
+function renderComparisonRows(data){
+ const rows=$('#compare-rows');rows.replaceChildren();
+ for(const row of data.rows){
+  const tr=textNode('tr','');tr.dataset.metric=row.metric;tr.dataset.kind=row.kind;tr.append(textNode('th',COMPARISON_LABELS[row.metric]));
+  for(const side of ['a','b']){const cell=textNode('td','');cell.dataset.side=side;const keys=row.kind==='COUNT'?['n']:row.kind==='CONTINUOUS'?['q1','median','q3','iqr','validN','unknownN','status']:row.kind==='BINARY'?['numerator','denominator','value','knownN','unknownN','status']:['denominator','knownN','unknownN','status'];const fields=keys.map(key=>`${key}=${row[side][key]===null?'缺失':row[side][key]}`);for(const group of row[side].groups||[])fields.push(`${group.category}: count=${group.count} · value=${group.value}`);cell.textContent=fields.join(' · ');if(row.kind!=='COUNT'){const coverage=data.meta.sourceDateCoverage[side][row.metric];cell.append(textNode('small','来源覆盖 · '+['validN','datedN','undatedN','missingN','minDate','maxDate','status'].map(key=>`${key}=${coverage[key]===null?'未提供':coverage[key]}`).join(' · '),'comparison-coverage'));}tr.append(cell);}
+  const difference=textNode('td',row.difference===null?'不适用':`${row.difference}${row.kind==='BINARY'?' 百分点':''}`);difference.dataset.difference='';tr.append(difference);
+  const test=textNode('td','不适用');test.dataset.test='';if(row.test){test.textContent=['method','status','pValue','displayP','significant','nA','nB','reason','warnings','policyVersion','testDenominator',...(row.kind==='CONTINUOUS'?[]:['expectedBelow5Cells','expectedCellCount'])].map(key=>{const value=row.test[key];return `${key}=${value===null?'不可用':Array.isArray(value)?(value.join(', ')||'无'):value}`;}).join(' · ');if(row.test.significant===true)test.append(textNode('strong',' 显著（服务端判定）','stat-significant'));}tr.append(test);rows.append(tr);
+ }
+}
+
+function sameRetainedComparison(data,operation){
+ if(data.compareResultId!==operation.snapshot.compareResultId||data.meta.comparisonTraceId!==operation.creationTrace)return false;
+ // 只允许本次读取trace变化；比较资源的完整原值、范围、时间和政策逐字段保持。
+ const retained=value=>{const copy=comparisonClone(value);delete copy.meta.traceId;delete copy.meta.comparisonTraceId;return copy;};
+ const equal=(a,b)=>{if(a===b)return true;if(a===null||b===null||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(key=>Object.hasOwn(b,key)&&equal(a[key],b[key]));};
+ return equal(retained(data),retained(operation.snapshot));
+}
+function startComparisonRead(){
+ if(disposed||checkIdentity()||!comparisonResource)return;
+ const snapshot=comparisonClone(comparisonResource),creationTrace=snapshot.meta.comparisonTraceId||snapshot.meta.traceId;
+ const side=value=>value.source==='SAVED'?{source:'SAVED',cohortId:value.cohortId}:{source:'FILTERS',filters:comparisonClone(value.filters)};
+ endComparison('SUPERSEDED');
+ const operation={kind:'read',snapshot,creationTrace,generation:comparisonGeneration,identity,at:snapshot.meta.at,body:{a:side(snapshot.a),b:side(snapshot.b),excludeOverlap:snapshot.excludeOverlap},controller:new AbortController(),timer:null,terminal:null};
+ comparisonFlight=operation;$('#compare-cancel').hidden=false;comparisonState('loading','正在验证并重读原ID保留结果');
+ operation.timer=setTimeout(()=>{finishComparison(operation,null,{code:'REQUEST_TIMEOUT',message:'保留重读超过30秒'});operation.controller.abort();},30000);
+ window.RACohortAPI.compareResult(snapshot.compareResultId,{signal:operation.controller.signal}).then(result=>finishComparison(operation,result),error=>finishComparison(operation,null,error));
+}
+
+function publishComparison(data){
+ renderComparisonRows(data);
+ comparisonResource=comparisonClone(data);$('#compare-read').hidden=false;$('#compare-read').disabled=false;$('#compare-result').dataset.compareResultId=data.compareResultId;$('#compare-result').hidden=false;
+ $('#compare-summary').textContent=`studyTotal=${data.studyTotal} · overlapN=${data.overlapN}`;
+ for(const side of ['a','b']){const q=data[side];$('#compare-side-'+side).textContent=`${side.toUpperCase()} · source=${q.source} · filters=${JSON.stringify(q.filters)} · cohortId=${q.cohortId} · cohortVersion=${Number.isSafeInteger(q.cohortVersion)||q.cohortVersion===null?q.cohortVersion:'超出安全显示范围'} · nBeforeExclusion=${q.nBeforeExclusion} · n=${q.n} · evalN=${q.evalN} · submittedUniqueIdsN=${q.submittedUniqueIdsN} · effectiveIdsN=${q.effectiveIdsN}`;}
+ const meta=data.meta;$('#compare-policy').textContent=`excludeOverlap=${data.excludeOverlap} · ${data.excludeOverlap?'双方均排除完整患者交集':'保留重叠患者；交集存在时不能进行独立组检验'} · `+['at','asOfDate','readStartedAt','readCompletedAt','computedAt','expiresAt','traceId','completion'].map(key=>`${key}=${meta[key]}`).join(' · ')+' · '+Object.entries(meta.policyVersions).map(([key,value])=>`${key}=${value}`).join(' · ')+' · comparisonTraceId='+(meta.comparisonTraceId||meta.traceId)+' · '+meta.statisticalDisclosure;comparisonState('success',meta.comparisonTraceId?'原ID保留结果已重读，原数值和有效期保持':'比较完成，完整12行来自同次服务端结果');
+}
+function isCurrentComparison(operation){return !disposed&&!operation.terminal&&comparisonFlight===operation&&comparisonGeneration===operation.generation;}
+function finishComparison(operation,result,error){
+ if(!isCurrentComparison(operation))return;
+ if(operation.identity!==identityKey()){checkIdentity();return;}
+ if(!error&&(!validComparison(result?.data,operation,result?.traceId)||result?.success!==true||result?.code!=='200'||(operation.kind==='read'&&!sameRetainedComparison(result.data,operation))))error={status:result?.status,code:'INVALID_RESPONSE',message:'比较响应不完整',traceId:result?.traceId};
+ operation.terminal=error?.code||'SUCCESS';comparisonFlight=null;clearTimeout(operation.timer);$('#compare-cancel').hidden=true;
+ if(error){
+  clearComparisonResult();
+  if(error.status===401){clearPrivate();invalidate(error);}
+  if(operation.kind==='read'){const reason=error.status===404?'保留比较不存在':error.status===410?'保留比较已过期':error.status===409&&error.code==='SCOPE_CHANGED'?'授权研究库范围已变化':'无法验证保留结果';comparisonState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${reason}，引用已清除，请显式重新比较${error.traceId?' · Trace：'+error.traceId:''}`);return;}
+  const unknown=error.status>=500||['NETWORK_ERROR','INVALID_RESPONSE','REQUEST_TIMEOUT','REQUEST_CANCELLED'].includes(error.code);
+  comparisonState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message||'比较未完成'}${error.traceId?' · Trace：'+error.traceId:''}${unknown?'；结果尚未确认，不能确定是否已提交。显式再次比较可能创建新ID。':''}`);return;
+ }
+ publishComparison(result.data);
+}
+function startComparison(){
+ if(disposed||checkIdentity()||!comparisonSlots.a||!comparisonSlots.b)return;
+ if(comparisonAt(comparisonSlots.a)!==comparisonAt(comparisonSlots.b)){renderComparisonSources();return;}
+ endComparison('SUPERSEDED');
+ const operation={kind:'compare',generation:comparisonGeneration,identity,at:comparisonAt(comparisonSlots.a),body:comparisonBody(),controller:new AbortController(),timer:null,terminal:null};comparisonFlight=operation;$('#compare-cancel').hidden=false;comparisonState('loading','正在比较，请稍候');
+ operation.timer=setTimeout(()=>{finishComparison(operation,null,{code:'REQUEST_TIMEOUT',message:'比较请求超过30秒'});operation.controller.abort();},30000);
+ window.RACohortAPI.compare(operation.body,{signal:operation.controller.signal}).then(result=>finishComparison(operation,result),error=>finishComparison(operation,null,error));
+}
+function removeComparisonDefinition(cohortId){
+ const affected=['a','b'].some(side=>comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===cohortId);
+ if(comparisonFlight?.kind==='compare'&&['a','b'].some(side=>comparisonFlight.body[side].source==='SAVED'&&comparisonFlight.body[side].cohortId===cohortId)){endComparison('SOURCE_DELETED');comparisonState('error','来源定义已删除，请显式重选来源');}
+ for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===cohortId)comparisonSlots[side]=null;
+ if(affected)renderComparisonSources();
+ if(comparisonResource&&['a','b'].some(side=>comparisonResource[side].source==='SAVED'&&comparisonResource[side].cohortId===cohortId))$('#compare-definition-note').textContent='来源定义已删除，当前为已保留结果；原ID、数值和有效期保持。';
+}
+$('#compare-start').addEventListener('click',startComparison);
+$('#compare-read').addEventListener('click',startComparisonRead);
+$('#compare-swap').addEventListener('click',()=>{if(disposed||checkIdentity())return;endComparison('SWAPPED');[comparisonSlots.a,comparisonSlots.b]=[comparisonSlots.b,comparisonSlots.a];comparisonState('idle','A/B已交换，请显式新比较');renderComparisonSources();});
+$('#compare-exclude').addEventListener('change',()=>{if(disposed||checkIdentity())return;endComparison('EXCLUSION_CHANGED');comparisonState('idle','排重选择已改变，请显式新比较');renderComparisonSources();});
+$('#compare-cancel').addEventListener('click',()=>{if(!comparisonFlight)return;const read=comparisonFlight.kind==='read';endComparison('REQUEST_CANCELLED');comparisonState('error',read?'REQUEST_CANCELLED：已取消保留重读，引用已清除，请显式重新比较。':'REQUEST_CANCELLED：已取消等待，结果尚未确认，不能确定是否已提交；显式新比较可能创建新ID。');});
+window.RACohortComparison=Object.freeze({getResource:()=>comparisonResource===null?null:comparisonClone(comparisonResource)});
 // 私有定义只读元信息；列表与保存独立于分析owner，不自动统计人数。
 let listFlight=null,listToken=0,listPage=1,privateItems=new Map(),privateDeleted=new Set();
 const PRIVATE_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -344,6 +503,7 @@ function applyPrivateFilters(filters){
 }
 function listState(name,message){$('#private-list-state').dataset.state=name;$('#private-list-state').textContent=message;}
 function clearPrivate(){
+  resetComparison();
   cancelSave();cancelPrivateCommand();privateItems.clear();privateDeleted.clear();const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='IDENTITY_ENDED';clearTimeout(previous.timer);previous.controller.abort();}
   $('#private-edit-name').value='';$('#private-edit-note').value='';$('#private-edit-note-mode').value='preserve';$('#private-command-target').textContent='';listPage=1;$('#private-items').replaceChildren();$('#private-page').textContent='';$('#private-prev').disabled=true;$('#private-open-meta').textContent='';$('#private-name').value='';$('#private-note').value='';listState('idle','尚未加载');
 }
@@ -362,7 +522,8 @@ function loadPrivateList(page=listPage,refreshEdit=false){
     operation.terminal=error?.code||'SUCCESS';listFlight=null;clearTimeout(operation.timer);
     if(error){if(error.status===401){clearPrivate();invalidate(error);return;}if(editing&&privateEdit===editing){$('#private-version-refresh').hidden=false;$('#private-command-confirm').disabled=true;commandState('error',`元信息刷新失败：${error.code||'REQUEST_FAILED'} ${error.message} ${error.traceId?'Trace：'+error.traceId:''}；原输入已保留，请显式再次刷新。`);}listState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${error.traceId?'Trace：'+error.traceId:''}`);return;}
     $('#private-page').textContent=`第 ${data.page} 页 · 每页 ${data.size} 条 · 共 ${data.total} 条`;
-    for(const item of data.items){privateItems.set(item.cohortId,item);const row=textNode('div',privateItemText(item),'private-item');row.dataset.privateCohort=item.cohortId;row.setAttribute('role','listitem');const button=textNode('button','打开并重新分析','button');button.type='button';button.dataset.openCohort=item.cohortId;row.append(button);const edit=textNode('button','修改名称/备注','button');edit.type='button';edit.dataset.editCohort=item.cohortId;edit.disabled=!Number.isSafeInteger(item.version);row.append(edit);const remove=textNode('button','删除','button');remove.type='button';remove.dataset.deleteCohort=item.cohortId;remove.disabled=!Number.isSafeInteger(item.version);row.append(remove);if(!Number.isSafeInteger(item.version))row.append(textNode('small','版本超出安全整数范围，只能读取或打开'));$('#private-items').append(row);}
+    for(const item of data.items){privateItems.set(item.cohortId,item);for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===item.cohortId)comparisonSlots[side].item=comparisonClone(item);const row=textNode('div',privateItemText(item),'private-item');row.dataset.privateCohort=item.cohortId;row.setAttribute('role','listitem');const button=textNode('button','打开并重新分析','button');button.type='button';button.dataset.openCohort=item.cohortId;row.append(button);const edit=textNode('button','修改名称/备注','button');edit.type='button';edit.dataset.editCohort=item.cohortId;edit.disabled=!Number.isSafeInteger(item.version);row.append(edit);const remove=textNode('button','删除','button');remove.type='button';remove.dataset.deleteCohort=item.cohortId;remove.disabled=!Number.isSafeInteger(item.version);row.append(remove);for(const side of ['a','b']){const choose=textNode('button','设为'+side.toUpperCase(),'button');choose.type='button';choose.dataset.compareSide=side;choose.dataset.compareCohort=item.cohortId;row.append(choose);}if(!Number.isSafeInteger(item.version))row.append(textNode('small','版本超出安全整数范围，只能读取或打开'));$('#private-items').append(row);}
+    renderComparisonSources();
     if(editing&&privateEdit===editing){const item=privateItems.get(editing.item.cohortId);if(item){editing.item=item;editing.versionConflict=false;$('#private-command-target').textContent=privateItemText(item);$('#private-command-confirm').disabled=!Number.isSafeInteger(item.version);commandState('idle',Number.isSafeInteger(item.version)?'元信息已刷新，请核对输入后确认新命令':'版本超出安全整数范围，只能读取或打开');}else{cancelPrivateCommand();commandState('error','当前页未找到该定义，请加载对应页后重新选择。');}}
     listState(data.items.length?'success':'empty',data.items.length?'列表已读取，人数在打开后计算':'当前页没有私有定义');
   };
@@ -378,7 +539,7 @@ function openPrivate(cohortId){
 $('#private-list-load').addEventListener('click',()=>loadPrivateList(listPage));
 $('#private-prev').addEventListener('click',()=>loadPrivateList(listPage-1));
 $('#private-next').addEventListener('click',()=>loadPrivateList(listPage+1));
-$('#private-items').addEventListener('click',event=>{const button=event.target.closest('[data-open-cohort]');if(button)openPrivate(button.dataset.openCohort);const edit=event.target.closest('[data-edit-cohort]');if(edit)beginPrivateEdit(edit.dataset.editCohort);const remove=event.target.closest('[data-delete-cohort]');if(remove)beginPrivateEdit(remove.dataset.deleteCohort,'delete');});
+$('#private-items').addEventListener('click',event=>{const source=event.target.closest('[data-compare-cohort]');if(source)selectSavedComparison(source.dataset.compareSide,source.dataset.compareCohort);const button=event.target.closest('[data-open-cohort]');if(button)openPrivate(button.dataset.openCohort);const edit=event.target.closest('[data-edit-cohort]');if(edit)beginPrivateEdit(edit.dataset.editCohort);const remove=event.target.closest('[data-delete-cohort]');if(remove)beginPrivateEdit(remove.dataset.deleteCohort,'delete');});
 // 元信息命令只依据实际列表条目；回执从不组装或恢复列表。
 let privateEdit=null,privateCommand=null,privateCommandFlight=null,privateCommandToken=0;
 function commandState(name,message){$('#private-command-state').dataset.state=name;$('#private-command-state').textContent=message;}
@@ -426,12 +587,12 @@ function confirmPrivateCommand(retry=false){
       if(error.status===401){clearPrivate();invalidate(error);return;}
       const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
       const instruction=unknown?'结果尚未确认，不能确定是否已提交。可显式重试原命令。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新确认。':error.code==='VERSION_CONFLICT'?'版本冲突，请显式刷新元信息，再核对输入并确认新命令。':error.code==='IDEMPOTENCY_CONFLICT'?'原请求标识对应不同参数，请核对输入；不要盲目重试。':error.status===404?'定义不存在、已删除或不属于当前身份，请重新加载列表。':'';
-      if(error.status===404){privateItems.delete(pending.body.cohortId);$(`[data-private-cohort="${pending.body.cohortId}"]`)?.remove();listState('error','条目已不可用，请显式重新加载列表');}
+      if(error.status===404){removeComparisonDefinition(pending.body.cohortId);privateItems.delete(pending.body.cohortId);$(`[data-private-cohort="${pending.body.cohortId}"]`)?.remove();listState('error','条目已不可用，请显式重新加载列表');}
       if(error.code==='VERSION_CONFLICT'){privateEdit.versionConflict=true;$('#private-command-confirm').disabled=true;}
       $('#private-command-retry').hidden=!unknown;$('#private-version-refresh').hidden=error.code!=='VERSION_CONFLICT';if(!unknown)privateCommand=null;
       commandState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${instruction} ${error.traceId?'Trace：'+error.traceId:''}`);return;
     }
-    if(pending.action==='delete')privateDeleted.add(pending.body.cohortId);
+    if(pending.action==='delete'){privateDeleted.add(pending.body.cohortId);privateItems.delete(pending.body.cohortId);removeComparisonDefinition(pending.body.cohortId);}
     if(pending.action==='delete'&&$('#private-open-meta').dataset.cohortId===pending.body.cohortId){$('#private-open-meta').textContent='该私有定义已删除；当前已保留分析仍遵循原有效期和授权范围。';delete $('#private-open-meta').dataset.cohortId;}
     privateCommand=null;privateEdit=null;$('#private-command-dialog').hidden=true;
     loadPrivateList(listPage);commandState('success',Number.isSafeInteger(data.version)?'元信息命令已确认，按当前列表读取结果':'命令已确认；回执版本超出安全整数范围，刷新后只按安全列表版本操作');
