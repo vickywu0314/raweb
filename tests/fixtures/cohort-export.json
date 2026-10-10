@@ -1,0 +1,243 @@
+{
+  "fields": [
+    "patientId",
+    "sex",
+    "age",
+    "studyNo",
+    "treatmentCategory",
+    "genericDrugIds",
+    "line",
+    "schemeDurationMonths",
+    "das28Base",
+    "das28At",
+    "das28Current",
+    "crpCurrent",
+    "fm",
+    "as",
+    "completeness"
+  ],
+  "needApply": {
+    "decision": "NEED_APPLY",
+    "source": "COHORT",
+    "referenceId": "11111111-1111-1111-1111-111111111111",
+    "selectionMode": "DEFAULT",
+    "requested": [
+      "patientId",
+      "sex",
+      "age",
+      "studyNo",
+      "treatmentCategory",
+      "genericDrugIds",
+      "line",
+      "schemeDurationMonths",
+      "das28Base",
+      "das28At",
+      "das28Current",
+      "crpCurrent",
+      "fm",
+      "as",
+      "completeness"
+    ],
+    "eligible": [
+      "das28At",
+      "das28Current",
+      "crpCurrent"
+    ],
+    "blocked": [
+      {
+        "field": "patientId",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "sex",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "age",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "studyNo",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "treatmentCategory",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "genericDrugIds",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "line",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "schemeDurationMonths",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "das28Base",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "fm",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "as",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      },
+      {
+        "field": "completeness",
+        "side": null,
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 6
+      }
+    ],
+    "freeStart": "2026-04-01",
+    "today": "2026-10-07",
+    "policyVersion": "dev-export-v01"
+  },
+  "metrics": [
+    "n",
+    "age",
+    "duration",
+    "das28At",
+    "crpAt",
+    "haqAt",
+    "female",
+    "sero",
+    "target",
+    "complete",
+    "activity",
+    "line"
+  ],
+  "comparisonNeedApply": {
+    "decision": "NEED_APPLY",
+    "source": "COMPARE",
+    "referenceId": "00000000-0000-0000-0000-000000000401",
+    "selectionMode": "DEFAULT",
+    "requested": [
+      "n",
+      "age",
+      "duration",
+      "das28At",
+      "crpAt",
+      "haqAt",
+      "female",
+      "sero",
+      "target",
+      "complete",
+      "activity",
+      "line"
+    ],
+    "eligible": [
+      "n",
+      "das28At",
+      "crpAt",
+      "haqAt",
+      "target",
+      "activity"
+    ],
+    "blocked": [
+      {
+        "field": "age",
+        "side": "A",
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 8
+      },
+      {
+        "field": "age",
+        "side": "B",
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 8
+      },
+      {
+        "field": "duration",
+        "side": "A",
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 8
+      },
+      {
+        "field": "duration",
+        "side": "B",
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 8
+      },
+      {
+        "field": "female",
+        "side": "A",
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 8
+      },
+      {
+        "field": "female",
+        "side": "B",
+        "reason": "MISSING_SOURCE_DATE",
+        "affectedN": 8
+      },
+      {
+        "field": "sero",
+        "side": "A",
+        "reason": "INCOMPLETE_SOURCE_EVIDENCE",
+        "affectedN": 6
+      },
+      {
+        "field": "sero",
+        "side": "B",
+        "reason": "INCOMPLETE_SOURCE_EVIDENCE",
+        "affectedN": 7
+      },
+      {
+        "field": "complete",
+        "side": "A",
+        "reason": "INCOMPLETE_SOURCE_EVIDENCE",
+        "affectedN": 8
+      },
+      {
+        "field": "complete",
+        "side": "B",
+        "reason": "INCOMPLETE_SOURCE_EVIDENCE",
+        "affectedN": 8
+      },
+      {
+        "field": "line",
+        "side": "A",
+        "reason": "INCOMPLETE_SOURCE_EVIDENCE",
+        "affectedN": 7
+      },
+      {
+        "field": "line",
+        "side": "B",
+        "reason": "INCOMPLETE_SOURCE_EVIDENCE",
+        "affectedN": 7
+      }
+    ],
+    "freeStart": "2026-04-01",
+    "today": "2026-10-07",
+    "policyVersion": "dev-export-v01"
+  }
+}

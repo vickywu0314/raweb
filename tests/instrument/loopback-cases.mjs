@@ -1,3 +1,5 @@
+import {applicationBrowser} from './cohort-application-browser.mjs';
+import {exportBrowser,exportComparisonBrowser} from './cohort-export-browser.mjs';
 import {applyBrowser} from './cohort-apply-browser.mjs';
 import {parseBrowser} from './cohort-parse-browser.mjs';
 import {comparisonBrowser,statisticsComparisonBrowser,retainedComparisonBrowser,invalidatedComparisonBrowser} from './cohort-comparison-browser.mjs';
@@ -187,5 +189,28 @@ for(const id of ['cohort:browser-parse-apply','cohort:browser-parse-apply-safety
   if(safety)assert.ok(r.events.some(e=>e.type==='parse-peer-closed'&&e.requests===0&&e.failure===null&&e.unusedDiscarded));
   assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
   if(!safety){const failed=await owner.fixture(['--identity=synthetic','--scenario=p05-apply-rule','--mode=partial-start-fail']);const result=await owner.bounded(failed.finished,30000,'apply-partial-start');assert.notEqual(result.code,0);assert.ok(failed.events.some(e=>e.type==='failure'));assert.ok(failed.events.some(e=>e.type==='table-released'&&e.table==='ra_ai_parse_audit'));assert.ok(failed.events.some(e=>e.type==='closed'&&e.clean));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');await owner.stop(failed);}
+ };
+}
+
+browserRegistry['cohort:browser-export-cohort']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p06-cohort']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,exportBrowser);
+ for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+browserRegistry['cohort:browser-export-comparison']=async owner=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p06-comparison']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,14);assert.equal(ready.json.data.studyTotal,14);
+ assert.deepEqual(r.events.filter(event=>event.type==='table-owned').map(event=>event.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run','ra_ai_export_audit']);
+ const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>exportComparisonBrowser(context,port,identity,owner,probe,pid,r));
+ for(const event of r.events.filter(event=>event.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+};
+
+// P06c 每case真实两表/SMTP独立fixture，owner不复用上一case的资源。
+for(const [id,scenario] of [['cohort:browser-application-replay','p06-application-replay'],['cohort:browser-notification-retry','p06-application-retry'],['cohort:browser-notification-unknown','p06-application-unknown']]){
+ browserRegistry[id]=async owner=>{
+  const r=await owner.fixture(['--identity=synthetic','--scenario='+scenario]);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_ai_export_audit','export_application','ra_ai_export_request']);
+  r.applicationDropResponseOnce=id==='cohort:browser-application-replay';const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>applicationBrowser(context,port,identity,owner,probe,pid,id,r));
+  for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);}
+  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);assert.ok(r.events.some(e=>e.type==='application-context-closed'&&e.active===false));assert.ok(r.events.some(e=>e.type==='application-peer-closed'&&e.failure===null));for(const table of ['export_application','ra_ai_export_request'])assert.ok(r.events.some(e=>e.type==='table-released'&&e.table===table));assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
  };
 }

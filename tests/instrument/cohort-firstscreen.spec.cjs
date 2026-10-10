@@ -12,7 +12,7 @@ async function setup({page,context,browser},scenario,reply=()=>({status:200,body
     allowed.push(request.url());
     if(url.pathname.startsWith('/api/')){
       requests.push({url:request.url(),method:request.method(),headers:request.headers(),body:request.postDataJSON()});
-      const response=scenario==='cohort:no-demo-actions'&&url.pathname==='/api/ra/ai/parse'?{status:200,trace:'trace-p05',body:{success:true,code:'200',data:require('../fixtures/cohort-parse.json').TNFI}}:reply(requests.length);if(response.abort){await route.abort('failed');return;}
+      const response=scenario==='cohort:no-demo-actions'&&url.pathname==='/api/ra/ai/parse'?{status:200,trace:'trace-p05',body:{success:true,code:'200',data:require('../fixtures/cohort-parse.json').PARTIAL}}:reply(requests.length);if(response.abort){await route.abort('failed');return;}
       await route.fulfill({status:response.status,contentType:response.contentType||'application/json',headers:{'X-Trace-Id':response.trace||'fixture-trace'},body:typeof response.body==='string'?response.body:JSON.stringify(response.body)});return;
     }
     await route.continue();
@@ -91,9 +91,18 @@ test('cohort:no-demo-actions',async ({page,context,browser})=>{
       expect(observed.requests.at(-1).body).toEqual({filters:{studyCode:'RA',sex:'',age:'',sero:'',tx:'',at:'now',act:'',cm:'',data:''}});
     }
     const before=observed.requests.length;
-    await page.locator('#question').fill('TNFi 治疗6个月后高活动');await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-note')).toContainText('尚未应用');expect(observed.requests.length).toBe(before+1);expect(observed.requests.at(-1).body).toEqual({question:'TNFi 治疗6个月后高活动'});
-    await expect(page.locator('#export')).toBeDisabled();
-    await page.locator('#export').evaluate(button=>button.click());expect(observed.requests.length).toBe(before+1);expect(downloads).toEqual([]);
+    const analysisId=await page.locator('#results').getAttribute('data-analysis-id');
+    await page.locator('#question').fill('女性且吸烟');
+    await page.locator('#question-form button[type="submit"]').click();
+    await expect(page.locator('#parse-state')).toHaveAttribute('data-state','success');
+    await expect(page.locator('#parse-state')).toContainText('尚未应用');
+    await expect(page.locator('#parse-note')).toHaveText(require('../fixtures/cohort-parse.json').PARTIAL.notice);
+    await expect(page.locator('#parse-apply')).toBeVisible();
+    await expect(page.locator('#results')).toHaveAttribute('data-analysis-id',analysisId);
+    expect(observed.requests.length).toBe(before+1);
+    expect(observed.requests.at(-1).body).toEqual({question:'女性且吸烟'});
+    await expect(page.locator('#export')).toBeEnabled();
+    await page.locator('#export').click();await expect(page.locator('#export-dialog')).toBeVisible();expect(observed.requests.length).toBe(before+1);expect(downloads).toEqual([]);
     expect(await page.locator('#patient-rows a').count()).toBe(0);await expect(page.locator('#clinical-panels')).toBeVisible();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
     expect(observed.requests.every(request=>new URL(request.url).origin===observed.origin&&['/api/ra/ai/cohort','/api/ra/ai/parse'].includes(new URL(request.url).pathname))).toBe(true);
     expect(observed.pageErrors).toEqual([]);

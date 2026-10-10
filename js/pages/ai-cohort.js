@@ -4,6 +4,7 @@ shell('ai');
 const SELECTS = {sex:'#f-sex',age:'#f-age',sero:'#f-sero',tx:'#f-tx',at:'#f-at',act:'#f-act',cm:'#f-cm',data:'#f-data'};
 let flight = null, pageFlight = null, resource = null, disposed = false, blockedEntry = false, entryIds = null, generation = 0;
 let identity=identityKey();
+let exportFlight=null,exportSelection=null,applicationDraft=null,applicationSession=null,applicationFlight=null;
 let parseFlight=null,parseCandidate=null,parseToken=0,questionVersion=0,applyFlight=null,applyToken=0;
 function identityKey(){return JSON.stringify(currentUser());}
 function waiting(){ $('#cancel-analysis').hidden=!(flight||pageFlight); }
@@ -118,7 +119,7 @@ function clearResults() {
   $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;
   $('#results').hidden = true; $('#no-result').hidden = true; $('#analysis-error').hidden = true;
   $('#login-return').hidden = true; $('#more').hidden = true; $('#more').disabled=true;
-  resource=null;delete $('#results').dataset.analysisId;$('#private-open-meta').textContent='';delete $('#private-open-meta').dataset.cohortId;
+  $('#export').disabled=true;resource=null;delete $('#results').dataset.analysisId;$('#private-open-meta').textContent='';delete $('#private-open-meta').dataset.cohortId;
 }
 function state(name, message) {
   $('#cohort-state').dataset.state = name; $('#cohort-state').textContent = message;
@@ -247,7 +248,7 @@ function finish(operation, result, error) {
   endOperation(operation,'cohort','SUCCESS');
   if(operation.cohortId){applyPrivateFilters(normalized);$('#private-open-meta').textContent=privateDeleted.has(outer.cohort.cohortId)?'该私有定义已删除；本次已开始的分析仍遵循原有效期和授权范围。':privateItemText(outer.cohort);$('#private-open-meta').dataset.cohortId=outer.cohort.cohortId;}
   resource={generation,analysisId:data.analysisId,cursor:data.patients.nextCursor,n:data.n,loaded:data.patients.items.length,consumed:new Set()};
-  $('#results').dataset.analysisId=data.analysisId;
+  $('#results').dataset.analysisId=data.analysisId;$('#export').disabled=false;
   $('#cohort-n').textContent = String(data.n); $('#study-total').textContent = String(data.studyTotal);
   renderCards(data);
   if (data.n === 0) {
@@ -269,7 +270,7 @@ function finishPage(operation,result,error) {
   const data=result.data;
   const existing=new Set([...$('#patient-rows').children].map(row=>row.dataset.patientId));
   if(!data || data.analysisId!==operation.analysisId || !validPatients(data.patients,resource.n,resource.loaded,20) || data.patients.items.some(patient=>existing.has(patient.patientId)) || (data.patients.nextCursor!==null&&resource.consumed.has(data.patients.nextCursor)) || data.patients.nextCursor===operation.cursor){
-    endOperation(operation,'page','INVALID_RESPONSE');clearResults();showError({status:result.status,code:'INVALID_RESPONSE',message:'分页响应不完整',traceId:result.traceId});return;
+    endOperation(operation,'page','INVALID_RESPONSE');endExport('INVALID_RESPONSE');clearResults();showError({status:result.status,code:'INVALID_RESPONSE',message:'分页响应不完整',traceId:result.traceId});return;
   }
   endOperation(operation,'page','SUCCESS');
   resource.consumed.add(operation.cursor);appendPatients(data.patients.items);resource.loaded+=data.patients.items.length;resource.cursor=data.patients.nextCursor;
@@ -433,6 +434,172 @@ $('#reset').addEventListener('click',()=>{
   $('#question').value=''; $('#parse-note').hidden=true; blockedEntry=false; entryIds=null;
   history.replaceState(null,'',location.pathname+location.hash); analyze();
 });
+const EXPORT_FIELDS=['patientId','sex','age','studyNo','treatmentCategory','genericDrugIds','line','schemeDurationMonths','das28Base','das28At','das28Current','crpCurrent','fm','as','completeness'];
+function exportState(name,message){$('#export-state').dataset.state=name;$('#export-state').textContent=message;}
+const EXPORT_METRICS=['n','age','duration','das28At','crpAt','haqAt','female','sero','target','complete','activity','line'];
+const exportCatalog=source=>source==='COMPARE'?EXPORT_METRICS:EXPORT_FIELDS;
+function validExportDecision(data,command){
+ const record=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+ const keys=(v,wanted)=>record(v)&&Object.keys(v).sort().join(',')===[...wanted].sort().join(',');
+ const catalog=exportCatalog(command.source),chosen=command.source==='COMPARE'?command.metrics:command.fields;
+ const selection=v=>Array.isArray(v)&&v.every(f=>catalog.includes(f))&&new Set(v).size===v.length;
+ const requested=chosen||catalog;
+ return keys(data,['decision','source','referenceId','selectionMode','requested','eligible','blocked','freeStart','today','policyVersion'])&&data.decision==='NEED_APPLY'&&data.source===command.source&&data.referenceId===(command.source==='COMPARE'?command.compareResultId:command.analysisId)&&data.selectionMode===(chosen?'EXPLICIT':'DEFAULT')&&selection(data.requested)&&JSON.stringify(data.requested)===JSON.stringify(requested)&&selection(data.eligible)&&Array.isArray(data.blocked)&&data.blocked.length>0&&data.blocked.every(b=>keys(b,['field','side','reason','affectedN'])&&requested.includes(b.field)&&!data.eligible.includes(b.field)&&(command.source==='COMPARE'?['A','B'].includes(b.side):b.side===null)&&['NO_VALID_CONTRIBUTION','INCOMPLETE_SOURCE_EVIDENCE','MISSING_SOURCE_DATE','SOURCE_BEFORE_WINDOW','SOURCE_AFTER_TODAY'].includes(b.reason)&&Number.isInteger(b.affectedN)&&b.affectedN>=0)&&[data.freeStart,data.today].every(v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v))&&typeof data.policyVersion==='string';
+}
+function showExportFields(selected=[]){
+ $('#export-fields').replaceChildren();
+ for(const field of exportCatalog(exportSelection?.source)){const label=textNode('label',field);const input=document.createElement('input');input.type='checkbox';input.value=field;input.checked=selected.includes(field);label.prepend(input);$('#export-fields').append(label);}
+}
+function exportButtons(busy){for(const id of ['export-default','export-confirm','export-eligible'])$('#'+id).disabled=busy;}
+function settleExport(operation,cause){
+ if(operation.terminal)return false;
+ operation.terminal=cause;
+ if(exportFlight===operation){exportFlight=null;exportButtons(false);}
+ clearTimeout(operation.timer);
+ if(operation.url){URL.revokeObjectURL(operation.url);operation.url=null;}
+ return true;
+}
+function endExport(cause='SUPERSEDED'){
+ const old=exportFlight;
+ if(old)settleExport(old,cause);
+ applicationDraft=null;$('#application-form').hidden=true;$('#application-open').hidden=true;
+ exportSelection=null;$('#export-dialog').hidden=true;$('#export-decision').hidden=true;$('#export-eligible').hidden=true;
+ exportState('idle','当前引用已变化，请重新选择导出内容');
+ if(old)old.controller.abort();
+}
+function exportReferenceCurrent(selection){
+ const current=selection.source==='COMPARE'?comparisonResource:resource;
+ const currentGeneration=selection.source==='COMPARE'?comparisonGeneration:generation;
+ const currentId=current&&(selection.source==='COMPARE'?current.compareResultId:current.analysisId);
+ return current===selection.resource&&currentId===selection.referenceId&&currentGeneration===selection.generation&&identity===selection.identity&&identityKey()===selection.identity;
+}
+function exportMayPublish(operation){
+ return !disposed&&!operation.terminal&&exportFlight===operation&&exportReferenceCurrent(operation);
+}
+function openExport(source='COHORT'){
+ if(disposed||checkIdentity()||exportFlight)return;
+ const current=source==='COMPARE'?comparisonResource:resource;
+ if(!current||(source==='COHORT'&&current.generation!==generation))return;
+ exportSelection={source,resource:current,referenceId:source==='COMPARE'?current.compareResultId:current.analysisId,generation:source==='COMPARE'?comparisonGeneration:generation,identity};
+ $('#export-dialog').hidden=false;$('#export-decision').hidden=true;$('#export-eligible').hidden=true;$('#application-open').hidden=true;
+ $('#export-content-kind').textContent=source==='COMPARE'?'比较指标：默认包含完整12项；明确选择仍保留原A/B统计。':'队列字段：默认包含完整15字段；明确选择仍导出完整队列。';
+ showExportFields();exportButtons(false);exportState('selecting',source==='COMPARE'?'请明确确认比较的默认或所选指标':'请明确确认队列的默认或所选字段');
+}
+async function requestExport(selected){
+ if(disposed||checkIdentity()||!exportSelection||!exportReferenceCurrent(exportSelection)||exportFlight)return;
+ const catalog=exportCatalog(exportSelection.source);
+ if(selected&&(!selected.length||new Set(selected).size!==selected.length||selected.some(f=>!catalog.includes(f)))){exportState('error','INVALID_REQUEST：请选择至少一个导出项');return;}
+ const source=exportSelection.source,selector=source==='COMPARE'?'metrics':'fields',key=source==='COMPARE'?'compareResultId':'analysisId';
+ const command=Object.freeze({source,[key]:exportSelection.referenceId,...(selected?{[selector]:Object.freeze(catalog.filter(f=>selected.includes(f)))}:{})});
+ const operation={...exportSelection,command,controller:new AbortController(),timer:null,terminal:null,url:null};
+ exportFlight=operation;exportButtons(true);exportState('loading','正在请求导出');
+ operation.timer=setTimeout(()=>{if(!disposed&&operation.identity!==identityKey())checkIdentity();if(!exportMayPublish(operation))return;settleExport(operation,'REQUEST_TIMEOUT');exportState('error','REQUEST_TIMEOUT：本次文件等待已结束，不能确定服务器是否已写出；可明确重新请求');operation.controller.abort();},30000);
+ try{
+  const result=await RACohortAPI.exportXlsx(command,{signal:operation.controller.signal});
+  if(!disposed&&operation.identity!==identityKey())checkIdentity();
+  // Complete native body is a separate cut: authority must still belong to this operation.
+  if(!exportMayPublish(operation))return;
+  settleExport(operation,'SUCCESS');
+  const link=document.createElement('a');
+  try{operation.url=URL.createObjectURL(result.blob);link.href=operation.url;link.download=result.filename;document.body.append(link);link.click();}
+  catch(downloadError){exportState('error','DOWNLOAD_FAILED：浏览器无法开始本次下载，请明确重新请求');return;}
+  finally{link.remove();if(operation.url){URL.revokeObjectURL(operation.url);operation.url=null;}}
+  $('#export-dialog').hidden=true;exportState('success',`文件下载已开始 · ${result.traceId?'Trace：'+result.traceId:''}`);
+ }catch(error){
+  if(!disposed&&operation.identity!==identityKey())checkIdentity();
+  if(!exportMayPublish(operation))return;
+  settleExport(operation,error.code||'REQUEST_FAILED');
+  if(error.status===401){clearPrivate();invalidate(error);return;}
+  if([404,410].includes(error.status)||error.code==='SCOPE_CHANGED'){invalidate(error);return;}
+  if(error.status===409&&error.code==='NEED_APPLY'&&validExportDecision(error.data,command)){
+   exportSelection.decision=JSON.parse(JSON.stringify(error.data));exportSelection.explicitCommand=command;exportSelection.eligible=[...error.data.eligible];$('#application-open').hidden=false;$('#application-open').disabled=error.data.selectionMode!=='EXPLICIT';$('#export-decision').hidden=false;$('#export-decision').textContent=JSON.stringify(error.data,null,2)+'\n'+error.data.blocked.map(b=>`${b.field} · side=${b.side} · ${b.reason} · affectedN=${b.affectedN}`).join('\n');$('#export-eligible').hidden=false;exportState('need-apply',`所选导出内容需要申请 · ${error.traceId?'Trace：'+error.traceId:''}`);
+  }else exportState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code==='NEED_APPLY'?'INVALID_RESPONSE':error.code||'REQUEST_FAILED'}：${error.message} ${error.traceId?'Trace：'+error.traceId:''}`);
+ }
+}
+const APPLICATION_REASONS={NOT_CONFIGURED:'通知尚未配置',INVALID_MAIL_CONFIG:'通知配置无效',RECIPIENT_CHANGED:'通知收件设置已变化',NOTIFICATION_BUSY:'通知正在处理中',PRE_DATA_REJECTED:'SMTP在正文发送前拒绝',PRE_DATA_IO_FAILED:'SMTP在正文发送前连接失败',DATA_OUTCOME_UNKNOWN:'正文发送结果未知',DEADLINE:'通知等待已到期',CALLER_INTERRUPTED:'通知等待已中断',SERVICE_STOPPED:'通知服务已结束',STATE_UPDATE_UNCONFIRMED:'通知状态提交尚未确认',IN_PROGRESS_OR_UNCERTAIN:'通知正在处理中或结果不确定'};
+const applicationKeys=(v,keys)=>v!==null&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join(',')===[...keys].sort().join(',');
+function validApplicationReceipt(data,expectedId=null){
+ if(!applicationKeys(data,['applicationId','status','notification'])||data.status!=='APPLICATION_RECORDED'||typeof data.applicationId!=='string'||!/^([1-9][0-9]*)$/.test(data.applicationId)||data.applicationId.length>19||(data.applicationId.length===19&&data.applicationId>'9223372036854775807')||(expectedId&&data.applicationId!==expectedId))return false;
+ const n=data.notification;if(!applicationKeys(n,['mailStatus','attemptId','retryable','smtpAccepted','statusConfirmed','reason','deliveryStatus'])||n.deliveryStatus!=='UNKNOWN'||typeof n.retryable!=='boolean'||typeof n.statusConfirmed!=='boolean'||![true,false,null].includes(n.smtpAccepted)||!(n.reason===null||Object.hasOwn(APPLICATION_REASONS,n.reason))||!(n.attemptId===null||typeof n.attemptId==='string'&&PRIVATE_UUID.test(n.attemptId)))return false;
+ if(n.mailStatus==='PENDING')return n.attemptId===null&&n.retryable&&n.smtpAccepted===null&&n.statusConfirmed&&n.reason===null;
+ if(n.mailStatus==='FAILED')return n.attemptId!==null&&n.retryable&&n.smtpAccepted===false&&n.statusConfirmed&&n.reason!==null;
+ if(n.mailStatus==='SENT')return n.attemptId!==null&&!n.retryable&&n.smtpAccepted===true&&n.statusConfirmed&&n.reason===null;
+ return n.mailStatus==='UNKNOWN'&&!n.retryable&&n.reason!==null&&(n.attemptId!==null||!n.statusConfirmed)&&(n.statusConfirmed||n.reason==='STATE_UPDATE_UNCONFIRMED');
+}
+function applicationState(name,message){$('#application-state').dataset.state=name;$('#application-state').textContent=message;}
+function applicationButtons(){
+ const busy=!!applicationFlight;
+ $('#application-submit').disabled=busy;$('#application-replay').disabled=busy;$('#application-replay').hidden=!applicationSession?.sent;
+ $('#application-cancel').hidden=!busy;
+ const n=applicationSession?.receipt?.notification;
+ $('#application-retry-notification').hidden=!(applicationSession?.notificationTrusted&&n?.retryable===true&&n.statusConfirmed===true&&['PENDING','FAILED'].includes(n.mailStatus));$('#application-retry-notification').disabled=busy;
+}
+function settleApplication(operation,cause){
+ if(operation.terminal)return false;operation.terminal=cause;clearTimeout(operation.timer);if(applicationFlight===operation)applicationFlight=null;applicationButtons();return true;
+}
+function revokeApplication(cause='IDENTITY_ENDED'){
+ const old=applicationFlight;if(old)settleApplication(old,cause);applicationDraft=null;applicationSession=null;$('#application-panel').hidden=true;$('#application-form').hidden=true;$('#application-receipt').hidden=true;$('#application-receipt').textContent='';$('#application-reason').value='';$('#application-start').value='';$('#application-end').value='';$('#application-change-note').hidden=true;applicationState('idle','申请仅记录需求，不表示审批或已生成历史文件。');applicationButtons();if(old)old.controller.abort();
+}
+function showApplicationReceipt(session){
+ const d=session.receipt,n=d.notification,accepted=n.smtpAccepted===true?'SMTP已受理':n.smtpAccepted===false?'SMTP尚未受理':'SMTP受理状态未知';
+ $('#application-receipt').hidden=false;$('#application-receipt').textContent=`申请 #${d.applicationId} 已记录 · ${n.mailStatus}\n${accepted}，送达待确认 · deliveryStatus=UNKNOWN\n${n.statusConfirmed?'通知状态已确认':'状态提交尚未确认'}${n.reason?' · '+APPLICATION_REASONS[n.reason]:''}\n申请记录不表示审批或已生成历史文件。`;
+}
+function applicationMayPublish(operation){return !disposed&&!operation.terminal&&applicationFlight===operation&&applicationSession===operation.session&&identity===operation.identity&&identityKey()===operation.identity;}
+function finishApplication(operation,result,error){
+ if(!disposed&&operation.identity!==identityKey()){checkIdentity();return;}if(!applicationMayPublish(operation))return;
+ const expected=operation.session.receipt?.applicationId||null;
+ if(!error&&(result?.status!==200||result?.success!==true||result?.code!=='200'||!validApplicationReceipt(result?.data,expected)))error={status:result?.status,code:'INVALID_RESPONSE',traceId:result?.traceId,message:'申请回执不完整'};
+ if(!settleApplication(operation,error?.code||'SUCCESS'))return;
+ const session=operation.session;
+ if(error){
+  session.notificationTrusted=false;session.lastError={status:error.status??0,code:error.code||'REQUEST_FAILED',data:error.data??null,traceId:error.traceId??null};applicationButtons();
+  if(error.status===401){clearPrivate();invalidate(error);return;}
+  const unknown=error.status>=500||['NETWORK_ERROR','INVALID_RESPONSE','REQUEST_TIMEOUT','REQUEST_CANCELLED'].includes(error.code);
+  applicationState(unknown&&!session.receipt?'uncertain':'error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}${error.traceId?' · Trace：'+error.traceId:''}；${session.receipt?'原申请已记录事实保留，通知现态尚未确认。':unknown?'申请可能已经记录，已保留原命令和原requestId。':'本次请求未确认，原命令和输入保留。'}请明确使用同参数重试 / 刷新本申请。`);return;
+ }
+ session.receipt=JSON.parse(JSON.stringify(result.data));session.lastError=null;session.notificationTrusted=true;showApplicationReceipt(session);applicationState('recorded',`申请已记录${result.traceId?' · Trace：'+result.traceId:''}；通知结果见本申请回执。`);applicationButtons();
+}
+function sendApplication(session,kind='apply'){
+ if(disposed||checkIdentity()||applicationFlight||!session||applicationSession!==session||session.identity!==identityKey())return;
+ if(kind==='retry'&&!(session.notificationTrusted&&session.receipt?.notification.retryable===true&&session.receipt.notification.statusConfirmed===true&&['PENDING','FAILED'].includes(session.receipt.notification.mailStatus)))return;
+ const command=kind==='retry'?Object.freeze({applicationId:session.receipt.applicationId}):session.command;
+ const operation={session,identity:session.identity,kind,command,controller:new AbortController(),timer:null,terminal:null};applicationFlight=operation;session.sent=true;session.notificationTrusted=false;$('#application-panel').hidden=false;applicationButtons();applicationState('loading',kind==='retry'?'正在显式重试本申请通知':'正在提交或同参数读取本申请');
+ operation.timer=setTimeout(()=>{finishApplication(operation,null,{code:'REQUEST_TIMEOUT'});operation.controller.abort();},30000);
+ window.RACohortAPI[kind==='retry'?'retryNotification':'applyAnalysis'](command,{signal:operation.controller.signal}).then(result=>finishApplication(operation,result),error=>finishApplication(operation,null,error));
+}
+function applicationDate(value){
+ if(typeof value!=='string'||!/^([1-9][0-9]{3})-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$/.test(value))return false;
+ const date=new Date(value+'T00:00:00Z');return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===value;
+}
+function applicationReason(value){
+ const reason=value.trim();if([...reason].length<1||[...reason].length>1000)return null;
+ for(let i=0;i<reason.length;i++){const c=reason.charCodeAt(i);if(c>=0xd800&&c<=0xdbff){const low=reason.charCodeAt(++i);if(!(low>=0xdc00&&low<=0xdfff))return null;}else if(c>=0xdc00&&c<=0xdfff)return null;}return reason;
+}
+$('#application-open').addEventListener('click',()=>{
+ if(disposed||checkIdentity()||exportFlight||!exportSelection||!exportReferenceCurrent(exportSelection)||exportSelection.decision?.selectionMode!=='EXPLICIT')return;
+ applicationDraft={...exportSelection};$('#application-panel').hidden=false;$('#application-form').hidden=false;$('#application-selection').textContent=applicationDraft.source+' · '+applicationDraft.referenceId+' · '+applicationDraft.decision.requested.join('、');$('#application-change-note').hidden=!(applicationSession?.sent&&!applicationSession.receipt);applicationButtons();
+});
+$('#application-form').addEventListener('submit',event=>{
+ event.preventDefault();if(disposed||checkIdentity()||applicationFlight||!applicationDraft||!exportReferenceCurrent(applicationDraft)||applicationDraft.decision?.selectionMode!=='EXPLICIT')return;
+ const startDate=$('#application-start').value,endDate=$('#application-end').value,purposeCode=$('#application-purpose').value,reason=applicationReason($('#application-reason').value);
+ if(!applicationDate(startDate)||!applicationDate(endDate)||startDate>endDate||!['RESEARCH','DATA_CHECK','OTHER'].includes(purposeCode)||reason===null){applicationState('error','INVALID_REQUEST：请填写有效日期、用途及1～1000码点申请说明。');return;}
+ const selected=applicationDraft.explicitCommand,exportCommand=Object.freeze({...selected,[selected.source==='COMPARE'?'metrics':'fields']:Object.freeze([...applicationDraft.decision.requested])});
+ const input={export:exportCommand,startDate,endDate,purposeCode,reason},signature=JSON.stringify(input);
+ if(!applicationSession||applicationSession.signature!==signature){const previous=applicationSession;applicationSession={identity,signature,command:Object.freeze({requestId:crypto.randomUUID(),...input}),sent:false,receipt:null,notificationTrusted:false};$('#application-receipt').hidden=true;$('#application-receipt').textContent='';if(previous?.sent&&!previous.receipt)$('#application-change-note').hidden=false;}
+ sendApplication(applicationSession);
+});
+$('#application-dismiss').addEventListener('click',()=>{applicationDraft=null;$('#application-form').hidden=true;});
+$('#application-replay').addEventListener('click',()=>sendApplication(applicationSession));
+$('#application-retry-notification').addEventListener('click',()=>sendApplication(applicationSession,'retry'));
+$('#application-cancel').addEventListener('click',()=>{const old=applicationFlight;if(!old)return;finishApplication(old,null,{code:'REQUEST_CANCELLED'});old.controller.abort();});
+$('#application-form').addEventListener('input',()=>{if(applicationSession?.sent&&!applicationSession.receipt)$('#application-change-note').hidden=false;});
+$('#export-fields').addEventListener('change',()=>{if(!exportFlight&&exportSelection){exportSelection.decision=null;exportSelection.explicitCommand=null;applicationDraft=null;$('#application-open').hidden=true;$('#application-form').hidden=true;}});
+$('#export').addEventListener('click',()=>openExport('COHORT'));
+$('#compare-export').addEventListener('click',()=>openExport('COMPARE'));
+$('#export-default').addEventListener('click',()=>requestExport());
+$('#export-confirm').addEventListener('click',()=>requestExport([...$('#export-fields').querySelectorAll('input:checked')].map(input=>input.value)));
+$('#export-eligible').addEventListener('click',()=>{if(!exportFlight&&exportSelection?.eligible){showExportFields(exportSelection.eligible);exportState('selecting','建议字段已选，请明确确认后请求');}});
+$('#export-cancel').addEventListener('click',()=>{endExport('REQUEST_CANCELLED');exportState('cancelled','REQUEST_CANCELLED：已取消本次文件等待，不能确定服务器是否已写出');});
 $('#cancel-analysis').addEventListener('click',()=>{if(flight||pageFlight)invalidate({code:'REQUEST_CANCELLED',message:'请求已取消，请显式重新分析'});});
 // 比较拥有独立operation/代次与保留资源，原分析owner不参与发布。
 let comparisonSlots={a:null,b:null},comparisonResource=null,comparisonFlight=null,comparisonGeneration=0;
@@ -440,8 +607,9 @@ const COMPARISON_ROWS=[['n','COUNT'],['age','CONTINUOUS'],['duration','CONTINUOU
 const COMPARISON_POLICIES=['statistics','descriptive','qc','crp','now','clinical','serology','treatment','visitMatcher','drugDictionary','comparison'];
 const comparisonClone=value=>JSON.parse(JSON.stringify(value));
 function comparisonState(name,message){$('#compare-state').dataset.state=name;$('#compare-state').textContent=message;}
-function clearComparisonResult(){comparisonResource=null;$('#compare-read').hidden=true;$('#compare-read').disabled=true;$('#compare-rows').replaceChildren();$('#compare-result').hidden=true;delete $('#compare-result').dataset.compareResultId;for(const id of ['compare-summary','compare-side-a','compare-side-b','compare-policy','compare-definition-note'])$('#'+id).textContent='';}
+function clearComparisonResult(){comparisonResource=null;$('#compare-export').disabled=true;$('#compare-export').hidden=true;$('#compare-read').hidden=true;$('#compare-read').disabled=true;$('#compare-rows').replaceChildren();$('#compare-result').hidden=true;delete $('#compare-result').dataset.compareResultId;for(const id of ['compare-summary','compare-side-a','compare-side-b','compare-policy','compare-definition-note'])$('#'+id).textContent='';}
 function endComparison(cause,clear=true){
+ endExport(cause);
  endParse(cause);
  comparisonGeneration++;const old=comparisonFlight;
  if(old&&!old.terminal)old.terminal=cause;
@@ -552,7 +720,7 @@ function startComparisonRead(){
 
 function publishComparison(data){
  renderComparisonRows(data);
- comparisonResource=comparisonClone(data);$('#compare-read').hidden=false;$('#compare-read').disabled=false;$('#compare-result').dataset.compareResultId=data.compareResultId;$('#compare-result').hidden=false;
+ comparisonResource=comparisonClone(data);$('#compare-export').disabled=false;$('#compare-export').hidden=false;$('#compare-read').hidden=false;$('#compare-read').disabled=false;$('#compare-result').dataset.compareResultId=data.compareResultId;$('#compare-result').hidden=false;
  $('#compare-summary').textContent=`studyTotal=${data.studyTotal} · overlapN=${data.overlapN}`;
  for(const side of ['a','b']){const q=data[side];$('#compare-side-'+side).textContent=`${side.toUpperCase()} · source=${q.source} · filters=${JSON.stringify(q.filters)} · cohortId=${q.cohortId} · cohortVersion=${Number.isSafeInteger(q.cohortVersion)||q.cohortVersion===null?q.cohortVersion:'超出安全显示范围'} · nBeforeExclusion=${q.nBeforeExclusion} · n=${q.n} · evalN=${q.evalN} · submittedUniqueIdsN=${q.submittedUniqueIdsN} · effectiveIdsN=${q.effectiveIdsN}`;}
  const meta=data.meta;$('#compare-policy').textContent=`excludeOverlap=${data.excludeOverlap} · ${data.excludeOverlap?'双方均排除完整患者交集':'保留重叠患者；交集存在时不能进行独立组检验'} · `+['at','asOfDate','readStartedAt','readCompletedAt','computedAt','expiresAt','traceId','completion'].map(key=>`${key}=${meta[key]}`).join(' · ')+' · '+Object.entries(meta.policyVersions).map(([key,value])=>`${key}=${value}`).join(' · ')+' · comparisonTraceId='+(meta.comparisonTraceId||meta.traceId)+' · '+meta.statisticalDisclosure;comparisonState('success',meta.comparisonTraceId?'原ID保留结果已重读，原数值和有效期保持':'比较完成，完整12行来自同次服务端结果');
@@ -618,6 +786,7 @@ function applyPrivateFilters(filters){
 }
 function listState(name,message){$('#private-list-state').dataset.state=name;$('#private-list-state').textContent=message;}
 function clearPrivate(){
+  revokeApplication();
   resetComparison();
   cancelSave();cancelPrivateCommand();privateItems.clear();privateDeleted.clear();const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='IDENTITY_ENDED';clearTimeout(previous.timer);previous.controller.abort();}
   $('#private-edit-name').value='';$('#private-edit-note').value='';$('#private-edit-note-mode').value='preserve';$('#private-command-target').textContent='';listPage=1;$('#private-items').replaceChildren();$('#private-page').textContent='';$('#private-prev').disabled=true;$('#private-open-meta').textContent='';$('#private-name').value='';$('#private-note').value='';listState('idle','尚未加载');
