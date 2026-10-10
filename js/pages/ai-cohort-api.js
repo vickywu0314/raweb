@@ -26,7 +26,36 @@ window.RACohortAPI = (()=>{
     }
     return result;
   }
+  const XLSX='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  function fileError(message,status,code,traceId,cause){return Object.assign(new Error(message),{status,success:false,code,data:null,traceId,cause});}
+  function fileName(disposition,command){
+    let candidate=null;
+    if(typeof disposition==='string'){
+      const encoded=disposition.match(/(?:^|;)\s*filename\*=UTF-8''([^;]+)/i),ordinary=disposition.match(/(?:^|;)\s*filename=(?:"([^"\r\n]*)"|([^;\s]+))/i);
+      try{candidate=encoded?decodeURIComponent(encoded[1]):ordinary?(ordinary[1]??ordinary[2]):null;}catch{}
+    }
+    return typeof candidate==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,150}\.xlsx$/i.test(candidate)?candidate:`${command.source==='COMPARE'?'comparison':'cohort'}-${command.source==='COMPARE'?command.compareResultId:command.analysisId}.xlsx`;
+  }
+  async function exportXlsx(command,{signal}={}){
+    let response;
+    try{response=await fetch(API_BASE+'/api/ra/export/xlsx',{method:'POST',credentials:'same-origin',signal,headers:{'Content-Type':'application/json;charset=UTF-8'},body:JSON.stringify(command)});}
+    catch(cause){throw fileError(signal?.aborted?'请求已结束':'文件请求网络连接失败',0,signal?.aborted?'REQUEST_CANCELLED':'NETWORK_ERROR',null,cause);}
+    const traceId=response.headers.get('X-Trace-Id'),mime=response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase();
+    if(response.ok&&mime===XLSX){
+      let blob;try{blob=await response.blob();}catch(cause){throw fileError('文件内容读取失败',response.status,'BODY_READ_FAILED',traceId,cause);}
+      return {status:response.status,kind:'xlsx',blob,filename:fileName(response.headers.get('Content-Disposition'),command),traceId};
+    }
+    if(mime==='application/json'){
+      let envelope;try{envelope=await response.json();if(!envelope||typeof envelope!=='object'||Array.isArray(envelope))throw new Error('invalid-envelope');}
+      catch(cause){throw fileError('接口返回无效JSON',response.status,'INVALID_RESPONSE',traceId,cause);}
+      throw Object.assign(new Error(envelope.message||(response.ok&&envelope.success===true?'接口返回JSON，未返回文件':`文件请求失败（HTTP ${response.status}）`)),{status:response.status,success:envelope.success,code:envelope.code,message:envelope.message||'文件响应不是XLSX',data:envelope.data,traceId,kind:'json'});
+    }
+    throw fileError('接口未返回有效XLSX或JSON',response.status,'INVALID_RESPONSE',traceId);
+  }
   return Object.freeze({
+    exportXlsx,
+    applyAnalysis(command,options) {return post('export/applyAnalysis',command,options);},
+    retryNotification(command,options) {return post('export/retryNotification',command,options);},
     parse(question,options) {return post('ai/parse',{question},options);},
     applyParse(command,options) {return post('ai/applyParse',command,options);},
     cohort(filters, options) {

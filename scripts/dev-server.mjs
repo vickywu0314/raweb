@@ -23,11 +23,11 @@ export async function startDevServer({port=8090,upstream='http://127.0.0.1:8065'
       const headers={};
       for(const name of ['content-type','content-length','cookie','accept'])if(request.headers[name])headers[name]=request.headers[name];
       const peer=http.request(destination,{method:request.method,headers,agent},backend=>{
-        const resultHeaders={};for(const name of ['content-type','x-trace-id','set-cookie'])if(backend.headers[name])resultHeaders[name]=backend.headers[name];
+        const resultHeaders={};for(const name of ['content-type','content-disposition','cache-control','x-trace-id','set-cookie'])if(backend.headers[name])resultHeaders[name]=backend.headers[name];
         response.writeHead(backend.statusCode,resultHeaders);backend.pipe(response);
         backend.once('aborted',()=>response.destroy());backend.once('error',()=>response.destroy());
       });
-      outgoing.add(peer);const timer=setTimeout(()=>peer.destroy(new Error('proxy-timeout')),5000);
+      outgoing.add(peer);const budget=['/api/ra/export/applyAnalysis','/api/ra/export/retryNotification'].includes(request.url)?15000:5000;const timer=setTimeout(()=>peer.destroy(new Error('proxy-timeout')),budget);
       peer.once('close',()=>{clearTimeout(timer);outgoing.delete(peer);});peer.once('error',()=>fail(response));
       request.once('aborted',()=>peer.destroy());response.once('close',()=>{if(!response.writableEnded)peer.destroy();});
       request.pipe(peer);return;

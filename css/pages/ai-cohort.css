@@ -218,3 +218,9 @@ a.ai-row:hover {
 
 .parse-panel{margin:12px 0;padding:12px;border:1px solid #dbe4ef;border-radius:8px;background:#f7faff}.parse-panel [data-state="error"]{color:#a12622}
 .parse-panel[data-parse-status="PARTIAL"]{border-color:#aa7614;background:#fff9e9}.parse-panel[data-parse-status="PARTIAL"] #parse-state{font-weight:600;color:#755108}
+
+.export-panel { margin-block: 16px; }
+#export-fields { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 8px; margin-block: 12px; }
+#export-decision { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.application-panel form{display:grid;gap:12px;max-width:720px}.application-panel label{display:grid;gap:6px}.application-panel input,.application-panel select,.application-panel textarea{padding:10px;border:1px solid #ccd5de;border-radius:6px;font:inherit}.application-panel textarea{min-height:90px}.application-panel [hidden]{display:none!important}.application-panel p{white-space:pre-wrap;overflow-wrap:anywhere}

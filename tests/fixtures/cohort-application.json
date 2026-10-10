@@ -1,0 +1,54 @@
+{
+  "startDate": "2026-01-01",
+  "endDate": "2026-10-07",
+  "purposeCode": "RESEARCH",
+  "reason": "ordinary-application-canary",
+  "maximumApplicationId": "9223372036854775807",
+  "notifications": {
+    "PENDING": {
+      "mailStatus": "PENDING",
+      "attemptId": null,
+      "retryable": true,
+      "smtpAccepted": null,
+      "statusConfirmed": true,
+      "reason": null,
+      "deliveryStatus": "UNKNOWN"
+    },
+    "FAILED": {
+      "mailStatus": "FAILED",
+      "attemptId": "00000000-0000-4000-8000-000000000003",
+      "retryable": true,
+      "smtpAccepted": false,
+      "statusConfirmed": true,
+      "reason": "PRE_DATA_REJECTED",
+      "deliveryStatus": "UNKNOWN"
+    },
+    "SENT": {
+      "mailStatus": "SENT",
+      "attemptId": "00000000-0000-4000-8000-000000000003",
+      "retryable": false,
+      "smtpAccepted": true,
+      "statusConfirmed": true,
+      "reason": null,
+      "deliveryStatus": "UNKNOWN"
+    },
+    "UNKNOWN": {
+      "mailStatus": "UNKNOWN",
+      "attemptId": "00000000-0000-4000-8000-000000000003",
+      "retryable": false,
+      "smtpAccepted": null,
+      "statusConfirmed": true,
+      "reason": "DATA_OUTCOME_UNKNOWN",
+      "deliveryStatus": "UNKNOWN"
+    },
+    "UNCONFIRMED": {
+      "mailStatus": "UNKNOWN",
+      "attemptId": "00000000-0000-4000-8000-000000000003",
+      "retryable": false,
+      "smtpAccepted": true,
+      "statusConfirmed": false,
+      "reason": "STATE_UPDATE_UNCONFIRMED",
+      "deliveryStatus": "UNKNOWN"
+    }
+  }
+}
