@@ -82,7 +82,7 @@ test('cohort:empty-errors',async ({page,context,browser})=>{
 test('cohort:no-demo-actions',async ({page,context,browser})=>{
   const observed=await setup({page,context,browser},'cohort:no-demo-actions');const downloads=[];page.on('download',download=>downloads.push(download.suggestedFilename()));
   try {
-    for(const query of ['?q=TNFi','?similar=9','?foo=']) {
+    for(const query of ['?similar=9','?foo=']) {
       const before=observed.requests.length;
       await page.goto(`${observed.origin}/ai-cohort.html${query}`,{waitUntil:'load'});await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','error');
       await expect(page.locator('#error-message')).toContainText('此入口待接入，请清空条件重新分析');expect(observed.requests.length).toBe(before);await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);
@@ -103,7 +103,7 @@ test('cohort:no-demo-actions',async ({page,context,browser})=>{
     expect(observed.requests.at(-1).body).toEqual({question:'女性且吸烟'});
     await expect(page.locator('#export')).toBeEnabled();
     await page.locator('#export').click();await expect(page.locator('#export-dialog')).toBeVisible();expect(observed.requests.length).toBe(before+1);expect(downloads).toEqual([]);
-    expect(await page.locator('#patient-rows a').count()).toBe(0);await expect(page.locator('#clinical-panels')).toBeVisible();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
+    expect(await page.locator('#patient-rows a').evaluateAll(nodes=>nodes.map(node=>({text:node.textContent,href:node.getAttribute('href')})))).toEqual(ids.map(id=>({text:'查看患者档案',href:'patient-visits.html?id='+id+'&from=ai-cohort'}))); await expect(page.locator('#clinical-panels')).toBeVisible();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
     expect(observed.requests.every(request=>new URL(request.url).origin===observed.origin&&['/api/ra/ai/cohort','/api/ra/ai/parse'].includes(new URL(request.url).pathname))).toBe(true);
     expect(observed.pageErrors).toEqual([]);
   }finally{await observed.save();}

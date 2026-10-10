@@ -1,7 +1,29 @@
 /* patient-visits.html 页面脚本（依赖 boot.js → data.js → common.js）
    数据来自后端：POST /api/ra/patient/patientDetail（基本信息 + 随访时间线）；基础信息的显示在 js/shared/patient-basic.js（与访视详情共用）
    「修改记录」展开时才请求 /api/ra/patient/auditLogs；身份证号明文点「眼睛」时请求 /api/ra/patient/patientSensitive。 */
-"use strict";shell(pageOrigin().nav);
+"use strict";
+const patientEntryParams=new URLSearchParams(location.search);
+const aiPatientSource=patientEntryParams.getAll('from').includes('ai-cohort');
+if(aiPatientSource){
+ // 来源先分流：可信详情协议尚未接入，不能建立任何旧doctorId读取权。
+ shell('ai');
+ const ids=patientEntryParams.getAll('id'),from=patientEntryParams.getAll('from');
+ const id=ids.length===1?ids[0]:'';
+ const validId=/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));
+ const valid=validId&&from.length===1&&[...patientEntryParams.keys()].every(key=>key==='id'||key==='from');
+ document.title='患者档案未加载 · 患者数据研究平台';
+ $('#patient-basic').innerHTML=`<h1>患者档案未加载</h1><p>来源：AI 队列分析</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:'<p>入口参数无效，请返回 AI 队列重新选择。</p>'}<p>患者档案暂未接入可信身份，当前未加载患者数据</p>`;
+ $('#visit-list').innerHTML='';$('#visit-total').textContent='';
+ $('.visits-section-head').hidden=true;$('#audit').hidden=true;$('#audit').open=false;
+ $('.app-footnote').textContent='AI 队列来源患者档案暂未接入可信身份；未请求或加载患者数据，不提供演示病程及编辑操作。';
+ let safeHistory=false;
+ try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('ai-cohort.html',location.href).pathname&&history.length>1;}catch(e){/* 无来源时使用固定安全目标。 */}
+ for(const selector of ['#crumb-origin','#back-origin']){
+  const link=$(selector);link.href='ai-cohort.html';link.textContent=selector==='#back-origin'?'← 返回 AI 队列分析':'AI 队列分析';
+  link.onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign('ai-cohort.html');};
+ }
+}else{
+shell(pageOrigin().nav);
 {const o=pageOrigin(),c=$('#crumb-origin'),b=$('#back-origin');c.textContent=o.crumb;bindBack(c,o.href);b.textContent=`← 返回${o.label}`;bindBack(b,o.href);}
 const patientId=queryParam('id');
 const STATUS_TONE={active:'success',soon:'warning',overdue:'danger',pending_first:'neutral',withdrawn:'danger'};
@@ -70,3 +92,5 @@ function renderLoadError(msg){
  $('#visit-list').innerHTML='';$('#visit-total').textContent='';
 }
 load();
+
+}

@@ -6,6 +6,7 @@ let flight = null, pageFlight = null, resource = null, disposed = false, blocked
 let identity=identityKey();
 let exportFlight=null,exportSelection=null,applicationDraft=null,applicationSession=null,applicationFlight=null;
 let parseFlight=null,parseCandidate=null,parseToken=0,questionVersion=0,applyFlight=null,applyToken=0;
+let entryFlight=null,entryToken=0;
 function identityKey(){return JSON.stringify(currentUser());}
 function waiting(){ $('#cancel-analysis').hidden=!(flight||pageFlight); }
 function invalidate(error=null) {
@@ -31,7 +32,9 @@ function endOperation(operation,kind,cause) {
 }
 function restoreEntry() {
   try {
-    const filters=window.RACohortConditions.decode(location.search);entryIds=filters.ids;blockedEntry=false;
+    const entry=window.RACohortConditions.decodeEntry(location.search);blockedEntry=false;
+    if(entry.kind==='SIMILAR')return entry;
+    const filters=entry.filters;entryIds=filters.ids;
     for(const [key,selector] of Object.entries(SELECTS)) {
       const select=$(selector);
       if(key==='age'&&filters.age&&!Array.from(select.options||[]).some(option=>option.value===filters.age)) {
@@ -40,9 +43,16 @@ function restoreEntry() {
       select.value=filters[key];
     }
     history.replaceState(null,'',location.pathname+window.RACohortConditions.encode(filters)+location.hash);
+    return entry;
   }catch(error){blockedEntry=error;}
 }
-restoreEntry();
+function startEntry(){
+  invalidate();const entry=restoreEntry();
+  if(!entry){showError(blockedEntry);return;}
+  if(entry.kind==='QUESTION'){$('#question').value=entry.question;questionVersion++;parseQuestion(true);}
+  else if(entry.kind==='SIMILAR')resolveSimilar(entry.indexPatientId);
+  else analyze();
+}
 function currentFilters() {
   return {studyCode:'RA', ...Object.fromEntries(Object.entries(SELECTS).map(([key,selector])=>[key,$(selector).value])), ...(entryIds === null ? {} : {ids:[...entryIds]})};
 }
@@ -215,12 +225,14 @@ function renderPatientTimes(meta) {
   $('#numeric-computed-at').textContent=`数值计算时间：${clinicalText(meta.computedAt,'未提供')}`;
   $('#display-read-at').textContent=`名单显示字段读取时间：${clinicalText(meta.readCompletedAt,'未提供')}`;
 }
+function patientLongId(id){return typeof id==='string'&&/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));}
 function appendPatients(items) {
   for (const patient of items) {
     const row=document.createElement('div');row.className='ai-row';row.dataset.patientId=patient.patientId;row.setAttribute('role','listitem');
     const c=patient.clinical,t=patient.treatment;
     const personal=textNode('div','', 'patient-clinical');
     for(const value of [patient.name??'未记录姓名',patient.studyNo??'未记录研究号',patient.patientId])personal.append(textNode('span',value));
+    if(patientLongId(patient.patientId)){const link=textNode('a','查看患者档案');link.href='patient-visits.html?id='+encodeURIComponent(patient.patientId)+'&from=ai-cohort';personal.append(link);}
     personal.append(textNode('small',`${clinicalText(c.sex)} · 年龄 ${clinicalText(c.age)} · 病程年 ${clinicalText(c.diseaseDurationYears)} · 血清 ${clinicalText(c.sero)}`));row.append(personal);
     row.append(textNode('div',`${clinicalText(t.state)} · ${clinicalText(t.category)} · 线数 ${clinicalText(t.line)} · 靶向药史 ${clinicalText(t.targetedDrugHistoryN)} · 药物 ID ${t.genericDrugIds.length?t.genericDrugIds.map(id=>clinicalText(id)).join('、'):'未记录'}`,'patient-treatment'));
     row.append(textNode('div',`方案月数 ${clinicalText(t.schemeDurationMonths)} · 显式起点 ${clinicalText(t.startDate)} · 估算起点 ${clinicalText(t.estimatedStartDate)} · ${clinicalText(t.startConfidence)} · 结束 ${clinicalText(t.endDate)}`,'patient-duration'));
@@ -285,13 +297,14 @@ function loadMore() {
   window.RACohortAPI.cohortPatients(operation.analysisId,operation.cursor,{signal:operation.controller.signal}).then(result=>finishPage(operation,result),error=>finishPage(operation,null,error));
 }
 $('#more').addEventListener('click',loadMore);
-function analyze() {
+function analyze(completeFilters=null) {
   if (disposed) return;
   checkIdentity();saveParametersChanged();invalidate();identity=identityKey();renderChips();
   if (blockedEntry) {
     showError(blockedEntry); return;
   }
-  const filters = currentFilters();
+  const complete=completeFilters?.studyCode==='RA'&&privateFilters(completeFilters)!==null;
+  const filters = complete?completeFilters:currentFilters();
   history.replaceState(null,'',location.pathname+window.RACohortConditions.encode({...filters,ids:entryIds})+location.hash);
   const operation = {controller:new AbortController(),timer:null,terminal:null,identity,generation};
   flight = operation;waiting();state('loading','正在分析，请稍候'); lockControls(true);
@@ -299,7 +312,7 @@ function analyze() {
     finish(operation,null,{code:'REQUEST_TIMEOUT',message:'请求超过30秒，请重新分析'});
     operation.controller.abort();
   },30_000);
-  window.RACohortAPI.cohort(filters,{signal:operation.controller.signal}).then(result=>finish(operation,result),error=>finish(operation,null,error));
+  window.RACohortAPI.cohort(filters,{signal:operation.controller.signal,completeFilters:complete}).then(result=>finish(operation,result),error=>finish(operation,null,error));
 }
 Object.values(SELECTS).forEach(selector=>$(selector).addEventListener('change',analyze));
 $('#chips').addEventListener('click',event=>{
@@ -346,6 +359,7 @@ function settleParse(operation,cause){
  return true;
 }
 function endParse(cause='SUPERSEDED'){
+ endEntry(cause);
  endApply(cause);
  const previous=parseFlight;parseToken++;
  if(previous)settleParse(previous,cause);
@@ -363,13 +377,13 @@ function finishParse(operation,result,error){
   if(error.status===401){clearPrivate();invalidate(error);}
   parseState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message} ${error.traceId?'Trace：'+error.traceId:''}`);return;
  }
- parseCandidate={data:result.data,token:operation.token,identity:operation.identity,questionVersion:operation.questionVersion,context:operation.context};
+ parseCandidate={fromEntry:operation.fromEntry,data:result.data,token:operation.token,identity:operation.identity,questionVersion:operation.questionVersion,context:operation.context};
  showParse(result.data);$('#parse-dismiss').hidden=result.data.candidateFilters===null;$('#parse-apply').hidden=result.data.parseStatus!=='PARTIAL';if(result.data.parseStatus==='OK')applyCandidate();
 }
-function parseQuestion(){
+function parseQuestion(fromEntry=false){
  if(disposed||checkIdentity())return;
  endParse('SUPERSEDED');
- const operation={token:parseToken,identity:identityKey(),questionVersion,context:JSON.stringify(currentFilters()),controller:new AbortController(),timer:null,terminal:null};parseFlight=operation;
+ const operation={fromEntry:fromEntry===true,token:parseToken,identity:identityKey(),questionVersion,context:JSON.stringify(currentFilters()),controller:new AbortController(),timer:null,terminal:null};parseFlight=operation;
  $('#parse-cancel').hidden=false;parseState('loading',[...$('#question').value].length>200?'问题超过200个码点，正在由后端校验':'正在解析问题');
  operation.timer=setTimeout(()=>{finishParse(operation,null,{code:'REQUEST_TIMEOUT',message:'解析等待超过30秒，本地等待已结束；不能确认服务端审计是否已提交'});operation.controller.abort();},30000);
  window.RACohortAPI.parse($('#question').value,{signal:operation.controller.signal}).then(result=>finishParse(operation,result),error=>finishParse(operation,null,error));
@@ -409,14 +423,14 @@ function finishApply(operation,result,error){
  }
  if(!result.data.applied){parseState('success','候选未应用，当前条件保持不变');return;}
  // 本owner先退休，再进入原条件/分析链；invalidate单向退休通知不会反调旧完成。
- applyPrivateFilters(filters);analyze();showParse(operation.data,true);
+ applyPrivateFilters(filters);analyze(operation.fromEntry?result.data.filters:null);showParse(operation.data,true);
 }
 function applyCandidate(confirmPartial=false){
  if(disposed||checkIdentity())return;
  const candidate=parseCandidate;if(!candidate||candidate.token!==parseToken||candidate.identity!==identityKey()||candidate.questionVersion!==questionVersion||candidate.context!==JSON.stringify(currentFilters())||!['OK','PARTIAL'].includes(candidate.data.parseStatus)||(candidate.data.parseStatus==='PARTIAL'&&!confirmPartial))return;
  const data=candidate.data,command={currentFilters:JSON.parse(candidate.context),candidateFilters:data.candidateFilters,parseStatus:data.parseStatus,questionRef:data.questionRef};
  if(confirmPartial)command.confirmPartial=true;
- endApply();const operation={token:applyToken,parseToken:candidate.token,identity:candidate.identity,questionVersion:candidate.questionVersion,context:candidate.context,data,command,controller:new AbortController(),timer:null,terminal:null};applyFlight=operation;parseCandidate=null;
+ endApply();const operation={fromEntry:candidate.fromEntry,token:applyToken,parseToken:candidate.token,identity:candidate.identity,questionVersion:candidate.questionVersion,context:candidate.context,data,command,controller:new AbortController(),timer:null,terminal:null};applyFlight=operation;parseCandidate=null;
  $('#parse-apply').hidden=true;$('#apply-cancel').hidden=false;parseState('loading','正在应用候选条件');
  operation.timer=setTimeout(()=>{finishApply(operation,null,{code:'REQUEST_TIMEOUT',message:'应用等待超过30秒，本地等待已结束；不能确认服务端审计是否已提交'});operation.controller.abort();},30000);
  window.RACohortAPI.applyParse(command,{signal:operation.controller.signal}).then(result=>finishApply(operation,result),error=>finishApply(operation,null,error));
@@ -428,6 +442,48 @@ $('#question').addEventListener('input',()=>{questionVersion++;endParse('QUESTIO
 $('#parse-cancel').addEventListener('click',()=>{if(!parseFlight)return;const operation=parseFlight;finishParse(operation,null,{code:'REQUEST_CANCELLED',message:'本地解析等待已取消；不能确认服务端审计是否已提交'});operation.controller.abort();});
 $('#parse-dismiss').addEventListener('click',()=>endParse('CANDIDATE_CANCELLED'));
 $('#reanalyze').addEventListener('click',analyze);
+function entryState(name,message){$('#entry-state').dataset.state=name;$('#entry-state').textContent=message;}
+function settleEntry(operation,cause){
+ if(operation.terminal)return false;operation.terminal=cause;
+ if(entryFlight===operation)entryFlight=null;clearTimeout(operation.timer);$('#entry-cancel').hidden=true;return true;
+}
+function endEntry(cause='SUPERSEDED'){
+ const old=entryFlight;entryToken++;if(old)settleEntry(old,cause);$('#entry-cancel').hidden=true;
+ if(old){entryState('idle','旧入口已结束，请选择当前入口');old.controller.abort();}
+}
+function isCurrentEntry(operation){return !disposed&&!operation.terminal&&entryFlight===operation&&entryToken===operation.token&&identity===operation.identity&&identityKey()===operation.identity&&generation===operation.generation;}
+function validEntry(data,trace){
+ const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v),exact=(v,keys)=>object(v)&&Object.keys(v).length===keys.length&&keys.every(k=>Object.hasOwn(v,k));
+ if(!exact(data,['source','filters','missingBasis','status','canApply','reason','meta'])||data.source!=='SIMILAR'||!exact(data.meta,['asOf','readStartedAt','readCompletedAt','traceId','policyVersion'])||data.meta.traceId!==trace||data.meta.policyVersion!=='dev-similar-v01'||!/^\d{4}-\d{2}-\d{2}$/.test(data.meta.asOf)||!['readStartedAt','readCompletedAt'].every(k=>typeof data.meta[k]==='string'&&/Z$/.test(data.meta[k])&&Number.isFinite(Date.parse(data.meta[k])))||Date.parse(data.meta.readStartedAt)>Date.parse(data.meta.readCompletedAt))return null;
+ const order=['sex','age','sero'];if(!Array.isArray(data.missingBasis)||!data.missingBasis.every((key,i)=>order.includes(key)&&(i===0||order.indexOf(key)>order.indexOf(data.missingBasis[i-1]))))return null;
+ if(['READY','PARTIAL_BASIS'].includes(data.status)){
+  const filters=privateFilters(data.filters);if(data.canApply!==true||data.reason!==null||!filters||Object.keys(SELECTS).some(k=>data.filters[k]==='')||data.filters.studyCode!=='RA'||data.filters.at!=='now'||data.filters.ids!==null||['tx','act','cm','data'].some(k=>data.filters[k]!==null)||!['sex','age','sero'].some(k=>data.filters[k]!==null)||(data.status==='READY')!==(data.missingBasis.length===0)||data.missingBasis.some(k=>data.filters[k]!==null))return null;
+  return filters;
+ }
+ if(data.canApply!==false||data.filters!==null)return null;
+ if(data.status==='NO_BASIS'&&data.reason===null)return false;
+ if(data.status==='UNSUPPORTED_BASIS'&&data.reason==='AGE_OUT_OF_SUPPORTED_RANGE')return false;
+ return null;
+}
+function finishEntry(operation,result,error){
+ if(!disposed&&operation.identity!==identityKey()){checkIdentity();return;}
+ if(!isCurrentEntry(operation))return;
+ const filters=!error?validEntry(result?.data,result?.traceId):null;
+ if(!error&&(result?.success!==true||result?.code!=='200'||filters===null))error={status:result?.status,code:'INVALID_RESPONSE',message:'相似入口响应不完整',traceId:result?.traceId};
+ settleEntry(operation,error?.code||result.data.status);
+ if(error){if(error.status===401){clearPrivate();invalidate(error);}entryState('error',`${error.status?'HTTP '+error.status+' · ':''}${error.code||'REQUEST_FAILED'}：${error.message||'入口等待已结束'} ${error.traceId?'Trace：'+error.traceId:''}`);return;}
+ const fact=`${result.data.status} · 缺少依据：${result.data.missingBasis.join(', ')||'无'}${result.data.reason?' · '+result.data.reason:''} · Trace：${result.traceId}`;
+ if(filters===false){entryState('empty',fact+'，未创建分析');return;}
+ applyPrivateFilters(filters);analyze(result.data.filters);entryState('success',fact);
+}
+function resolveSimilar(indexPatientId){
+ if(disposed||checkIdentity())return;endEntry();
+ const operation={indexPatientId,token:entryToken,identity:identityKey(),generation,controller:new AbortController(),timer:null,terminal:null};entryFlight=operation;
+ $('#entry-cancel').hidden=false;entryState('loading','正在读取授权相似依据');
+ operation.timer=setTimeout(()=>{finishEntry(operation,null,{code:'REQUEST_TIMEOUT',message:'入口等待超过30秒，本地等待已结束'});operation.controller.abort();},30000);
+ window.RACohortAPI.resolveEntry(indexPatientId,{signal:operation.controller.signal}).then(result=>finishEntry(operation,result),error=>finishEntry(operation,null,error));
+}
+$('#entry-cancel').addEventListener('click',()=>{if(!entryFlight)return;const old=entryFlight;finishEntry(old,null,{code:'REQUEST_CANCELLED',message:'已取消入口等待'});old.controller.abort();});
 $('#reset').addEventListener('click',()=>{
   if (disposed) return;
   Object.entries(SELECTS).forEach(([key,selector])=>$(selector).value=key==='at'?'now':'');
@@ -938,9 +994,9 @@ $('#private-save').addEventListener('click',()=>saveCurrent());
 $('#private-retry').addEventListener('click',()=>saveCurrent(true));
 for(const selector of ['#private-name','#private-note'])$(selector).addEventListener('input',saveParametersChanged);
 window.addEventListener('pagehide',()=>{disposed=true;clearPrivate();invalidate({code:'REQUEST_CANCELLED',message:'已离开页面，请重新分析'});});
-window.addEventListener('pageshow',event=>{if(event.persisted){disposed=false;invalidate();restoreEntry();analyze();}});
-window.addEventListener('popstate',()=>{if(!disposed){invalidate();restoreEntry();analyze();}});
+window.addEventListener('pageshow',event=>{if(event.persisted){disposed=false;startEntry();}});
+window.addEventListener('popstate',()=>{if(!disposed)startEntry();});
 window.addEventListener('storage',event=>{if(event.key==='ra-auth')checkIdentity();});
 window.addEventListener('focus',checkIdentity);
 document.addEventListener('visibilitychange',checkIdentity);
-analyze();
+startEntry();

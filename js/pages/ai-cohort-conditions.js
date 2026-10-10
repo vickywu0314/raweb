@@ -40,5 +40,18 @@ window.RACohortConditions=(()=>{
     const normalized=decode(params);if(params.has('sex'))params.set('sex',normalized.sex);
     return params.size?'?'+params.toString():'';
   }
-  return Object.freeze({decode,encode});
+  function decodeEntry(search) {
+    const params=new URLSearchParams(search),seen=new Set();
+    for(const [key] of params){if(seen.has(key))throw invalid();seen.add(key);}
+    if(params.has('preset')||params.has('id')){
+      if(params.size!==2||params.get('preset')!=='similar'||!validId(params.get('id')))throw Object.assign(new Error('请选择一个合法入口，相似入口不能混带问题或普通条件'),{code:'INVALID_ENTRY'});
+      return {kind:'SIMILAR',indexPatientId:params.get('id')};
+    }
+    if(params.has('q')){
+      const question=params.get('q');params.delete('q');
+      return {kind:'QUESTION',question,filters:decode(params)};
+    }
+    return {kind:'FILTERS',filters:decode(params)};
+  }
+  return Object.freeze({decode,encode,decodeEntry});
 })();
