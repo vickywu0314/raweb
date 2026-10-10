@@ -27,6 +27,8 @@ window.RACohortAPI = (()=>{
     return result;
   }
   return Object.freeze({
+    parse(question,options) {return post('ai/parse',{question},options);},
+    applyParse(command,options) {return post('ai/applyParse',command,options);},
     cohort(filters, options) {
       const input={...filters};if(input.ids===null)delete input.ids;
       return post('ai/cohort',{filters:input},options);

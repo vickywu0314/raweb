@@ -1,0 +1,286 @@
+{
+  "PARTIAL": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": {
+      "sex": "F"
+    },
+    "parseStatus": "PARTIAL",
+    "applyMode": "REQUIRE_CONFIRMATION",
+    "engine": "RULE",
+    "matched": [
+      {
+        "field": "sex",
+        "value": "F"
+      }
+    ],
+    "unrecognized": [
+      {
+        "reason": "UNMAPPED_TEXT",
+        "count": 2
+      }
+    ],
+    "rejectedFields": [],
+    "warnings": [
+      "AI_NOT_ENABLED",
+      "PARTIAL_REQUIRES_CONFIRMATION"
+    ],
+    "notice": "AI未启用，已使用规则解析。部分内容无法转换，需明确确认后才应用可识别条件。可用问法：女性45至65岁。",
+    "fallbackReason": "AI_NOT_ENABLED",
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 3
+    }
+  },
+  "OK": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": {
+      "sex": "F"
+    },
+    "parseStatus": "OK",
+    "applyMode": "REPLACE_EXCEPT_IDS",
+    "engine": "RULE",
+    "matched": [
+      {
+        "field": "sex",
+        "value": "F"
+      }
+    ],
+    "unrecognized": [],
+    "rejectedFields": [],
+    "warnings": [
+      "AI_NOT_ENABLED"
+    ],
+    "notice": "AI未启用，已使用规则解析。已生成候选条件，尚未应用。",
+    "fallbackReason": "AI_NOT_ENABLED",
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 3
+    }
+  },
+  "EMPTY": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": null,
+    "parseStatus": "EMPTY",
+    "applyMode": "KEEP_CURRENT",
+    "engine": "RULE",
+    "matched": [],
+    "unrecognized": [],
+    "rejectedFields": [],
+    "warnings": [
+      "AI_NOT_ENABLED"
+    ],
+    "notice": "AI未启用，已使用规则解析。问题为空，保留当前条件。",
+    "fallbackReason": "AI_NOT_ENABLED",
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 3
+    }
+  },
+  "UNRECOGNIZED": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": null,
+    "parseStatus": "UNRECOGNIZED",
+    "applyMode": "KEEP_CURRENT",
+    "engine": "RULE",
+    "matched": [],
+    "unrecognized": [
+      {
+        "reason": "UNMAPPED_TEXT",
+        "count": 2
+      }
+    ],
+    "rejectedFields": [],
+    "warnings": [
+      "AI_NOT_ENABLED"
+    ],
+    "notice": "AI未启用，已使用规则解析。未识别出可用条件，请改写，例如：女性45至65岁。",
+    "fallbackReason": "AI_NOT_ENABLED",
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 3
+    }
+  },
+  "UNSUPPORTED": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": null,
+    "parseStatus": "UNSUPPORTED",
+    "applyMode": "KEEP_CURRENT",
+    "engine": "RULE",
+    "matched": [],
+    "unrecognized": [],
+    "rejectedFields": [],
+    "warnings": [
+      "AI_NOT_ENABLED",
+      "UNSUPPORTED_OR"
+    ],
+    "notice": "AI未启用，已使用规则解析。当前条件无法完整表示，请改写为可用筛选字段的并且条件。",
+    "fallbackReason": "AI_NOT_ENABLED",
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 3
+    }
+  },
+  "TNFI": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": {
+      "tx": "TNFi",
+      "at": "6m",
+      "act": "mod-high"
+    },
+    "parseStatus": "OK",
+    "applyMode": "REPLACE_EXCEPT_IDS",
+    "engine": "RULE",
+    "matched": [
+      {
+        "field": "tx",
+        "value": "TNFi"
+      },
+      {
+        "field": "at",
+        "value": "6m"
+      },
+      {
+        "field": "act",
+        "value": "mod-high"
+      }
+    ],
+    "unrecognized": [],
+    "rejectedFields": [],
+    "warnings": [
+      "AI_NOT_ENABLED"
+    ],
+    "notice": "AI未启用，已使用规则解析。已生成候选条件，尚未应用。",
+    "fallbackReason": "AI_NOT_ENABLED",
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 3
+    }
+  },
+  "AI_PARTIAL": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "candidateFilters": {
+      "sex": "F"
+    },
+    "parseStatus": "PARTIAL",
+    "applyMode": "REQUIRE_CONFIRMATION",
+    "engine": "AI",
+    "matched": [
+      {
+        "field": "sex",
+        "value": "F"
+      }
+    ],
+    "unrecognized": [
+      {
+        "reason": "UNMAPPED_TEXT",
+        "count": 2
+      }
+    ],
+    "rejectedFields": [
+      {
+        "field": "ids",
+        "reason": "FORBIDDEN_FIELD"
+      }
+    ],
+    "warnings": [
+      "MODEL_FIELDS_REJECTED",
+      "PARTIAL_REQUIRES_CONFIRMATION"
+    ],
+    "notice": "仅生成部分候选条件，尚未应用；需明确确认是否只应用这些候选。“吸烟”不在当前支持的筛选字段中。可用问法示例：女性45至65岁；这只是格式示例，不保留原问题的全部要求。",
+    "fallbackReason": null,
+    "meta": {
+      "traceId": "trace-p05",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": "p05b-synthetic-model",
+      "promptVersion": "dev-parse-ai-prompt-v01",
+      "durationMs": 3
+    }
+  },
+  "APPLIED_PARTIAL": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "parseStatus": "PARTIAL",
+    "applyMode": "REQUIRE_CONFIRMATION",
+    "applied": true,
+    "filters": {
+      "studyCode": "RA",
+      "sex": "F",
+      "age": null,
+      "sero": null,
+      "tx": null,
+      "at": "now",
+      "act": null,
+      "cm": null,
+      "data": null,
+      "ids": [
+        "1",
+        "2",
+        "3",
+        "9223372036854775807"
+      ]
+    },
+    "meta": {
+      "traceId": "trace-p05-apply",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 4
+    }
+  },
+  "APPLIED_OK": {
+    "questionRef": "00000000-0000-0000-0000-000000000051",
+    "parseStatus": "OK",
+    "applyMode": "REPLACE_EXCEPT_IDS",
+    "applied": true,
+    "filters": {
+      "studyCode": "RA",
+      "sex": "F",
+      "age": null,
+      "sero": null,
+      "tx": null,
+      "at": "now",
+      "act": null,
+      "cm": null,
+      "data": null,
+      "ids": [
+        "1",
+        "2",
+        "3",
+        "9223372036854775807"
+      ]
+    },
+    "meta": {
+      "traceId": "trace-p05-apply",
+      "ruleVersion": "dev-parse-rules-v02",
+      "schemaVersion": "dev-parse-schema-v01",
+      "modelVersion": null,
+      "promptVersion": null,
+      "durationMs": 4
+    }
+  }
+}

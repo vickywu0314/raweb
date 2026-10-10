@@ -1,3 +1,5 @@
+import {applyBrowser} from './cohort-apply-browser.mjs';
+import {parseBrowser} from './cohort-parse-browser.mjs';
 import {comparisonBrowser,statisticsComparisonBrowser,retainedComparisonBrowser,invalidatedComparisonBrowser} from './cohort-comparison-browser.mjs';
 import {privateBrowser,dynamicPrivateBrowser,commandsPrivateBrowser} from './cohort-private-browser.mjs';
 import {clinicalBrowser} from './cohort-clinical-browser.mjs';
@@ -150,5 +152,40 @@ for(const [id,callback] of [['cohort:browser-comparison-statistics',statisticsCo
   assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run']);
   const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>callback(context,port,identity,owner,probe,pid,id,r));
   for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
+ };
+}
+
+// P05只开放parse，普通37人分析/页保留，合成peer与审计仍归既有owner。
+for(const id of ['cohort:browser-parse-rule','cohort:browser-parse-safety']){
+ browserRegistry[id]=async owner=>{
+  const scenario=id==='cohort:browser-parse-rule'?'p05-rule':'p05-safety',r=await owner.fixture(['--identity=synthetic','--scenario='+scenario]);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);
+  assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_ai_parse_audit']);
+  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>parseBrowser(context,port,identity,owner,probe,pid,id,r));
+  for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);}
+  const parseObservations=r.events.filter(e=>e.type==='parse-http-observation');assert.equal(parseObservations.length,scenario==='p05-rule'?7:1);for(const e of parseObservations){assert.equal(e.selectDelta,0);assert.equal(e.analysisInsertDelta,0);assert.equal(e.active,0);}
+  const applyObservations=r.events.filter(e=>e.type==='apply-http-observation');assert.equal(applyObservations.length,scenario==='p05-rule'?2:1);for(const e of applyObservations){assert.equal(e.selectDelta,0);assert.equal(e.analysisInsertDelta,0);assert.equal(e.active,0);}
+  if(scenario==='p05-safety'){const observed=r.events.find(e=>e.type==='parse-peer-observed');assert.ok(observed?.beforeDiscard);assert.equal(observed.requests,0);assert.equal(observed.received,1);assert.equal(observed.failure,null);}
+  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);assert.ok(r.events.some(e=>e.type==='parse-context-closed'&&e.active===false));assert.ok(r.events.some(e=>e.type==='table-released'&&e.table==='ra_ai_parse_audit'));assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));
+  if(scenario==='p05-safety')assert.ok(r.events.some(e=>e.type==='parse-peer-closed'&&e.requests===0&&e.failure===null&&e.unusedDiscarded));
+  assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+  if(scenario==='p05-rule'){
+   const failed=await owner.fixture(['--identity=synthetic','--scenario=p05-rule','--mode=partial-start-fail']);const result=await owner.bounded(failed.finished,30000,'parse-partial-start');assert.notEqual(result.code,0);assert.ok(failed.events.some(e=>e.type==='failure'));assert.ok(failed.events.some(e=>e.type==='table-released'&&e.table==='ra_ai_parse_audit'));assert.ok(failed.events.some(e=>e.type==='closed'&&e.clean));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');await owner.stop(failed);
+  }
+ };
+}
+
+// P05b使用独立五人普通源，真实parse/apply不运行分析，只有后续cohort创建新结果。
+for(const id of ['cohort:browser-parse-apply','cohort:browser-parse-apply-safety']){
+ browserRegistry[id]=async owner=>{
+  const safety=id==='cohort:browser-parse-apply-safety',scenario=safety?'p05-apply-safety':'p05-apply-rule',r=await owner.fixture(['--identity=synthetic','--scenario='+scenario]);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,4);
+  assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_ai_parse_audit']);
+  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>applyBrowser(context,port,identity,owner,probe,pid,id,r));
+  for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);}
+  for(const [type,expected] of [['parse-http-observation',safety?1:10],['apply-http-observation',safety?1:6]]){const observations=r.events.filter(e=>e.type===type);assert.equal(observations.length,expected);for(const e of observations){assert.equal(e.selectDelta,0);assert.equal(e.analysisInsertDelta,0);assert.equal(e.active,0);}}
+  if(safety){const observed=r.events.find(e=>e.type==='parse-peer-observed');assert.ok(observed?.beforeDiscard);assert.equal(observed.requests,0);assert.equal(observed.received,1);assert.equal(observed.failure,null);}
+  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);assert.ok(r.events.some(e=>e.type==='parse-context-closed'&&e.active===false));assert.ok(r.events.some(e=>e.type==='table-released'&&e.table==='ra_ai_parse_audit'));assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));
+  if(safety)assert.ok(r.events.some(e=>e.type==='parse-peer-closed'&&e.requests===0&&e.failure===null&&e.unusedDiscarded));
+  assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+  if(!safety){const failed=await owner.fixture(['--identity=synthetic','--scenario=p05-apply-rule','--mode=partial-start-fail']);const result=await owner.bounded(failed.finished,30000,'apply-partial-start');assert.notEqual(result.code,0);assert.ok(failed.events.some(e=>e.type==='failure'));assert.ok(failed.events.some(e=>e.type==='table-released'&&e.table==='ra_ai_parse_audit'));assert.ok(failed.events.some(e=>e.type==='closed'&&e.clean));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');await owner.stop(failed);}
  };
 }

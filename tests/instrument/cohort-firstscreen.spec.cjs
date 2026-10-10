@@ -12,7 +12,7 @@ async function setup({page,context,browser},scenario,reply=()=>({status:200,body
     allowed.push(request.url());
     if(url.pathname.startsWith('/api/')){
       requests.push({url:request.url(),method:request.method(),headers:request.headers(),body:request.postDataJSON()});
-      const response=reply(requests.length);if(response.abort){await route.abort('failed');return;}
+      const response=scenario==='cohort:no-demo-actions'&&url.pathname==='/api/ra/ai/parse'?{status:200,trace:'trace-p05',body:{success:true,code:'200',data:require('../fixtures/cohort-parse.json').TNFI}}:reply(requests.length);if(response.abort){await route.abort('failed');return;}
       await route.fulfill({status:response.status,contentType:response.contentType||'application/json',headers:{'X-Trace-Id':response.trace||'fixture-trace'},body:typeof response.body==='string'?response.body:JSON.stringify(response.body)});return;
     }
     await route.continue();
@@ -54,7 +54,7 @@ test('cohort:request-firstscreen',async ({page,context,browser})=>{
 test('cohort:empty-errors',async ({page,context,browser})=>{
   let response={status:200,body:firstscreen};
   const observed=await setup({page,context,browser},'cohort:empty-errors',()=>response);
-  const success=async()=>{response={status:200,body:firstscreen};await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await expect(page.locator('#patient-rows .ai-row')).toHaveCount(10);};
+  const success=async()=>{response={status:200,body:firstscreen};await page.locator('#reanalyze').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await expect(page.locator('#patient-rows .ai-row')).toHaveCount(10);};
   try {
     await page.goto(`${observed.origin}/ai-cohort.html`,{waitUntil:'load'});await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');
     response={status:200,body:{success:true,code:'200',message:'成功',data:{...EMPTY,n:0,studyTotal:20,analysisId:'11111111-1111-1111-1111-111111111111',patients:{total:0,returnedCount:0,hasMore:false,nextCursor:null,items:[]}}}};
@@ -68,7 +68,7 @@ test('cohort:empty-errors',async ({page,context,browser})=>{
       {abort:true}
     ]) {
       await success();const before=observed.requests.length;response=failed;
-      await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','error');
+      await page.locator('#reanalyze').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','error');
       expect(observed.requests.length).toBe(before+1);await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);await expect(page.locator('#cohort-n')).toHaveText('—');await expect(page.locator('#no-result')).toBeHidden();await expect(page.locator('#results')).toBeHidden();await expect(page.locator('#analysis-error')).toBeVisible();
       await expect(page.locator('#f-sex')).toHaveValue('F');await expect(page.locator('#f-sex')).toBeEnabled();
       await expect(page.locator('#error-message')).toContainText(failed.abort?'NETWORK_ERROR':failed.contentType?'INVALID_RESPONSE':failed.body.code);
@@ -86,16 +86,16 @@ test('cohort:no-demo-actions',async ({page,context,browser})=>{
       const before=observed.requests.length;
       await page.goto(`${observed.origin}/ai-cohort.html${query}`,{waitUntil:'load'});await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','error');
       await expect(page.locator('#error-message')).toContainText('此入口待接入，请清空条件重新分析');expect(observed.requests.length).toBe(before);await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);
-      await page.locator('#question-form button[type="submit"]').click();expect(observed.requests.length).toBe(before);
+      await page.locator('#reanalyze').click();expect(observed.requests.length).toBe(before);
       await page.locator('#reset').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');expect(observed.requests.length).toBe(before+1);expect(new URL(page.url()).search).toBe('');
       expect(observed.requests.at(-1).body).toEqual({filters:{studyCode:'RA',sex:'',age:'',sero:'',tx:'',at:'now',act:'',cm:'',data:''}});
     }
     const before=observed.requests.length;
-    await page.locator('#question').fill('TNFi 治疗6个月后高活动');await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-note')).toContainText('开发中');expect(observed.requests.length).toBe(before);
+    await page.locator('#question').fill('TNFi 治疗6个月后高活动');await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-note')).toContainText('尚未应用');expect(observed.requests.length).toBe(before+1);expect(observed.requests.at(-1).body).toEqual({question:'TNFi 治疗6个月后高活动'});
     await expect(page.locator('#export')).toBeDisabled();
-    await page.locator('#export').evaluate(button=>button.click());expect(observed.requests.length).toBe(before);expect(downloads).toEqual([]);
+    await page.locator('#export').evaluate(button=>button.click());expect(observed.requests.length).toBe(before+1);expect(downloads).toEqual([]);
     expect(await page.locator('#patient-rows a').count()).toBe(0);await expect(page.locator('#clinical-panels')).toBeVisible();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
-    expect(observed.requests.every(request=>new URL(request.url).origin===observed.origin&&new URL(request.url).pathname==='/api/ra/ai/cohort')).toBe(true);
+    expect(observed.requests.every(request=>new URL(request.url).origin===observed.origin&&['/api/ra/ai/cohort','/api/ra/ai/parse'].includes(new URL(request.url).pathname))).toBe(true);
     expect(observed.pageErrors).toEqual([]);
   }finally{await observed.save();}
 });

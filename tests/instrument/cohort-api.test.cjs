@@ -42,7 +42,7 @@ test('cohort:api-contract', async () => {
   assert.equal(success.requests[0].options.headers['Content-Type'],'application/json;charset=UTF-8');
   assert.equal(result.status,200); assert.equal(result.traceId,'trace-success');
   assert.deepEqual(JSON.parse(JSON.stringify(result.data)),envelope.data);
-  assert.deepEqual(Object.keys(success.api),['cohort','cohortPatients','save','list','open','rename','delete','compare','compareResult']);
+  assert.deepEqual(Object.keys(success.api),['parse','applyParse','cohort','cohortPatients','save','list','open','rename','delete','compare','compareResult']);
   await success.api.cohortPatients('11111111-1111-1111-1111-111111111111','opaque.A.10',{signal:controller.signal});
   assert.equal(success.requests[1].url,'/api/ra/ai/cohortPatients');
   assert.equal(success.requests[1].options.body,'{"analysisId":"11111111-1111-1111-1111-111111111111","cursor":"opaque.A.10"}');

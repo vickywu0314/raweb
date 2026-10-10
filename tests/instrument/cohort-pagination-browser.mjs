@@ -26,7 +26,7 @@ export async function paginationBrowser(context,port,identity,owner,probe,pid,id
   const perform=async(action,path,status=200)=>{const awaited=page.waitForResponse(response=>new URL(response.url()).pathname===`/api/ra/ai/${path}`&&response.request().method()==='POST');await action();const response=await awaited;assert.equal(response.status(),status);return (await response.json()).data;};
   const open=query=>perform(()=>page.goto(`${origin}/ai-cohort.html${query}`,{waitUntil:'load'}),'cohort');
   const more=()=>perform(()=>page.locator('#more').click(),'cohortPatients');
-  const analyze=()=>perform(()=>page.locator('#question-form button[type="submit"]').click(),'cohort');
+  const analyze=()=>perform(()=>page.locator('#reanalyze').click(),'cohort');
   const counts=async(n,total)=>{await expect(page.locator('#cohort-n')).toHaveText(String(n));await expect(page.locator('#study-total')).toHaveText(String(total));await expect(page.locator('#cohort-state')).toHaveAttribute('data-state',n===0?'empty':'success');};
   const cleared=async(code,state)=>{await expect(page.locator('#cohort-state')).toHaveAttribute('data-state',state);await expect(page.locator('#error-message')).toContainText(code);await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);await expect(page.locator('#cohort-n')).toHaveText('—');await expect(page.locator('#more')).toBeHidden();await expect(page.locator('#no-result')).toBeHidden();await expect(page.locator('#export')).toBeDisabled();assert.equal(await page.locator('#results').getAttribute('data-analysis-id'),null);};
   const noRetry=async(count)=>{assert.equal(requests.length,count);await page.locator('#more').evaluate(button=>button.click());assert.equal(requests.length,count);};
