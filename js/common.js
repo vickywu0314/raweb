@@ -234,7 +234,15 @@ function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.st
 // API_BASE：默认同源；仅由加载脚本前明确设置的 RA_CONFIG.apiBase 指定环境。
 // 统一返回 DataResult：{success, code, message, data}；success=false 时抛出 message。
 const API_BASE=typeof window.RA_CONFIG?.apiBase==='string'?window.RA_CONFIG.apiBase:'';
-const DEFAULT_DOCTOR_ID=82394; // 登录接口接入前，演示账号没有医生 ID 时使用
+const DEFAULT_DOCTOR_ID=82394; // 浏览器里的登录信息缺医生 ID 时兜底（测试账号言文静）
+// 后端会话已失效（超时 / 后端重启 / 之前的演示登录）：清掉浏览器里的登录信息，回登录页，登录后回到原页面；后端连不上时不处理
+document.addEventListener('DOMContentLoaded',()=>{
+  if(/login\.html$/.test(location.pathname)||!currentUser())return;
+  fetch(API_BASE+'/api/ra/auth/me',{method:'POST',credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(r=>{
+    if(r&&!r.success&&String(r.code)==='401'){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY)}catch(e){}location.replace('login.html?next='+encodeURIComponent((location.pathname.split('/').pop()||'projects.html')+location.search+location.hash))}
+    else if(r&&r.success&&r.data){const u=currentUser();if(u&&String(u.doctorId)!==String(r.data.doctorId))signIn({...u,...r.data},!!u.expires)}
+  }).catch(()=>{});
+});
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
 // 后退时浏览器可能直接显示缓存的旧页面（bfcache）：保存过数据（写接口成功）后，后退回来的页面自动重新加载，显示最新数据；
 // 重新加载时列表的检索条件、页码照常恢复（loadListState）。
