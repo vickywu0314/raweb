@@ -1,7 +1,10 @@
 /* patient-create.html 页面脚本（依赖 boot.js → data.js → common.js）
    新增患者：基本信息与患者详情页一致；ACR/EULAR 2010 在弹窗里评估，结果回显到基本信息。
    - 填完身份证号：POST /api/ra/patient/checkCardNo 查重（已在名下 / 其他医生名下可转入 / 其他病种复用档案）
-   - 保存：POST /api/ra/patient/createPatient（JSON），成功后打开患者详情 */
+   - 保存：POST /api/ra/patient/createPatient（JSON），成功后打开患者详情
+   编辑档案（patient-edit.html，body data-mode="edit"）共用本脚本和同一套表单：
+   - 打开：POST /api/ra/patient/editForm 取当前值预填
+   - 保存：POST /api/ra/patient/updatePatient（JSON），只提交改动过的字段名（changed），后端只更新这些字段；保存后返回来源页 */
 "use strict";
 shell('patients');
 const form = $('#create-form');
@@ -17,11 +20,13 @@ const ACR_PARTS = [
 ];
 let acr = null;          // 已确定的评估 {jointScore,…}，未评估为 null
 let existing = null;     // 身份证号查重结果
+const EDIT_ID = document.body.dataset.mode === 'edit' ? queryParam('id') : null;
+let editInit = null, acrInit = 'none', oldAcrScore = null;   // 编辑档案：打开时的表单值、ACR 状态
 
 field('nation').innerHTML = '<option value="">请选择</option>' + NATIONS.map(n => `<option>${n}</option>`).join('');
 $('#comorbid-pick').innerHTML = COMORBID_CODES.map(c => `<label class="comorbid-option"><input type="checkbox" value="${c}"><span>${c} ${escapeHTML((COMORBIDITY_INFO[c] || {}).name || '')}</span><input type="number" class="since-year" min="1900" max="${TODAY.getFullYear()}" placeholder="起病年份" aria-label="${c} 起病年份" disabled></label>`).join('');
 $('#comorbid-pick').addEventListener('change', e => { if (e.target.type === 'checkbox') { const y = e.target.parentElement.querySelector('.since-year'); y.disabled = !e.target.checked; if (!e.target.checked) y.value = ''; } });
-$('#ocr-import').onclick = () => toast('「OCR识别录入」功能正在开发中');
+if ($('#ocr-import')) $('#ocr-import').onclick = () => toast('「OCR识别录入」功能正在开发中');
 
 // ===== 身份证号：校验、带出性别 / 出生年份，查重 =====
 function idInfo(no) {
@@ -43,6 +48,7 @@ async function checkCard() {
   if (!info) { hint.textContent = '身份证号格式不正确'; hint.className = 'field-hint warn'; return; }
   hint.textContent = `${info.year} 年出生 · ${info.age} 岁`; hint.className = 'field-hint';
   if (!form.querySelector('[name=gender]:checked')) form.querySelector(`[name=gender][value="${info.gender}"]`).checked = true;
+  if (EDIT_ID) { if (form.querySelector(`[name=gender][value="${3 - info.gender}"]`).checked) { hint.textContent += ' · 与所选性别不一致，请核对'; hint.className = 'field-hint warn'; } return; }   // 编辑档案：重复由保存时后端检查
   try {
     const r = await apiPost('/api/ra/patient/checkCardNo', { doctorId: currentDoctorId(), cardNo: no });
     if (field('cardNo').value.trim() !== no) return;   // 查询期间又改了身份证号
@@ -94,6 +100,7 @@ function refresh() {
   $('#bp-hint').textContent = s && d && s <= d ? '收缩压应高于舒张压，请检查是否填反' : '';
   const smoking = form.querySelector('[name=smoke]:checked')?.value === '1';
   form.querySelectorAll('.smoke-detail').forEach(el => el.hidden = !smoking);
+  if (EDIT_ID && editInit) { const n = changedKeys().length; $('#save').disabled = !n; formError(n ? `已修改 ${n} 项` : '未修改'); }
 }
 form.addEventListener('input', refresh);
 form.addEventListener('change', refresh);
@@ -119,8 +126,12 @@ acrDialog.addEventListener('close', () => {
   acr = acrDraft(); const total = ACR_PARTS.reduce((t, p) => t + acr[p.key], 0);
   $('#acr-result').textContent = acrLabel(total); $('#acr-result').className = `acr-result ${total >= 6 ? 'yes' : 'no'}`;
   $('#acr-open').textContent = '修改评估'; $('#acr-clear').hidden = false;
+  refresh();
 });
-$('#acr-clear').onclick = () => { acr = null; $('#acr-result').textContent = '未评估'; $('#acr-result').className = 'acr-result'; $('#acr-open').textContent = '填写评估'; $('#acr-clear').hidden = true; };
+function showAcr(total, note) { $('#acr-result').textContent = acrLabel(total) + (note || ''); $('#acr-result').className = `acr-result ${total >= 6 ? 'yes' : 'no'}`; $('#acr-open').textContent = '修改评估'; $('#acr-clear').hidden = false; }
+$('#acr-clear').onclick = () => { acr = null; oldAcrScore = null; $('#acr-result').textContent = '未评估'; $('#acr-result').className = 'acr-result'; $('#acr-open').textContent = '填写评估'; $('#acr-clear').hidden = true; refresh(); };
+// ACR 当前状态（编辑档案比较是否改过）：各部分 / 老数据只有总分 / 未评估
+const acrState = () => acr ? JSON.stringify(ACR_PARTS.map(p => acr[p.key])) : oldAcrScore != null ? `score:${oldAcrScore}` : 'none';
 
 // ===== 保存 =====
 function formData() {
@@ -149,6 +160,7 @@ form.addEventListener('submit', async e => {
   if (b.mobile && !/^1\d{10}$/.test(b.mobile)) return formError('手机号应为 11 位数字', field('mobile'));
   const bad = [...form.querySelectorAll('input[type=number]')].find(i => !i.closest('[hidden]') && !i.checkValidity());
   if (bad) return formError(`「${bad.closest('.form-field, .comorbid-option').querySelector('span').textContent.trim()}」超出合理范围`, bad);
+  if (EDIT_ID) return saveEdit(b);
   const btn = $('#save'); btn.disabled = true; btn.textContent = '保存中…';
   try {
     const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b });
@@ -160,4 +172,51 @@ form.addEventListener('submit', async e => {
     if (b.cardNo && /名下/.test(ex.message)) checkCard();   // 期间被别人建档或转入：重新查重
   }
 });
+
+// ===== 编辑档案 =====
+function changedKeys() {
+  const now = formData(); delete now.acrEular;
+  const keys = Object.keys(now).filter(k => JSON.stringify(now[k]) !== JSON.stringify(editInit[k]));
+  if (acrState() !== acrInit) keys.push('acrEular');
+  return keys;
+}
+function editBack() { return `patient-visits.html?id=${encodeURIComponent(EDIT_ID)}`; }
+async function saveEdit(b) {
+  const changed = changedKeys(); if (!changed.length) { formError('没有修改'); return; }
+  const btn = $('#save'); btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    const n = await apiPostJson('/api/ra/patient/updatePatient', { doctorId: currentDoctorId(), patientId: EDIT_ID, changed, basic: b });
+    toastNext(n ? `已保存 ${n} 项修改` : '没有修改');
+    if (canGoBack()) history.back(); else location.href = editBack();
+  } catch (ex) { formError(`保存失败：${ex.message}`); btn.disabled = false; btn.textContent = '保存修改'; }
+}
+async function loadEdit() {
+  form.querySelectorAll('input,select,button').forEach(el => el.disabled = true);
+  for (const a of [$('#edit-back'), $('#edit-cancel'), $('#crumb-patient')]) bindBack(a, editBack());
+  try {
+    const r = await apiPost('/api/ra/patient/editForm', { doctorId: currentDoctorId(), patientId: EDIT_ID });
+    const b = r.basic || {};
+    form.querySelectorAll('input,select,button').forEach(el => el.disabled = false);
+    $('#comorbid-pick').querySelectorAll('.since-year').forEach(y => y.disabled = true);
+    document.title = `${b.name} · 编辑档案 · 患者数据研究平台`;
+    $('#edit-title').textContent = `编辑患者档案 · ${b.name}`;
+    $('#edit-sub').textContent = `ID号 ${r.patientId} · 研究编号 ${r.studyNo || '—'} · 只保存改动过的内容`;
+    if (b.cardNo) field('cardNo').value = b.cardNo;
+    prefill(b);
+    if (b.marry == null) field('marry').value = '';
+    [['diagnosisInformed', b.diagnosisInformed], ['consentSigned', b.consentSigned]].forEach(([n, v]) => { const x = v != null && form.querySelector(`[name=${n}][value="${v}"]`); if (x) x.checked = true; });
+    (b.comorbidities || []).forEach(c => {
+      const cb = $('#comorbid-pick').querySelector(`input[type=checkbox][value="${c.code}"]`); if (!cb) return;
+      cb.checked = true; const y = cb.parentElement.querySelector('.since-year'); y.disabled = false; if (c.sinceYear) y.value = c.sinceYear;
+      if (c.source === 'auto') { cb.disabled = true; cb.parentElement.title = '患者在该病种研究库建档，自动记入，不能取消'; }
+    });
+    if (b.acrEular) { acr = { ...b.acrEular }; delete acr.totalScore; showAcr(b.acrEular.totalScore); }
+    else if (r.acrEularScore != null) { oldAcrScore = r.acrEularScore; showAcr(r.acrEularScore, '（老数据只有总分，没有各部分明细）'); }
+    acrInit = acrState();
+    if (b.cardNo) { const info = idInfo(b.cardNo); if (info) $('#card-hint').textContent = `${info.year} 年出生 · ${info.age} 岁`; }
+    editInit = formData(); delete editInit.acrEular;
+    refresh();
+  } catch (e) { $('#edit-sub').textContent = ''; formError(`档案加载失败：${e.message}`); }
+}
+if (EDIT_ID) loadEdit();
 refresh();
