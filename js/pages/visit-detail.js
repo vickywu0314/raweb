@@ -103,7 +103,7 @@ function bindSectionNav(){
 
 function renderError(msg){
  $('#visit-hero').innerHTML=`<p class="pv-load-error">访视详情加载失败：${escapeHTML(msg)}。请确认后端服务已启动（${escapeHTML(API_BASE)}），或返回随访记录重新选择。</p>`;
- $('#visit-sections').innerHTML='';
+ $('#visit-sections').innerHTML='';$('#audit').hidden=true;
 }
 
 async function load(){
@@ -118,4 +118,6 @@ async function load(){
  }catch(e){console.error(e);renderError(e.message)}
  finally{document.querySelector('.detail-anchor').classList.remove('is-loading')}
 }
+// 修改记录：默认收起，展开时才查询，只显示这次随访的（js/shared/audit-log.js）
+bindAuditPanel($('#audit'),patientId,visitId);
 load();

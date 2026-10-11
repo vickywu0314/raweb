@@ -98,25 +98,11 @@ function reactivateDialog(){
 }
 async function reloadPatient(){
  try{p=await apiPost('/api/ra/patient/patientDetail',{doctorId:currentDoctorId(),patientId});renderVisitPage()}catch(e){toast(`刷新失败：${e.message}`)}
- auditLoaded=false;$('#audit-count').textContent='';if($('#audit').open)loadAudit();
+ reloadAudit();
 }
 
-// 修改记录：默认收起，第一次展开时才查询；老数据没有记录，显示「暂无修改记录」
-const AUDIT_TONE={'新建档案':'new','新增随访':'new','编辑随访':'edit','修改档案':'edit','质控处理':'qc','质控发起':'qc','标记脱落':'warn','恢复随访':'new','删除随访':'warn'};
-let auditLoaded=false;
-async function loadAudit(){
- if(auditLoaded||!p)return;auditLoaded=true;
- const box=$('#audit-list');box.innerHTML='<li class="audit-empty">正在查询修改记录…</li>';
- try{
-  const list=await apiPost('/api/ra/patient/auditLogs',{doctorId:currentDoctorId(),patientId:p.patientId})||[];
-  $('#audit-count').textContent=list.length?`${list.length} 条`:'';
-  // 「字段：旧 → 新」高亮显示修改前后
-  const detail=d=>escapeHTML(d||'').split('；').map(part=>part.replace(/(.+?)：(.+?) → (.+)/,(m,k,a,b)=>`${k}：<del>${a}</del> → <ins>${b}</ins>`)).map(x=>`<span>${x}</span>`).join('');
-  box.innerHTML=list.length?list.map(a=>`<li><time>${escapeHTML(a.time)}</time><b class="audit-tag ${AUDIT_TONE[a.action]||'edit'}">${escapeHTML(a.action)}</b><div class="audit-detail">${detail(a.detail)}</div><em>${escapeHTML(a.operator||'')}</em></li>`).join(''):'<li class="audit-empty">暂无修改记录</li>';
- }catch(e){auditLoaded=false;box.innerHTML=`<li class="audit-empty">修改记录加载失败：${escapeHTML(e.message)}（收起后再展开可重试）</li>`}
-}
-$('#audit').open=false;
-$('#audit').addEventListener('toggle',()=>{if($('#audit').open)loadAudit()});
+// 修改记录：默认收起，第一次展开时才查询（js/shared/audit-log.js）
+const reloadAudit=bindAuditPanel($('#audit'),patientId);
 
 async function load(){
  visitsSkeleton();
@@ -124,7 +110,6 @@ async function load(){
  try{
   p=await apiPost('/api/ra/patient/patientDetail',{doctorId:currentDoctorId(),patientId});
   renderVisitPage();flashHashTarget();
-  if($('#audit').open)loadAudit();
  }catch(e){console.error(e);renderLoadError(e.message)}
 }
 function renderLoadError(msg){
