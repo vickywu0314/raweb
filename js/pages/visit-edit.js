@@ -92,7 +92,7 @@ function collect(){
 $('#edit-sections').addEventListener('click',e=>{
  const add=e.target.closest('.row-add'),del=e.target.closest('.row-del');
  if(add){const g=add.closest('.edit-table-group'),m=form.modules.find(x=>x.column===g.dataset.col),t=m.tables.find(x=>x.key===g.dataset.table);g.querySelector('tbody').insertAdjacentHTML('beforeend',rowHTML(m.column,t,null));g.querySelector('tbody tr:last-child input')?.focus();dirty=true}
- if(del){const tr=del.closest('tr'),name=tr.querySelector('input')?.value||'这一行';if(confirm(`删除「${name}」？保存后生效。`)){tr.remove();dirty=true}}
+ if(del){const tr=del.closest('tr'),name=tr.querySelector('input')?.value||'这一行';confirmDialog(`删除「${name}」？保存后生效。`,{title:'删除这一行',okText:'删除',danger:true}).then(ok=>{if(ok){tr.remove();dirty=true}})}
 });
 $('#edit-form').addEventListener('input',()=>dirty=true);
 $('#edit-form').addEventListener('change',()=>dirty=true);

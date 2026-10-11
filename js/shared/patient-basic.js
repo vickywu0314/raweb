@@ -69,7 +69,7 @@ function bindPatientBasic(box,p){
    const num=box.querySelector('.identity-number'),shown=t.getAttribute('aria-pressed')==='true';
    if(shown){num.textContent=p.cardNoMasked;}
    else{
-    if(full==null){t.disabled=true;try{full=await apiPost('/api/ra/patient/patientSensitive',{doctorId:currentDoctorId(),patientId:p.patientId})||''}catch(e){alert(`获取身份证号失败：${e.message}`);return}finally{t.disabled=false}}
+    if(full==null){t.disabled=true;try{full=await apiPost('/api/ra/patient/patientSensitive',{doctorId:currentDoctorId(),patientId:p.patientId})||''}catch(e){toast(`获取身份证号失败：${e.message}`);return}finally{t.disabled=false}}
     num.textContent=full||p.cardNoMasked;
    }
    t.setAttribute('aria-pressed',String(!shown));t.setAttribute('aria-label',shown?'显示完整身份证号':'隐藏身份证号');t.title=shown?'显示完整身份证号':'隐藏身份证号';

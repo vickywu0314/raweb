@@ -90,7 +90,7 @@ function exportParams(extra){
  return p;
 }
 async function openExportDialog(){
- try{exportRange=exportRange||await apiPost('/api/ra/export/range',{})}catch(e){alert(`数据导出暂不可用：${e.message}`);return}
+ try{exportRange=exportRange||await apiPost('/api/ra/export/range',{})}catch(e){toast(`数据导出暂不可用：${e.message}`);return}
  let d=document.getElementById('export-dialog');
  if(!d){d=document.createElement('dialog');d.id='export-dialog';d.className='export-dialog';document.body.appendChild(d)}
  const r=exportRange, scope=selected.size?`已勾选的 ${selected.size} 位患者`:`当前查询结果（共 ${lastTotal} 位患者）`;
@@ -140,7 +140,7 @@ $('#search-form').addEventListener('submit',e=>{e.preventDefault();state.q=$('#q
 // 检索条件（关键字、随访状态、数据完整性）选好后，点「查询」才查询；选下拉不会触发查询
 $('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};$('#query').value='';$('#visit-status').value='';$('#data-status').value='missing';load()});
 $('#export-data').onclick=openExportDialog;
-$('#ocr-entry').onclick=()=>alert('「OCR识别录入」功能正在开发中，暂不可用。');
+$('#ocr-entry').onclick=()=>toast('「OCR识别录入」功能正在开发中');
 $('#pagination').addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b){state.page=+b.dataset.page;load()}});
 $('#page-size').addEventListener('change',e=>{state.perPage=+e.target.value;state.page=1;load()});
 $('#reset').onclick=()=>{state={q:'',status:'',data:'',page:1,perPage:state.perPage};$('#query').value='';$('#visit-status').value='';$('#data-status').value='';load()};

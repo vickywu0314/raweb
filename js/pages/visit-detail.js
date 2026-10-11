@@ -19,7 +19,7 @@ document.querySelector('.detail-anchor').classList.add('is-loading');
  const b=$('#back-visits');b.textContent=direct?`← 返回${o.label}`:'← 返回随访记录';bindBack(b,direct?o.href:visitsUrl);}
 
 const val=x=>escapeHTML(x==null||x===''?'未提供':x);
-const notReady=name=>alert(`「${name}」功能的后端接口正在开发中，暂不可用。`);
+const notReady=name=>toast(`「${name}」功能正在开发中`);
 
 // 基础信息（与患者详情页一致，js/shared/patient-basic.js）默认收起，医生点开后记住选择（仅本机浏览器）
 const BASIC_OPEN_KEY='ra:visit-basic-open';

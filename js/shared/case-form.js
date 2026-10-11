@@ -137,7 +137,7 @@ function serializeSectionsRaw(form) {
   return out;
 }
 
-function caseToast(msg) { const old = document.querySelector('.save-toast'); if (old) old.remove(); const t = document.createElement('div'); t.className = 'save-toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function caseToast(msg) { toast(msg); }
 
 // ===== 草稿：一期全部存本机浏览器 =====
 const draftGet = k => { try { return JSON.parse(localStorage.getItem('draft:' + k)); } catch (e) { return null; } };

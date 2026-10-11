@@ -21,7 +21,7 @@ let existing = null;     // 身份证号查重结果
 field('nation').innerHTML = '<option value="">请选择</option>' + NATIONS.map(n => `<option>${n}</option>`).join('');
 $('#comorbid-pick').innerHTML = COMORBID_CODES.map(c => `<label class="comorbid-option"><input type="checkbox" value="${c}"><span>${c} ${escapeHTML((COMORBIDITY_INFO[c] || {}).name || '')}</span><input type="number" class="since-year" min="1900" max="${TODAY.getFullYear()}" placeholder="起病年份" aria-label="${c} 起病年份" disabled></label>`).join('');
 $('#comorbid-pick').addEventListener('change', e => { if (e.target.type === 'checkbox') { const y = e.target.parentElement.querySelector('.since-year'); y.disabled = !e.target.checked; if (!e.target.checked) y.value = ''; } });
-$('#ocr-import').onclick = () => alert('「OCR识别录入」功能正在开发中，暂不可用。');
+$('#ocr-import').onclick = () => toast('「OCR识别录入」功能正在开发中');
 
 // ===== 身份证号：校验、带出性别 / 出生年份，查重 =====
 function idInfo(no) {
@@ -65,12 +65,12 @@ function handleExisting() {
 }
 async function transfer() {
   const x = existing;
-  if (!confirm(`患者已存在：${x.name}（ID号 ${x.patientId}）在 ${x.otherDoctorName} 名下。\n\n确认要把该患者转到自己名下吗？转入后原医生将不再看到该患者。`)) return;
+  if (!await confirmDialog(`患者已存在：${x.name}（ID号 ${x.patientId}）在 ${x.otherDoctorName} 名下。\n确认要把该患者转到自己名下吗？转入后原医生将不再看到该患者。`, { title: '患者已存在', okText: '转到我名下' })) return;
   try {
     const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: true, basic: { name: x.name, cardNo: field('cardNo').value.trim(), gender: 1 } });
-    alert('已转到您名下，即将打开患者详情');
+    toastNext('已转到您名下');
     location.href = `patient-visits.html?id=${encodeURIComponent(r.patientId)}`;
-  } catch (e) { alert(`转入失败：${e.message}`); }
+  } catch (e) { toast(`转入失败：${e.message}`); }
 }
 function showBanner(html, tone) {
   const b = $('#exist-banner'); b.hidden = !html; b.className = `exist-banner ${tone || ''}`; b.innerHTML = html || '';
@@ -152,7 +152,7 @@ form.addEventListener('submit', async e => {
   const btn = $('#save'); btn.disabled = true; btn.textContent = '保存中…';
   try {
     const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b });
-    alert(r.action === 'linked' ? `已加入 RA 研究库（研究编号 ${r.studyNo || '—'}），即将打开患者详情` : `建档成功，研究编号 ${r.studyNo}，即将打开患者详情`);
+    toastNext(r.action === 'linked' ? `已加入 RA 研究库，研究编号 ${r.studyNo || '—'}` : `建档成功，研究编号 ${r.studyNo}`);
     location.href = `patient-visits.html?id=${encodeURIComponent(r.patientId)}`;
   } catch (ex) {
     formError(`保存失败：${ex.message}`);

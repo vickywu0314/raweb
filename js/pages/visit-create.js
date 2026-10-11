@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     box.innerHTML = `<p class="locked-loading">患者基础信息加载失败：${escapeHTML(e.message)}。请确认后端服务已启动（${escapeHTML(API_BASE)}）。</p>`;
   });
 
-  document.getElementById('ocr-import').onclick = () => alert('「OCR识别录入」功能正在开发中，暂不可用。');
+  document.getElementById('ocr-import').onclick = () => toast('「OCR识别录入」功能正在开发中');
 
   // 随访信息表单（演示）：可暂存草稿；保存接口完成前不写库
   const form = document.querySelector('#create-form');

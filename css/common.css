@@ -3015,3 +3015,53 @@ button.comorbid-chip,
   flex:0 1 auto;
   justify-content:flex-end;
 }
+
+/* 提示 toast：窗口中间，灰色，自动消失（common.js toast()） */
+.ra-toast {
+  position:fixed;
+  top:50%;
+  left:50%;
+  z-index:2000;
+  max-width:min(460px,calc(100vw - 40px));
+  padding:13px 22px;
+  border-radius:10px;
+  background:rgba(48,56,68,.92);
+  color:#fff;
+  font-size:var(--fs-sm);
+  line-height:1.6;
+  text-align:center;
+  white-space:pre-line;
+  box-shadow:0 10px 30px rgba(20,30,45,.25);
+  transform:translate(-50%,-50%) scale(.96);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s,transform .2s;
+}
+
+.ra-toast.show {
+  opacity:1;
+  transform:translate(-50%,-50%) scale(1);
+}
+
+/* 确认弹窗（common.js confirmDialog()） */
+.ra-confirm {
+  width:min(420px,calc(100vw - 32px));
+}
+
+.ra-confirm h2 {
+  margin:0 0 10px;
+  font-size:var(--fs-lg);
+}
+
+.ra-confirm p {
+  margin:0 0 20px;
+  color:#41536b;
+  font-size:var(--fs-sm);
+  line-height:1.7;
+}
+
+.ra-confirm-actions {
+  display:flex;
+  justify-content:flex-end;
+  gap:10px;
+}

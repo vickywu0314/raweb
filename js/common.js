@@ -59,7 +59,7 @@ function shell(active){
  const sidebar=document.querySelector('.sidebar');
  // 顶栏账号：显示当前登录用户，并提供退出登录
  const acc=document.querySelector('.account'), u=currentUser();
- if(acc&&u){acc.innerHTML=`<span class="avatar">${escapeHTML(u.name.slice(0,1))}</span><span>${escapeHTML(u.name)}<small>${escapeHTML(u.role)}</small></span><button type="button" class="logout-btn" title="退出登录" aria-label="退出登录"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></button>`;acc.querySelector('.logout-btn').onclick=()=>{if(confirm('确定退出登录？'))signOut()};}
+ if(acc&&u){acc.innerHTML=`<span class="avatar">${escapeHTML(u.name.slice(0,1))}</span><span>${escapeHTML(u.name)}<small>${escapeHTML(u.role)}</small></span><button type="button" class="logout-btn" title="退出登录" aria-label="退出登录"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></button>`;acc.querySelector('.logout-btn').onclick=async()=>{if(await confirmDialog('确定退出登录？',{title:'退出登录',okText:'退出'}))signOut()};}
  document.querySelectorAll('.header-knowledge-links,.header-study').forEach(el=>el.remove());
  if(sidebar){
    const cur=STUDIES[0];
@@ -250,4 +250,26 @@ async function apiPostJson(path,body){
   const r=await res.json();
   if(!r.success)throw new Error(r.message||'接口返回失败');
   return r.data;
+}
+
+// ===== 提示：窗口中间的灰色 toast（代替 alert），确认弹窗（代替 confirm） =====
+// toast(msg)：显示 2~4 秒后自动消失；toastNext(msg)：跳转后在下一个页面显示（如「建档成功」后打开详情）
+function toast(msg,ms){
+  document.querySelectorAll('.ra-toast').forEach(t=>t.remove());
+  const t=document.createElement('div');t.className='ra-toast';t.setAttribute('role','status');t.textContent=msg;
+  document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),250)},ms||Math.min(4500,1800+String(msg).length*60));
+}
+function toastNext(msg){try{sessionStorage.setItem('ra-toast-next',msg)}catch(e){}}
+document.addEventListener('DOMContentLoaded',()=>{try{const m=sessionStorage.getItem('ra-toast-next');if(m){sessionStorage.removeItem('ra-toast-next');toast(m)}}catch(e){}});
+window.alert=msg=>toast(String(msg));
+// confirmDialog(msg,{title,okText,cancelText,danger}) → Promise<boolean>
+function confirmDialog(msg,opt={}){
+  return new Promise(resolve=>{
+    const d=document.createElement('dialog');d.className='ra-confirm';
+    d.innerHTML=`<form method="dialog"><h2>${escapeHTML(opt.title||'请确认')}</h2><p>${escapeHTML(msg).replace(/\n/g,'<br>')}</p><div class="ra-confirm-actions"><button class="button" value="cancel">${escapeHTML(opt.cancelText||'取消')}</button><button class="button ${opt.danger?'danger':'primary'}" value="ok">${escapeHTML(opt.okText||'确定')}</button></div></form>`;
+    document.body.appendChild(d);
+    d.addEventListener('close',()=>{resolve(d.returnValue==='ok');d.remove()});
+    d.showModal();d.querySelector('[value=ok]').focus();
+  });
 }

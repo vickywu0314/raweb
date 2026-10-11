@@ -35,7 +35,7 @@ function visitsSkeleton(){
  $('#visit-total').innerHTML='<span class="skeleton skeleton-visit-total"></span>';
 }
 // 尚未接入后端的操作：先提示，避免只改了本机演示数据
-const notReady=name=>alert(`「${name}」功能的后端接口正在开发中，暂不可用。`);
+const notReady=name=>toast(`「${name}」功能正在开发中`);
 
 function renderVisitPage(){
  document.title=`${p.name} · 随访记录 · 患者数据研究平台`;
