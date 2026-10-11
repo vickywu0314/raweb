@@ -3065,3 +3065,14 @@ button.comorbid-chip,
   justify-content:flex-end;
   gap:10px;
 }
+
+/* 带表单的弹窗（标记脱落 / 恢复随访等） */
+.ra-form-dialog { width:min(480px,calc(100vw - 32px)); }
+.ra-form-field { display:block; margin:0 0 14px; padding:0; border:0; font-size:var(--fs-sm); }
+.ra-form-field legend, .ra-form-field > span { display:block; margin-bottom:6px; color:#24364f; font-weight:600; }
+.ra-form-field em { color:#c0392b; font-style:normal; }
+.ra-form-field small { color:#8494a8; font-weight:400; }
+.ra-form-field textarea { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid #d5dde8; border-radius:6px; font:inherit; resize:vertical; }
+.ra-radio-row { display:flex; flex-wrap:wrap; gap:8px 18px; }
+.ra-radio-row label { display:inline-flex; align-items:center; gap:4px; cursor:pointer; }
+.ra-form-error { margin:-4px 0 12px !important; color:#c0392b !important; }
