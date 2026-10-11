@@ -818,3 +818,11 @@
     grid-template-columns:1fr 1fr;
   }
 }
+
+/* 随访表单单选 / 多选（js/shared/visit-form.js） */
+.vf-choices label { cursor:pointer; }
+.vf-choices label:has(input:checked) { border-color:#82b1ee; background:#eef4ff; color:#1f4f99; }
+.vf-choices .vf-old { border-style:dashed; }
+.vf-hint { color:#8492a2; font-size:var(--fs-xs); }
+.vf-field[hidden] { display:none !important; }
+.edit-table select.vf-cell { min-width:120px; }
