@@ -227,7 +227,7 @@ function bindBack(a,fallback){a.href=fallback;a.addEventListener('click',e=>{if(
 function flashHashTarget(){const t=location.hash&&document.querySelector(location.hash);if(!t)return null;t.scrollIntoView({block:'start'});t.classList.add('is-target');setTimeout(()=>t.classList.remove('is-target'),2600);return t}
 
 // 列表页状态（检索词、筛选、分页）：仅在“返回”回到列表时恢复，正常从菜单进入时为默认状态
-function loadListState(key,defaults){try{const nav=performance.getEntriesByType('navigation')[0];if(nav&&nav.type==='back_forward'){const s=JSON.parse(sessionStorage.getItem('list:'+key));if(s)return {...defaults,...s}}}catch(e){}return {...defaults}}
+function loadListState(key,defaults){try{const nav=performance.getEntriesByType('navigation')[0];if(nav&&(nav.type==='back_forward'||sessionStorage.getItem('ra-back-reload')===location.pathname)){sessionStorage.removeItem('ra-back-reload');const s=JSON.parse(sessionStorage.getItem('list:'+key));if(s)return {...defaults,...s}}}catch(e){}return {...defaults}}
 function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.stringify(state))}catch(e){}}
 
 // ===== 后端接口（raapi） =====
@@ -236,11 +236,18 @@ function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.st
 const API_BASE=typeof window.RA_CONFIG?.apiBase==='string'?window.RA_CONFIG.apiBase:'';
 const DEFAULT_DOCTOR_ID=82394; // 登录接口接入前，演示账号没有医生 ID 时使用
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
+// 后退时浏览器可能直接显示缓存的旧页面（bfcache）：保存过数据（写接口成功）后，后退回来的页面自动重新加载，显示最新数据；
+// 重新加载时列表的检索条件、页码照常恢复（loadListState）。
+const RA_WRITE_API=/\/(createPatient|updatePatient|withdraw|reactivate|createVisit|updateVisit|deleteVisit)$/;
+const RA_PAGE_LOADED=Date.now();
+function markDataChanged(path){if(RA_WRITE_API.test(path))try{sessionStorage.setItem('ra-data-changed',String(Date.now()))}catch(e){}}
+window.addEventListener('pageshow',e=>{if(!e.persisted)return;try{if(+sessionStorage.getItem('ra-data-changed')>RA_PAGE_LOADED){sessionStorage.setItem('ra-back-reload',location.pathname);location.reload()}}catch(x){}});
 async function apiPost(path,params){
   const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(params||{})});
   if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
   const r=await res.json();
   if(!r.success)throw new Error(r.message||'接口返回失败');
+  markDataChanged(path);
   return r.data;
 }
 // JSON 请求体的接口（如编辑随访保存）
@@ -249,6 +256,7 @@ async function apiPostJson(path,body){
   if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
   const r=await res.json();
   if(!r.success)throw new Error(r.message||'接口返回失败');
+  markDataChanged(path);
   return r.data;
 }
 
