@@ -134,6 +134,7 @@ function formData() {
     height: v('height'), weight: v('weight'), waistline: v('waistline'), heartRate: v('heartRate'), systolic: v('systolic'), diastolic: v('diastolic'),
     smoke, smokeYears: smoke === 1 ? int('smokeYears') : null, smokeCountByDay: smoke === 1 ? int('smokeCountByDay') : null, smokeStop: smoke === 1 ? radio('smokeStop') : null,
     allergyHistory: v('allergyHistory'), familyHistory: v('familyHistory'), pastHistory: v('pastHistory'),
+    diagnosisInformed: radio('diagnosisInformed'), consentSigned: radio('consentSigned'),
     followCycle: +field('followCycle').value, acrEular: acr,
     comorbidities: [...$('#comorbid-pick').querySelectorAll('input[type=checkbox]:checked')].map(c => { const y = c.parentElement.querySelector('.since-year').value; return { code: c.value, sinceYear: y ? +y : null }; })
   };
