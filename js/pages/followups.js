@@ -14,16 +14,27 @@ function kpi(){
   const n=s=>plans.filter(x=>x.status===s).length, total=plans.length-n('lost');
   // 按期随访率 = (计划数 − 逾期数) / 计划数
   const rate=total?Math.round((total-n('overdue'))/total*100):0;
-  $('#fu-kpi').innerHTML=[[total,'计划中随访',''],[n('overdue'),'已逾期','overdue'],[n('soon'),'未来 14 天到期','soon'],[rate+'%','按期随访率',''],[n('lost'),'疑似失访 · 超过 2 年未随访','lost']].map(([v,l,s])=>`<article${s?` class="kpi-link" data-status="${s}" role="button" tabindex="0" title="查看名单"`:''}><strong>${v}</strong><span>${l}</span></article>`).join('');
+  // [数字, 名称, 点击后的状态筛选（all = 全部，不含疑似失访；空 = 不可点）, 口径说明]
+  const cards=[
+    [total,'计划中随访','all','您名下、未脱落的 RA 患者，每人一条下次随访计划（不含疑似失访）。预计日期 = 最近一次随访日期 + 随访周期；还没有随访的取建档日期（基线访视）。'],
+    [n('overdue'),'已逾期','overdue','计划中随访里，预计日期早于今天的人数。'],
+    [n('soon'),'未来 14 天到期','soon','计划中随访里，预计日期在今天到 14 天后（含今天）的人数。'],
+    [rate+'%','按期随访率','','（计划中随访 − 已逾期）÷ 计划中随访，四舍五入取整；不含疑似失访。'],
+    [n('lost'),'疑似失访 · 超过 2 年未随访','lost','最近一次随访（还没有随访的取建档日期）距今超过 2 年的患者，不计入前面 4 项统计。确认不再随访的，可在患者详情「标记脱落」。']
+  ];
+  $('#fu-kpi').innerHTML=cards.map(([v,l,s,tip])=>`<article${s?` class="kpi-link" data-status="${s}" role="button" tabindex="0" title="点击筛选列表"`:''}><strong>${v}</strong><span>${l}<i class="kpi-info" tabindex="0" role="note" aria-label="${escapeHTML(tip)}" data-tip="${escapeHTML(tip)}">i</i></span></article>`).join('');
+  markKpi();
   $('#fu-summary').textContent=`共 ${total} 项随访计划 · ${n('overdue')} 项已逾期，优先处理${n('lost')?` · 另有 ${n('lost')} 位超过 2 年未随访（疑似失访）`:''}`;
 }
-$('#fu-kpi').addEventListener('click',e=>{const a=e.target.closest('[data-status]');if(!a)return;state.status=a.dataset.status;$('#fu-status').value=state.status;state.page=1;render()});
-$('#fu-kpi').addEventListener('keydown',e=>{if(e.key==='Enter')e.target.closest('[data-status]')?.click()});
+// 点卡片 = 按该状态筛选列表（与上方「随访状态」下拉同一个条件）；按期随访率不可点；点「i」只看说明
+$('#fu-kpi').addEventListener('click',e=>{if(e.target.closest('.kpi-info'))return;const a=e.target.closest('[data-status]');if(!a)return;state.status=a.dataset.status==='all'?'':a.dataset.status;$('#fu-status').value=state.status;state.page=1;render()});
+function markKpi(){$('#fu-kpi').querySelectorAll('[data-status]').forEach(a=>a.classList.toggle('is-active',a.dataset.status===(state.status||'all')))}
+$('#fu-kpi').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.target.closest('.kpi-info'))e.target.closest('[data-status]')?.click()});
 const rel=x=>x.days==null?'建档日期未知':x.days<0?`已逾期 ${-x.days} 天`:x.days===0?'今天':`${x.days} 天后`;
 function row(x){const id=String(x.patientId),[label,tone]=STATUS[x.status]||STATUS.later;return `<div class="patient-card selectable${picked===id?' is-picked':''}"><span class="check-col"><input type="radio" name="fu-pick" value="${escapeHTML(id)}" aria-label="选择 ${escapeHTML(x.name)} 新增随访" ${picked===id?'checked':''}></span><a class="patient-card-link" href="patient-visits.html?id=${encodeURIComponent(id)}&from=followups"><span class="patient-identity"><span class="record-icon">${icon('record')}</span><span class="patient-info"><span class="patient-name">${escapeHTML(x.name||'未填姓名')}</span><span class="patient-meta">${escapeHTML(x.sex||'性别未填')} · ${x.birthYear?`${x.birthYear} 年`:'出生年份未知'}</span><span class="patient-meta">ID号: ${escapeHTML(id)}</span></span></span><span class="patient-cell research-cell"><span class="cell-label">研究信息</span><span class="study-code">${escapeHTML(x.studyNo||'—')}</span><span class="cell-note">${x.visitCount?`基线已完成 · 已随访 ${x.visitCount-1} 次`:'只建档，尚未基线访视'}</span></span><span class="patient-cell plan-cell"><span class="cell-label">随访计划</span><span class="plan-name">${x.first?'基线访视':`第 ${x.nth} 次随访`}</span><span class="cell-note">随访周期：${cycleLabel(x.followCycle)}</span></span><span class="patient-cell date-cell"><span class="cell-label">预计日期</span><span class="last-visit">${icon('calendar')}${escapeHTML(x.dueDate||'—')}</span><span class="cell-note">${rel(x)}</span></span><span class="patient-cell status-cell"><span class="cell-label">随访状态</span>${badge(label,tone)}</span>${icon('chevron','chevron')}</a></div>`}
 function rows(){return plans.filter(x=>(!state.q||[x.name,String(x.patientId),x.studyNo].some(v=>v&&v.toLowerCase().includes(state.q)))&&(state.status?x.status===state.status:x.status!=='lost')&&(!state.plan||String(x.followCycle)===state.plan))}
 function syncPick(){const b=$('#add-followup'),p=picked&&plans.find(x=>String(x.patientId)===picked);b.disabled=!p;b.textContent=p?`＋ 新增随访（${p.name}）`:'＋ 新增随访';$('#pick-hint').hidden=!!p}
-function render(){saveListState('followups',state);const list=rows(),pages=Math.max(1,Math.ceil(list.length/state.perPage));state.page=Math.min(state.page,pages);const start=(state.page-1)*state.perPage,pageRows=list.slice(start,start+state.perPage);
+function render(){saveListState('followups',state);markKpi();const list=rows(),pages=Math.max(1,Math.ceil(list.length/state.perPage));state.page=Math.min(state.page,pages);const start=(state.page-1)*state.perPage,pageRows=list.slice(start,start+state.perPage);
   $('#rows').innerHTML=pageRows.map(row).join('');$('#empty').hidden=!!list.length;
   $('#result-count').textContent=list.length?`显示第 ${start+1}–${Math.min(start+state.perPage,list.length)} 条，共 ${list.length} 条`:'共 0 条匹配记录';
   $('#pagination').innerHTML=Array.from({length:pages},(_,i)=>`<button data-page="${i+1}" class="${i+1===state.page?'active':''}">${i+1}</button>`).slice(Math.max(0,state.page-3),Math.max(5,state.page+2)).join('');syncPick()}
