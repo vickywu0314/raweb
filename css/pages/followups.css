@@ -62,3 +62,9 @@
     grid-row:3;
   }
 }
+
+/* 统计卡片：5 张（第 5 张为疑似失访），可点的卡片筛出名单 */
+#fu-kpi { grid-template-columns:repeat(5,1fr); }
+#fu-kpi .kpi-link { cursor:pointer; transition:border-color .15s; }
+#fu-kpi .kpi-link:hover, #fu-kpi .kpi-link:focus-visible { border-color:#82b1ee; }
+@media (max-width:900px) { #fu-kpi { grid-template-columns:repeat(2,1fr); } }
