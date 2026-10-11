@@ -53,7 +53,7 @@ async function load() {
     form = f;
     document.title = `${p.name} · 新增随访 · 患者数据研究平台`;
     $('#visit-title').textContent = `新增随访 · ${p.name}`;
-    $('#visit-sub').textContent = `研究编号 ${p.studyNo || '—'} · 第 ${f.visitNo} 次随访${f.visitNo === 1 ? '（基线访视）' : ''} · 基本信息沿用患者档案，只录入本次随访内容`;
+    $('#visit-sub').textContent = `研究编号 ${p.studyNo || '—'} · ${f.visitNo === 1 ? '基线访视' : `第 ${f.visitNo - 1} 次随访`} · 基本信息沿用患者档案，只录入本次随访内容`;
     box.innerHTML = patientTagsHTML(p) + patientBasicGridHTML(p) + patientHistoryHTML(p);
     bindPatientBasic(box, p);
     $('#visit-date').value = lastDate = f.visitDate; $('#visit-date').max = ymd(TODAY);
