@@ -1,14 +1,15 @@
 /* data-quality.html 页面脚本（依赖 boot.js → common.js）
    数据来自后端：POST /api/ra/quality/issues（按当前数据实时检查当前医生名下 RA 患者），「标记已处理」POST /api/ra/quality/resolve。
-   规则：缺失（与患者列表「待补全」一致）、异常值（化验超出合理范围 / 填了文字、血压填反）、逻辑冲突（日期矛盾、同日重复随访）。
+   规则：缺失（与患者列表「待补全」一致）、逻辑冲突（日期矛盾、同日重复随访）；化验值偏高偏低反映的是病情，不算数据质量问题。
    数据改好后问题自动消失；「标记已处理」用于核实后确实无法补全或无需修改的问题，写入修改记录。 */
 "use strict";
 shell('quality');
-const TYPE_TONE = { '缺失': 'warning', '异常值': 'danger', '逻辑冲突': 'danger' };
+const TYPE_TONE = { '缺失': 'warning', '逻辑冲突': 'danger' };
 const STATE_TONE = { '待处理': 'warning', '已处理': 'success' };
 let D = null, issues = [];
 let state = loadListState('quality', { q: '', type: '', st: '', page: 1, perPage: 8 });
 if (queryParam('type')) state.type = queryParam('type'); // 看板等页面带条件进入
+if (state.type === '异常值') state.type = '';   // 已取消的类型（浏览器里可能还记着）
 if (queryParam('st')) state.st = queryParam('st');
 
 // 点问题 → 定位到要改的地方（从这里出去，「返回」回到数据质控）
