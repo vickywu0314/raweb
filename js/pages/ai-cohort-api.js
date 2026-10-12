@@ -55,6 +55,44 @@ window.RACohortAPI = (()=>{
   const canonicalId=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
   const invalidDetail=result=>Object.assign(new Error('详情响应无效'),{status:result.status,code:'INVALID_RESPONSE',data:null,traceId:result.traceId});
   return Object.freeze({
+    async patientInsight(patientId,options){
+      if(!canonicalId(patientId))throw Object.assign(new Error('患者入口无效'),{code:'INVALID_REQUEST',data:null});
+      const result=await post('ai/patientInsight',{patientId},options),d=result.data;
+      const object=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
+      const exact=(x,keys)=>object(x)&&Object.keys(x).length===keys.length&&keys.every(k=>Object.hasOwn(x,k));
+      const text=x=>typeof x==='string',nullableText=x=>x===null||text(x),number=x=>x===null||(typeof x==='number'&&Number.isFinite(x));
+      const integer=x=>Number.isSafeInteger(x)&&x>=0,strings=x=>Array.isArray(x)&&x.every(text);
+      const date=x=>text(x)&&/^\d{4}-\d{2}-\d{2}$/.test(x)&&Number.isFinite(Date.parse(x+'T00:00:00Z'))&&new Date(x+'T00:00:00Z').toISOString().slice(0,10)===x;
+      const nullableDate=x=>x===null||date(x),instant=x=>text(x)&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(x)&&Number.isFinite(Date.parse(x));
+      const idsInSource=x=>{
+        if(Array.isArray(x))return x.every(idsInSource);
+        if(!object(x))return true;
+        return Object.entries(x).every(([k,v])=>['sourceVisitId','visitId','sourceRowId'].includes(k)?v===null||canonicalId(v):idsInSource(v));
+      };
+      const provenance=x=>{
+        const keys=['source','sourceField','quality','missingReason'];if(Object.hasOwn(x||{},'observations'))keys.push('observations');
+        if(!exact(x,keys)||!text(x.source)||!text(x.sourceField)||!strings(x.quality)||!nullableText(x.missingReason)||!idsInSource(x))return false;
+        if(!Object.hasOwn(x,'observations'))return x.source==='LEGACY_RECORDED';
+        if(!Array.isArray(x.observations))return false;
+        return x.observations.every(o=>x.source==='CONFIGURED_FM_EVIDENCE'?exact(o,['evidenceId','observedAt','fmState'])&&text(o.evidenceId)&&date(o.observedAt)&&['TRUE','FALSE','UNKNOWN'].includes(o.fmState):x.source==='LEGACY_POSITIVE_ASSOCIATION'?exact(o,['sourceRowId','sinceYear'])&&canonicalId(o.sourceRowId)&&(o.sinceYear===null||Number.isSafeInteger(o.sinceYear)):exact(o,['sourceVisitId','sourceField','observedAt','status'])&&canonicalId(o.sourceVisitId)&&text(o.sourceField)&&date(o.observedAt)&&text(o.status));
+      };
+
+      const metricKeys=['value','unit','sourceVisitId','sourceField','observedAt','quality','missingReason'];
+      const metric=(x,v)=>exact(x,metricKeys)&&number(x.value)&&nullableText(x.unit)&&x.sourceVisitId===v.visitId&&text(x.sourceField)&&x.observedAt===v.observedAt&&strings(x.quality)&&nullableText(x.missingReason);
+      const episodeKeys=['episodeKey','state','category','line','targetedDrugHistoryN','startDate','estimatedStartDate','endDate','startConfidence','genericDrugIds','provenance'];
+      const episode=(x,current)=>exact(x,current?[...episodeKeys,'schemeDurationMonths']:episodeKeys)&&nullableText(x.episodeKey)&&['ACTIVE','NONE','UNKNOWN','CONFLICT'].includes(x.state)&&nullableText(x.category)&&(x.line===null||integer(x.line))&&integer(x.targetedDrugHistoryN)&&['startDate','estimatedStartDate','endDate'].every(k=>nullableDate(x[k]))&&nullableText(x.startConfidence)&&strings(x.genericDrugIds)&&exact(x.provenance,['visitId','field','observedAt','quality','missingReason','dictionaryVersion',...(Object.hasOwn(x.provenance||{},'drugFacts')?['drugFacts']:[])])&&nullableText(x.provenance.visitId)&&(x.provenance.visitId===null||canonicalId(x.provenance.visitId))&&text(x.provenance.field)&&nullableDate(x.provenance.observedAt)&&strings(x.provenance.quality)&&nullableText(x.provenance.missingReason)&&text(x.provenance.dictionaryVersion)&&(!Object.hasOwn(x.provenance,'drugFacts')||(Array.isArray(x.provenance.drugFacts)&&x.provenance.drugFacts.every(f=>exact(f,['genericDrugId','startTime','endTime','visitId','field','observedAt'])&&text(f.genericDrugId)&&nullableText(f.startTime)&&nullableText(f.endTime)&&canonicalId(f.visitId)&&text(f.field)&&date(f.observedAt))))&&idsInSource(x.provenance)&&(!current||x.schemeDurationMonths===null||integer(x.schemeDurationMonths));
+      const p=d?.patient,m=d?.meta,t=d?.treatment,versions=m?.policyVersions;
+      let valid=exact(d,['patient','visits','treatment','meta'])&&exact(p,['patientId','name','studyNo','sex','age','diseaseDurationYears','sero','fm','as','clinicalProvenance'])&&p.patientId===patientId&&canonicalId(p.patientId)&&nullableText(p.name)&&nullableText(p.studyNo)&&[null,'M','F'].includes(p.sex)&&[p.age,p.diseaseDurationYears].every(x=>x===null||integer(x))&&['sero','fm','as'].every(k=>['TRUE','FALSE','UNKNOWN'].includes(p[k]))&&exact(p.clinicalProvenance,['sex','age','diseaseDurationYears','sero','fm','as'])&&Object.values(p.clinicalProvenance).every(provenance)&&exact(m,['studyCode','asOfDate','readStartedAt','readCompletedAt','traceId','policyVersions'])&&m.studyCode==='RA'&&date(m.asOfDate)&&instant(m.readStartedAt)&&instant(m.readCompletedAt)&&Date.parse(m.readCompletedAt)>=Date.parse(m.readStartedAt)&&text(m.traceId)&&m.traceId.length>0&&m.traceId===result.traceId&&object(versions)&&exact(versions,['insight','crp','clinical','serology','treatment','visitMatcher','drugDictionary',...(Object.hasOwn(versions,'fmSource')?['fmSource']:[])])&&versions.insight==='dev-insight-v01'&&versions.crp==='dev-crp-v04'&&versions.clinical==='dev-clinical-v04'&&versions.serology==='dev-ever-serology-v04'&&versions.treatment==='dev-timeline-v04'&&versions.visitMatcher==='dev-visit-match-v04'&&Object.values(versions).every(x=>text(x)&&x.length>0)&&Array.isArray(d.visits)&&exact(t,['current','history','drugNames'])&&episode(t.current,true)&&Array.isArray(t.history)&&t.history.every(x=>episode(x,false))&&Array.isArray(t.drugNames)&&t.drugNames.every(x=>exact(x,['id','name','category'])&&[x.id,x.name,x.category].every(text))&&new Set(t.drugNames.map(x=>x.id)).size===t.drugNames.length;
+      if(valid){
+        let previous=null;const seen=new Set();
+        for(const v of d.visits){
+          if(!exact(v,['visitId','observedAt','temporalStatus','metrics'])||!canonicalId(v.visitId)||seen.has(v.visitId)||!nullableDate(v.observedAt)||v.temporalStatus!==(v.observedAt===null?'UNDATED':v.observedAt>m.asOfDate?'FUTURE':'OBSERVED')||!exact(v.metrics,['das28Crp','tjc','sjc','gh','haq','crp','pain'])||!Object.values(v.metrics).every(x=>metric(x,v))||v.metrics.pain.value!==null||v.metrics.pain.missingReason!=='UNVERIFIED_SCALE'||!v.metrics.pain.quality.includes('SCALE_UNVERIFIED')||v.metrics.das28Crp.unit!==null||v.metrics.das28Crp.sourceField!=='bqpg.result.crpScore'){valid=false;break;}
+          if(previous&&((previous.observedAt===null&&v.observedAt!==null)||(previous.observedAt!==null&&v.observedAt!==null&&previous.observedAt>v.observedAt)||(previous.observedAt===v.observedAt&&BigInt(previous.visitId)>=BigInt(v.visitId)))){valid=false;break;}
+          seen.add(v.visitId);previous=v;
+        }
+      }
+      if(!valid)throw invalidDetail(result);return result;
+    },
     async patientSearch(command,options){
       const integer=n=>Number.isInteger(n)&&n>=1&&n<=2147483647;
       if(!command||typeof command!=='object'||Array.isArray(command)||Object.keys(command).length!==3||

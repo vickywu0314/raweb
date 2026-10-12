@@ -13,19 +13,20 @@ if(aiPatientSource){
  const validId=/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));
  const valid=validId&&from.length===1&&[...patientEntryParams.keys()].every(key=>key==='id'||key==='from');
  $('#audit').hidden=true;$('#audit').open=false;
- $('.app-footnote').textContent=`来源：${aiOrigin.label}。此入口提供可信只读档案与访视；编辑、下载、病程分析及问答尚未接入。`;
+ $('.app-footnote').textContent=`来源：${aiOrigin.label}。此入口提供可信只读档案与访视；病程分析沿可信接口读取实测记录；编辑、下载及问答尚未接入。`;
  function clearPatient(state,message){
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeAudit){disposeAudit();disposeAudit=null;}
   $('#audit').hidden=true;$('#audit').open=false;$('#audit-list').innerHTML='';$('#audit-count').textContent='';
   document.title='患者档案 · 患者数据研究平台';
   $('#patient-basic').setAttribute('data-state',state);
   $('#patient-basic').innerHTML=`<h1>患者档案${state==='loading'?'加载中':'未加载'}</h1><p>来源：${escapeHTML(aiOrigin.label)}</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:''}<p>${escapeHTML(message)}</p>`;
-  $('#visit-list').innerHTML='';$('#visit-total').textContent='';$('.visits-section-head').hidden=true;
+  $('#visit-list').innerHTML='';$('#visit-total').textContent='';$('.visits-section-head').hidden=true;$('#patient-insight-link').removeAttribute('href');$('#patient-insight-link').setAttribute('aria-disabled','true');
  }
  function showPatient(p){
   document.title=`${p.name||'患者'} · 随访记录 · 患者数据研究平台`;
   $('#patient-basic').setAttribute('data-state','success');
   $('#patient-basic').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}`;
+  $('#patient-insight-link').href=`patient-insight.html?id=${encodeURIComponent(id)}&from=${encodeURIComponent(aiFrom)}`;$('#patient-insight-link').removeAttribute('aria-disabled');
   $('.visits-section-head').hidden=false;$('#visit-total').textContent=`${p.visits.length} 次访视`;
   $('#visit-list').innerHTML=p.visits.length?p.visits.map(v=>`<article class="visit-row" data-visit-id="${escapeHTML(v.visitId)}"><a class="visit-row-main" href="${escapeHTML(`visit-detail.html?id=${encodeURIComponent(id)}&visit=${encodeURIComponent(v.visitId)}&from=${encodeURIComponent(aiFrom)}`)}"><span>${escapeHTML(v.visitType||'访视')}</span><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>访视 ID：${escapeHTML(v.visitId)}${v.doctorName?` · 记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?` · 记录医生 ID ${escapeHTML(v.doctorId)}`:''}</small></a></article>`).join(''):'<p class="audit-empty">暂无随访记录</p>';
   disposeBasic=bindPatientBasic($('#patient-basic'),p,{trusted:true});$('#audit').hidden=false;disposeAudit=bindTrustedPatientAudit($('#audit'),p);
