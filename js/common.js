@@ -217,7 +217,8 @@ const PAGE_ORIGINS={
  followups:{nav:'followups',crumb:'研究执行 / 随访管理',label:'随访管理',href:'followups.html'},
  quality:{nav:'quality',crumb:'研究执行 / 数据质控',label:'数据质控',href:'data-quality.html'},
  ai:{nav:'ai',crumb:'智能分析 / AI 智能分析',label:'AI 智能分析',href:'ai-analysis.html'},
- 'ai-cohort':{nav:'ai',crumb:'智能分析 / 队列分析',label:'队列分析',href:'ai-cohort.html'}
+ 'ai-cohort':{nav:'ai',crumb:'智能分析 / 队列分析',label:'队列分析',href:'ai-cohort.html'},
+ dashboard:{nav:'dashboard',crumb:'数据分析 / 数据看板',label:'数据看板',href:'dashboard.html'}
 };
 function pageOrigin(){return PAGE_ORIGINS[queryParam('from')]||PAGE_ORIGINS.patients}
 function withFrom(url){const f=queryParam('from');return f&&PAGE_ORIGINS[f]?url.replace(/(#.*)?$/,m=>`${url.includes('?')?'&':'?'}from=${f}${m}`):url}

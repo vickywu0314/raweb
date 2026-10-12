@@ -3,6 +3,8 @@
    检索、筛选、分页都由后端完成；只显示当前医生名下的患者。 */
 "use strict";shell('patients');
 let state=loadListState('patients',{q:'',status:'',data:'',page:1,perPage:8});
+// 其他页面（如数据看板）带条件进入：?data=missing 待补全、?status=lost 已脱落等
+if(queryParam('data'))state.data=queryParam('data');if(queryParam('status'))state.status=queryParam('status');
 const selected=new Set();
 let pageRows=[], loadSeq=0;
 
