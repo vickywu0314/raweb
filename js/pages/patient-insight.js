@@ -12,7 +12,7 @@
    document.title=baseTitle;$('#patient-name').textContent='患者病程分析';$('#patient-meta').textContent='';
    for(const selector of ['#journey','#unplaced-visits','#treatment','#clinical-source'])$(selector).innerHTML='';
    $('#insight-source').textContent='';
-   for(const selector of ['#back-patient','#visit-record','#similar-detail']){$(selector).removeAttribute('href');$(selector).setAttribute('aria-disabled','true');}
+   for(const selector of ['#back-patient','#visit-record','#similar-detail','#insight-chat-link']){$(selector).removeAttribute('href');$(selector).setAttribute('aria-disabled','true');}
  }
  function state(kind,message){$('#insight-state').dataset.state=kind;$('#insight-state').textContent=message;$('#cancel-load').hidden=kind!=='loading';$('#retry-load').hidden=!['error','timeout','cancelled'].includes(kind);}
  function finish(owner,kind,publish,abort=false){
@@ -50,6 +50,7 @@
    $('#clinical-source').innerHTML=Object.entries(p.clinicalProvenance).map(([key,value])=>'<p>'+esc(key)+' · '+esc(value.source)+' · '+esc(value.sourceField)+' · '+esc(value.quality.join(', '))+' · '+esc(value.missingReason||'')+'</p>').join('');
    $('#insight-source').textContent='RA · 截至 '+meta.asOfDate+' · 读取 '+meta.readStartedAt+' — '+meta.readCompletedAt+' · 开发口径 / 来源版本 '+Object.entries(meta.policyVersions).map(([key,value])=>key+'='+value).join(' · ')+' · trace '+meta.traceId;
    for(const selector of ['#back-patient','#visit-record']){$(selector).href='patient-visits.html?id='+encodeURIComponent(patientId)+'&from='+from;$(selector).removeAttribute('aria-disabled');}
+   $('#insight-chat-link').href='ai-chat.html'+window.RACohortChatEntry.encode({kind:'PATIENT',patientId,visitId:null});$('#insight-chat-link').removeAttribute('aria-disabled');
    $('#similar-detail').href='ai-cohort.html?preset=similar&id='+encodeURIComponent(patientId);$('#similar-detail').removeAttribute('aria-disabled');
  }
  async function load(){

@@ -1,3 +1,4 @@
+import {chatBrowser,patientChatBrowser} from './ai-chat-browser.mjs';
 import {patientInsightBrowser} from './patient-insight-browser.mjs';
 import {configuredSourcesBrowser} from './configured-sources-browser.mjs';
 import {patientSearchBrowser} from './ai-patient-search-browser.mjs';
@@ -314,4 +315,16 @@ browserRegistry['patient:insight-loopback']=async(owner,probe)=>{
  await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>patientInsightBrowser(context,p,i,o,pr,pid,'patient:insight-loopback',r));
  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
  assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.deepEqual(r.events.filter(e=>e.type==='table-released').map(e=>e.table),r.events.filter(e=>e.type==='table-owned').map(e=>e.table).reverse());assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};
+
+browserRegistry['chat:cohort-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p05-chat']);await owner.ready(r,401);const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>chatBrowser(context,p,i,o,pr,pid,'chat:cohort-loopback',r));
+ await owner.stop(r);assert.ok(r.events.some(e=>e.type==='chat-owners-observed'&&e.beforeFallback&&e.active===0&&e.sqlActive===0));
+};
+
+browserRegistry['chat:patient-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p05-chat']);await owner.ready(r,401);const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>patientChatBrowser(context,p,i,o,pr,pid,'chat:patient-loopback',r));
+ await owner.stop(r);assert.ok(r.events.some(e=>e.type==='chat-owners-observed'&&e.beforeFallback&&e.active===0&&e.sqlActive===0));
 };

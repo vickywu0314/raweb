@@ -13,7 +13,7 @@ function invalidate(error=null) {
   endComparison(error?.code||'ANALYSIS_CHANGED');comparisonState('idle','当前条件或分析已变化，请显式新比较');renderComparisonSources();
   generation++;const previous=[flight,pageFlight];flight=null;pageFlight=null;
   for(const operation of previous)if(operation){if(!operation.terminal)operation.terminal=error?.code||'SUPERSEDED';clearTimeout(operation.timer);}
-  clearResults();waiting();lockControls();
+  clearResults();waiting();lockControls();updateChatEntry();
   for(const operation of previous)if(operation)operation.controller.abort();
   if(error)showError(error);
 }
@@ -134,7 +134,15 @@ function clearResults() {
 function state(name, message) {
   $('#cohort-state').dataset.state = name; $('#cohort-state').textContent = message;
 }
+function updateChatEntry(){
+  const link=$('#ask-current-cohort');if(!link||!window.RACohortChatEntry)return;
+  link.removeAttribute('href');link.setAttribute('aria-disabled','true');
+  if(disposed||blockedEntry||!currentUser()||identity!==identityKey())return;
+  try{const filters=window.RACohortChatEntry.normalize(currentFilters());link.href='ai-chat.html'+window.RACohortChatEntry.encode({kind:'COHORT',filters});link.setAttribute('aria-disabled','false');}catch{}
+}
+$('#ask-current-cohort')?.addEventListener('click',event=>{if(disposed||checkIdentity()||blockedEntry){event.preventDefault();return;}updateChatEntry();if(!$('#ask-current-cohort').hasAttribute('href'))event.preventDefault();});
 function renderChips() {
+  updateChatEntry();
   const active = Object.entries(SELECTS).filter(([key,selector])=>$(selector).value && !(key==='at'&&$(selector).value==='now'));
   const idsChip=entryIds===null?'':`<span class="cond-chip">指定 ${entryIds.length} 个患者 ID<button type="button" data-key="ids" aria-label="移除患者 ID 条件">×</button></span>`;
   $('#chips').innerHTML = (active.length ? active.map(([key,selector])=>{

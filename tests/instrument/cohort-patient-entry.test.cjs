@@ -6,10 +6,10 @@ const path=require('node:path');
 const source=fs.readFileSync(path.resolve(__dirname,'../../js/pages/patient-visits.js'),'utf8');
 async function open(query,referrer='',length=1){
  const nodes=new Map(),requests=[],doctorReads=[],navigation=[];
- const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',hidden:false,open:false,style:{},addEventListener(type,fn){this[type]=fn;},setAttribute(key,value){this[key]=value;}});return nodes.get(selector);};
+ const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',hidden:false,open:false,style:{},addEventListener(type,fn){this[type]=fn;},setAttribute(key,value){this[key]=value;},removeAttribute(key){delete this[key];}});return nodes.get(selector);};
  const location=new URL('http://fixture.invalid/patient-visits.html'+query);location.assign=url=>navigation.push(url);
  const context={URL,URLSearchParams,location,history:{length,back(){navigation.push('back');}},document:{referrer,title:'',querySelector:node,querySelectorAll:()=>[]},console:{error(){}},shell(){},pageOrigin:()=>({nav:'patients',crumb:'AI 队列分析',href:'ai-cohort.html',label:'AI 队列分析'}),bindBack(){},queryParam:key=>location.searchParams.get(key),$:node,escapeHTML:s=>String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'),currentDoctorId:()=>{doctorReads.push(101);return 101;},apiPost:async(url,body)=>{requests.push({url,body});throw new Error('网络边界');},setTimeout,clearTimeout,AbortController,addEventListener(){},RACohortAPI:{patientDetail:async()=>{throw Object.assign(new Error('synthetic anonymous'),{code:'UNAUTHENTICATED'})}},API_BASE:'http://fixture.invalid',alert(){}};
- context.window=context;vm.runInNewContext(source,context,{filename:'patient-visits.js'});await new Promise(resolve=>setImmediate(resolve));return {nodes,requests,doctorReads,navigation};
+ context.window=context;vm.createContext(context);for(const file of ['ai-cohort-conditions.js','ai-chat-entry.js'])vm.runInContext(fs.readFileSync(path.resolve(__dirname,'../../js/pages/'+file),'utf8'),context);vm.runInContext(source,context,{filename:'patient-visits.js'});await new Promise(resolve=>setImmediate(resolve));return {nodes,requests,doctorReads,navigation};
 }
 test('cohort:patient-entry',async()=>{
  const first=await open('?id=9007199254740993&from=ai-cohort');

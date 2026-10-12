@@ -1,115 +1,86 @@
-/* ai-chat.html 页面脚本（依赖 boot.js → data.js → common.js → shared/ai-analytics.js）
-   演示版：按关键词识别问题类型并用规则计算回答；接入 AI 引擎后替换 answer()。 */
+/* 当前范围→实际同源chat；每个flight独占timer、问题卡与发布权。 */
 "use strict";
-shell('ai');
-const params = new URLSearchParams(location.search);
-const cohortFilters = filtersFromParams(params);
-const hasCohort = params.get('scope') === 'cohort' && filterChips(cohortFilters).length > 0;
-let scope = hasCohort ? 'cohort' : 'all', current = params.get('id') ? patientById(params.get('id')) : null;
-if (current) scope = 'patient';
-
-$('#scope-all-note').textContent = `${patients.length} 位患者`;
-if (hasCohort) {
-  $('#scope-cohort-wrap').hidden = false;
-  $('#scope-cohort-note').textContent = `${applyFilters(cohortFilters).length} 位 · ${filterChips(cohortFilters).map(c => c.label).join('、')}`;
-}
-document.querySelector(`input[name=scope][value="${scope}"]`).checked = true;
-$('#patient-picker').hidden = scope !== 'patient';
-if (current) $('#picker').value = current.name;
-
-const SUGGEST = {
-  all: ['当前研究库的达标率是多少？', '各治疗组的达标率对比', '合并纤维肌痛对 DAS28 有什么影响？', '哪些患者资料不完整？', '找出 TNFi 治疗 6 个月仍未达标的患者'],
-  cohort: ['这个队列的达标率是多少？', '这个队列的疾病活动分布', '各治疗组的达标率对比', '队列中合并 FM 的患者有什么差异？'],
-  patient: ['这位患者的 DAS28 变化如何？', '这位患者目前的治疗方案？', '这位患者有哪些其他病史？', '与相似患者相比如何？']
-};
-function drawSuggest() { $('#suggest').innerHTML = SUGGEST[scope].map(q => `<button type="button" data-q="${escapeHTML(q)}">${escapeHTML(q)}</button>`).join(''); }
-
-document.querySelectorAll('input[name=scope]').forEach(r => r.addEventListener('change', e => {
-  scope = e.target.value; $('#patient-picker').hidden = scope !== 'patient'; drawSuggest();
-  if (scope === 'patient' && !current) $('#picker').focus();
-  sys(scope === 'patient' ? (current ? `已切换到患者：${current.name}` : '请选择一位患者') : scope === 'cohort' ? '已切换到当前队列' : '已切换到整个研究库');
-}));
-bindPatientPicker($('#picker'), $('#picker-list'), p => { current = p; $('#picker').value = p.name; sys(`已切换到患者：${p.name}（${p.code}）`); });
-
-// ---- 对话 ----
-const log = $('#chat-log');
-function push(html, who) { const d = document.createElement('div'); d.className = `msg ${who}`; d.innerHTML = html; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
-function sys(text) { push(`<p>${escapeHTML(text)}</p>`, 'sys'); }
-const table = (head, rows) => `<table class="msg-table"><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
-const cohortLink = f => { const q = filtersToQuery(f); return `<a class="msg-link" href="ai-cohort.html${q ? '?' + q : ''}">在队列分析中打开 →</a>`; };
-
-function baseFilters(qFilters) {
-  // 范围条件 + 问题中识别到的条件（问题条件优先）
-  const base = scope === 'cohort' ? { ...cohortFilters } : { ...AI_FILTER_DEFAULT };
-  Object.keys(AI_FILTER_DEFAULT).forEach(k => { if (qFilters[k] && qFilters[k] !== AI_FILTER_DEFAULT[k]) base[k] = qFilters[k]; });
-  return base;
-}
-
-function answer(q) {
-  const t = q.replace(/\s+/g, '');
-  if (scope === 'patient') return answerPatient(t);
-  const { filters: qf, matched } = parseQuestion(q);
-  const f = baseFilters(qf);
-  const list = applyFilters(f), s = cohortStats(list, f.at);
-  const shown = matched.filter(m => !(/缺失|不完整|待补全|资料/.test(t) && m === '资料待补全'));
-  const scopeText = `${scope === 'cohort' ? '当前队列' : '研究库'}${shown.length ? '中「' + shown.join('、') + '」' : ''}`;
-  const ev = `依据：${list.length} 位患者 · 演示数据`;
-  if (!list.length) return { html: `<p>${scopeText}没有符合条件的患者。可以放宽条件后再问。</p>` };
-  if (/缺失|不完整|待补全|资料/.test(t)) {
-    const all = applyFilters({ ...f, data: '' }), miss = all.filter(p => p.incomplete), by = {};
-    miss.forEach(p => by[p.missing] = (by[p.missing] || 0) + 1);
-    return { html: `<p>${scopeText}共 <b>${miss.length}</b> 位患者资料待补全（占 ${pct(miss.length, all.length)}%）。按缺失项：</p>${table(['缺失项', '人数'], Object.entries(by).sort((a, b) => b[1] - a[1]))}<p class="msg-ev">${ev}</p><a class="msg-link" href="data-quality.html">前往数据质控定位补录 →</a>`, };
+(()=>{
+  const $=s=>document.querySelector(s),escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  let scope=null,cohortScope=null,patientScope=null,originalVisit=null,selectingPatient=false,searchFlight=null,searchRows=[],searchTerm='',searchPage=1,searchTotal=0,flight=null,generation=0,disposed=false,questions=[],cards=[];
+  const user=()=>typeof currentUser==='function'?currentUser():null,identityKey=()=>JSON.stringify(user());let identity=identityKey();
+  const state=(kind,message)=>{$('#chat-state').dataset.state=kind;$('#chat-state').textContent=message;$('#chat-cancel').hidden=!flight;$('#chat-send').disabled=!scope||disposed||!!flight;};
+  const missing={NO_RELIABLE_START:'无可靠起点',MISSING_BASELINE:'缺基线',MISSING_EVALUATION:'缺评估',PATIENT_MISMATCH:'患者不匹配',EPISODE_MISMATCH:'方案不匹配',UNDATED_PAIR:'无日期',BASELINE_AFTER_EVALUATION:'基线晚于评估',EVAL_BEFORE_SCHEME:'评估早于方案',EVAL_AFTER_SCHEME:'评估晚于方案'};
+  const sample=m=>Object.hasOwn(m,'validN')?`有效 ${m.validN} · 未知 ${m.unknownN}`:`达标/阳性 ${m.numerator} · 有效/分母 ${m.denominator} · 未知 ${m.unknownN}`;
+  const value=(v,d=2)=>v===null?'无数据（NO_DATA）':Number(v).toFixed(d).replace(/\.0+$|(?<=\.[0-9]*?)0+$/g,'');
+  const metric=m=>`${m.meta.status==='NO_DATA'?'无数据（NO_DATA）':m.meta.displayText} · ${sample(m.meta)}`;
+  function table(head,rows){return '<table class="msg-table"><thead><tr>'+head.map(v=>'<th>'+escape(v)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(v=>'<td>'+escape(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';}
+  function factHtml(f){const x=f.data;let html='';
+    const unknown=v=>v===null?'未知':String(v),labels={das28Crp:'DAS28-CRP',tjc:'TJC28',sjc:'SJC28',gh:'GH',haq:'HAQ',crp:'CRP',pain:'疼痛（量表未核实）'};
+    const record=v=>'<h4>访视 '+escape(v.visitId)+' · '+escape(v.observedAt||'日期未知')+' · '+escape(v.temporalStatus)+'</h4>'+table(['指标','记录值','来源日期 / 字段 / 质量'],Object.entries(v.metrics).map(([k,m])=>[labels[k],unknown(m.value)+(m.unit?' '+m.unit:''),(m.observedAt||'日期未知')+' / '+m.sourceField+' / '+m.quality.join('、')+(m.missingReason?' / '+m.missingReason:'')]));
+    if(f.key==='VISIT_MEASUREMENTS')html=record(x);
+    else if(f.key==='PATIENT_COURSE')html=x.visits.length?x.visits.map(record).join(''):'<p>暂无访视记录</p>';
+    else if(f.key==='VISIT_MEDICATION')html='<p>访视 '+escape(x.visitId)+' · '+escape(x.observedAt||'日期未知')+' · '+escape(x.status)+' · 未识别药物 '+x.unknownN+'</p>'+table(['记录药物','类别','开始 / 结束','来源 / 日期缺失'],x.drugs.map(v=>[v.name,v.category,(v.startDate||'未知')+' / '+(v.endDate||'未记录'),v.sourceField+' / '+v.missingReasons.join('、')]));
+    else if(f.key==='PATIENT_CLINICAL')html=table(['临床项','当前派生 / 来源'],['sex','age','diseaseDurationYears','sero','fm','as'].map(k=>[({sex:'性别',age:'年龄',diseaseDurationYears:'病程年数',sero:'血清学',fm:'FM',as:'AS'})[k],unknown(x[k])+' / '+x.clinicalProvenance[k].source+' / '+x.clinicalProvenance[k].sourceField+' / '+(x.clinicalProvenance[k].missingReason||'')+' / '+x.clinicalProvenance[k].quality.join('、')]));
+    else if(f.key==='PATIENT_TREATMENT'){const names=new Map(x.drugNames.map(v=>[v.id,v.name])),episode=(e,current)=>[current?'当前方案':'历史方案',e.state+' / '+(e.category||'未知'),e.genericDrugIds.map(id=>names.get(id)||'未知药物').join(' / ')||'未知药物',(e.startDate||e.estimatedStartDate||'未知')+' / '+(e.endDate||'未记录'),(e.startConfidence||'未知')+' / 线数 '+unknown(e.line)+(current?' / 月数 '+unknown(e.schemeDurationMonths):''),e.provenance.quality.join('、')+' / '+(e.provenance.missingReason||'')];html=table(['范围','状态 / 类别','规范药物','开始 / 结束','起点 / 线数 / 时长','质量 / 缺失'],[episode(x.current,true),...x.history.map(e=>episode(e,false))]);}
+    else if(f.key==='COHORT_SIZE')html='<p>本轮人数 '+x.n+'</p>';
+    else if(f.key==='TARGET_RATE')html='<p>达标率 <b>'+escape(metric(x))+'</b></p>';
+    else if(f.key==='CLINICAL_SUMMARY')html=table(['指标','本轮结果'],[['女性比例',metric(x.female)],['血清学阳性比例',metric(x.serology)],['年龄中位数',metric(x.age)],['病程年数中位数',metric(x.diseaseDuration)]]);
+    else if(f.key==='DATA_COMPLETENESS')html='<p>资料完整 '+escape(metric(x.ratio))+' · 缺失 '+x.incompleteCount+' · 质控未知 '+x.qcUnknownN+'</p>';
+    else if(f.key==='ACTIVITY_DISTRIBUTION')html='<p>基线有效 '+x.baseN+' · 未知 '+x.baseUnknownN+'；评估有效 '+x.evalN+' · 未知 '+x.unknownN+'</p>'+table(['分层','基线人数/比例','评估人数/比例'],x.base.map((r,i)=>[[ '缓解','低活动','中活动','高活动'][i],r.count+' / '+(r.status==='NO_DATA'?'无数据':r.displayText),x.current[i].count+' / '+(x.current[i].status==='NO_DATA'?'无数据':x.current[i].displayText)]));
+    else if(f.key==='BY_TREATMENT')html=table(['治疗类别','人数','有效人数','达标人数','达标率'],x.groups.map(g=>[g.tx,g.n,g.evalN,g.targetN,g.status==='NO_DATA'?'无数据':g.displayText]))+'<p>未知治疗 '+x.unknownTxN+' · 当前未治疗 '+x.noCurrentTxN+'；检验 '+escape(x.test.method||'不可检验')+' · p '+escape(x.test.pValue===null?'不可检验（'+(x.test.reason||x.test.status)+'）':x.test.displayP)+'</p><p>'+escape(x.comparisonNotice)+'</p>';
+    else if(f.key==='FM_COMPARISON')html='<p>FM '+x.nFM+' · 明确非FM '+x.nOther+' · 未知 '+x.unknownN+'</p>'+(x.rows.length?table(['指标','FM均值/有效n','非FM均值/有效n','差值','p'],x.rows.map(r=>[({das28:'DAS28-CRP',tjc:'压痛关节',sjc:'肿胀关节',crp:'CRP',pain:'疼痛',haq:'HAQ'})[r.metric],value(r.meanFM)+' / '+r.nFMValid,value(r.meanOther)+' / '+r.nOtherValid,value(r.difference),r.test.pValue===null?'不可检验（'+r.test.reason+'）':r.test.displayP])):'<p>每组至少3人才展示比较；当前样本不足。</p>');
+    else if(f.key==='TREATMENT_LINES')html=table(['治疗线数','人数','比例'],x.groups.map(g=>[g.line,g.count,g.status==='NO_DATA'?'无数据':g.displayText]))+'<p>未知线数 '+x.unknownLineN+'</p>';
+    else if(f.key==='PAIRED_DAS28_CHANGE')html='<p>有效配对 '+x.pairedN+' · 未知/不可配对 '+x.unknownN+' · 平均基线减评估 '+escape(value(x.meanDelta))+'</p>'+table(['缺失原因','人数'],Object.entries(x.missingReasons).map(([k,n])=>[missing[k],n]));
+    return '<section class="chat-fact"><h3>'+escape(f.title)+'</h3>'+html+'<p>'+escape(f.explanation)+'</p><p class="msg-ev">来源字段：'+f.evidence.sourceFields.map(escape).join('、')+'；政策：'+f.evidence.policyKeys.map(escape).join('、')+(f.evidence.sourceVisits?'；来源访视：'+f.evidence.sourceVisits.map(v=>escape(v.visitId)).join('、'):'')+'</p></section>';
   }
-  if (/纤维肌痛|FM/i.test(t) && /影响|差异|对比|区别|怎样|如何|情况/.test(t)) {
-    const fm = subgroupFM(applyFilters({ ...f, cm: '' }));
-    if (fm.nFM < 3) return { html: `<p>${scopeText}合并 FM 的患者不足 3 位，无法做亚组对比。</p>` };
-    const r = fm.rows;
-    return { html: `<p>合并 FM（${fm.nFM} 位）与未合并（${fm.nOther} 位）相比，<b>当前 DAS28 平均高 ${(r[0].fm - r[0].other).toFixed(1)}</b>，主要来自压痛关节数和疼痛 VAS；CRP 与肿胀关节数差异小。这提示 DAS28 可能被 FM 相关压痛抬高，评估 RA 炎症活动时建议结合 SJC28、CRP 或 CDAI。</p>${table(['指标（均值）', '合并 FM', '未合并', '差值'], r.map(x => [x.label, x.fm.toFixed(x.d), x.other.toFixed(x.d), (x.fm - x.other > 0 ? '+' : '') + (x.fm - x.other).toFixed(x.d)]))}<p class="msg-ev">依据：描述性统计，未做显著性检验 · 演示数据</p>${cohortLink({ ...f, cm: '' })}` };
+  function resultHtml(d){const m=d.meta,meta='<p class="msg-ev">本轮 '+d.scope.n+' 人 · '+escape(m.at)+' · 截至 '+escape(m.asOfDate)+'<br>读取 '+escape(m.readStartedAt)+' → '+escape(m.readCompletedAt)+'<br>政策 '+Object.entries(m.policyVersions).map(([k,v])=>escape(k+': '+v)).join('；')+'<br>模型 '+escape(m.modelVersion)+' · '+escape(m.promptVersion)+' · Trace '+escape(m.traceId)+'</p>';
+    if(d.status==='UNSUPPORTED')return '<p>'+escape({SCOPE_CHANGE_REQUIRED:'此问题需要改变范围，请返回原条件页显式修改后再问。',MEDICAL_ADVICE:'当前研究问答不提供诊疗建议。',UNSUPPORTED_QUESTION:'当前问题不在数据查询、既有统计、实测变化与结果解释范围内。'}[d.reason])+'</p>'+meta;
+    return d.facts.map(factHtml).join('')+meta;
   }
-  if (/治疗组|各组|对比|分组|哪种|哪个药|比较/.test(t) && /达标|缓解|效果|疗效/.test(t)) {
-    const g = s.byTx.filter(x => x.n);
-    return { html: `<p>${scopeText}按当前治疗分组的达标率（DAS28 ≤ 3.2，${f.at === '6m' ? '治疗 6 个月时' : '最近一次访视'}）：</p>${table(['治疗', '人数', '达标率', 'DAS28 均值'], g.map(x => [x.tx, x.n, x.rate + '%', fmt1(x.dasMean)]))}<p>组间基线疾病活动、病程和治疗线数不同，以上为观察性描述，不代表药物疗效差异。</p><p class="msg-ev">${ev}</p>${cohortLink(f)}` };
+  function render(){const current=cards.at(-1);$('#chat-log').innerHTML=cards.map(c=>'<article class="msg ai"><p class="msg-ev">'+(c===current?'本轮问题':'旧轮记录（不代表当前结果）')+' · '+escape(c.at)+'</p><p class="question">'+escape(c.question)+'</p>'+(c.data?resultHtml(c.data):'<p>'+escape(c.message)+'</p>')+'</article>').join('');}
+  function retire(op,cause){if(!op||op.terminal)return;op.terminal=cause;if(flight===op)flight=null;clearTimeout(op.timer);op.timer=null;op.controller.abort();}
+  function clear(cause){generation++;retireSearch(searchFlight);searchRows=[];$('#patient-results').innerHTML='';$('#patient-page').textContent='';$('#patient-prev').disabled=true;$('#patient-next').disabled=true;$('#patient-keyword').value='';$('#patient-search-state').textContent='请显式搜索';$('#scope-patient-note').textContent='显式搜索选择本人患者';const old=flight;retire(old,cause);questions=[];cards=[];$('#chat-log').innerHTML='';$('#chat-input').value='';}
+  function validOwner(op){return !disposed&&!op.terminal&&flight===op&&op.generation===generation&&op.identity===identity&&op.identity===identityKey();}
+  function restore(){clear('SCOPE_CHANGED');scope=null;cohortScope=null;patientScope=null;originalVisit=null;selectingPatient=false;identity=identityKey();$('#chat-return').onclick=null;$('#chat-return').href='ai-analysis.html';$('#chat-return').textContent='返回智能分析';$('#scope-cohort-wrap').hidden=true;patientDisplay();
+    if(!user()){state('invalid','UNAUTHENTICATED：请先登录后重新进入问答');return;}
+    try{scope=window.RACohortChatEntry.decode(location.search,location.hash);if(scope.kind==='COHORT'){cohortScope=scope;$('#scope-cohort-wrap').hidden=false;$('#scope-cohort-note').textContent='完整当前条件；人数在每轮提交后计算';}
+      if(scope.kind==='PATIENT'){patientScope=scope;originalVisit=scope.visitId;selectingPatient=true;}
+      patientDisplay();
+      $('#scope-all').checked=scope.kind==='ALL';$('#scope-cohort').checked=scope.kind==='COHORT';
+      if(scope.kind==='COHORT'&&history.length>1&&document.referrer){const ref=new URL(document.referrer,location.href);if(ref.origin===location.origin&&ref.pathname.endsWith('/ai-cohort.html')){$('#chat-return').href=ref.pathname;$('#chat-return').textContent='返回原条件页';$('#chat-return').onclick=e=>{e.preventDefault();history.back();};}}
+      state('idle','范围已确定，请显式提交问题');
+    }catch{scope=null;state('invalid','INVALID_ENTRY：问答范围入口无效，请返回条件页重新选择');}
   }
-  if (/分布|分层|活动度|疾病活动/.test(t) && !/找出|哪些/.test(t)) {
-    return { html: `<p>${scopeText}基线与${f.at === '6m' ? '治疗 6 个月' : '最近一次访视'}的疾病活动分布：</p>${table(['分层', '基线', f.at === '6m' ? '6 个月' : '当前'], AI_ACT.map((a, i) => [a.label, s.distBase[i].n, s.distNow[i].n]))}<p>当前达标率 <b>${s.target}%</b>。</p><p class="msg-ev">${ev}</p>${cohortLink(f)}` };
+  function patientDisplay(){const patient=scope?.kind==='PATIENT';$('#patient-picker').hidden=!(patient||selectingPatient);if(!patient){$('#chat-return').href='ai-analysis.html';$('#chat-return').textContent='返回智能分析';$('#chat-return').onclick=null;}$('#scope-patient').checked=patient;$('#patient-focus').hidden=!patient;$('#scope-patient-note').textContent=patient?'患者 '+scope.patientId+' · '+(scope.visitId?'本次访视 '+scope.visitId:'全程'):'显式搜索选择本人患者';$('#patient-course').hidden=!patient||scope.visitId===null;$('#patient-visit').hidden=!patient||!originalVisit||scope.visitId!==null;
+    if(patient){$('#chat-return').href=scope.visitId?'visit-detail.html?id='+encodeURIComponent(scope.patientId)+'&visit='+encodeURIComponent(scope.visitId)+'&from=ai-analysis':'patient-visits.html?id='+encodeURIComponent(scope.patientId)+'&from=ai-analysis';$('#chat-return').textContent=scope.visitId?'返回本次访视':'返回患者档案';$('#chat-return').onclick=null;
+      try{const ref=new URL(document.referrer,location.href),params=ref.searchParams,path=ref.pathname.split('/').at(-1),allowed=path==='visit-detail.html'?['id','visit','from']:['id','from'];if(ref.origin===location.origin&&ref.pathname===new URL(path,location.href).pathname&&!ref.hash&&['patient-visits.html','patient-insight.html','visit-detail.html'].includes(path)&&params.getAll('id').length===1&&params.get('id')===scope.patientId&&[...params.keys()].every(k=>allowed.includes(k)&&params.getAll(k).length===1)&&(!params.has('from')||['ai-analysis','ai-cohort','patients','projects'].includes(params.get('from')))&&(path!=='visit-detail.html'||scope.visitId!==null&&params.get('visit')===scope.visitId)&&history.length>1){$('#chat-return').href=ref.pathname+ref.search;$('#chat-return').onclick=e=>{e.preventDefault();history.back();};}}catch{}
+    }
   }
-  if (/达标|缓解率/.test(t) && !/找出|哪些|名单/.test(t)) {
-    return { html: `<p>${scopeText}共 ${s.evaluable} 位可评估患者，<b>达标率 ${s.target}%</b>（DAS28 ≤ 3.2），其中缓解 ${s.distNow[0].n} 位、低疾病活动 ${s.distNow[1].n} 位；${s.nonResp} 位较基线下降 &lt; 0.6（EULAR 无应答）。</p><p class="msg-ev">${ev}</p>${cohortLink(f)}` };
+  function changeScope(kind){if(disposed||!user())return;clear('SCOPE_CHANGED');selectingPatient=kind==='PATIENT';scope=kind==='COHORT'?cohortScope:kind==='PATIENT'?patientScope:{kind:'ALL'};patientDisplay();state(scope?'idle':'invalid',scope?'范围已切换，请显式提交问题':'请显式搜索选择患者');}
+  function changeFocus(visitId){if(scope?.kind!=='PATIENT'||disposed||!user())return;clear('SCOPE_CHANGED');scope={kind:'PATIENT',patientId:scope.patientId,visitId};patientScope=scope;patientDisplay();state('idle','患者范围已切换，请显式提交问题');}
+  function retireSearch(op){if(!op||op.terminal)return;op.terminal=true;if(searchFlight===op)searchFlight=null;clearTimeout(op.timer);op.timer=null;op.controller.abort();$('#patient-search-cancel').hidden=true;}
+  const ownsSearch=op=>!disposed&&!op.terminal&&searchFlight===op&&op.generation===generation&&op.identity===identity&&op.identity===identityKey();
+  async function searchPatients(keyword,page=1){if(disposed||!user()||identityKey()!==identity)return;retireSearch(searchFlight);searchRows=[];$('#patient-results').innerHTML='';$('#patient-page').textContent='';$('#patient-prev').disabled=true;$('#patient-next').disabled=true;$('#patient-search-state').textContent='正在搜索…';const op={controller:new AbortController(),timer:null,terminal:false,generation,identity};searchFlight=op;$('#patient-search-cancel').hidden=false;
+    op.timer=setTimeout(()=>{if(identityKey()!==identity){auth();return;}if(!ownsSearch(op))return;retireSearch(op);$('#patient-search-state').textContent='REQUEST_TIMEOUT：患者搜索已结束';},30000);
+    try{const r=await window.RACohortAPI.patientSearch({keyword,page,size:20},{signal:op.controller.signal});if(identityKey()!==identity){auth();return;}if(!ownsSearch(op))return;retireSearch(op);searchRows=r.data.items;searchTerm=keyword;searchPage=r.data.page;searchTotal=r.data.total;$('#patient-results').innerHTML=searchRows.map(p=>'<button type="button" data-patient-id="'+escape(p.patientId)+'">'+escape(p.name||'姓名未提供')+' · '+escape(p.studyNo||'研究号未提供')+' · '+escape(p.patientId)+'</button>').join('');$('#patient-search-state').textContent=searchRows.length?'请选择本轮搜索结果':'当前搜索无匹配患者';$('#patient-page').textContent='第 '+searchPage+' 页 · 共 '+searchTotal+' 人';$('#patient-prev').disabled=searchPage<=1;$('#patient-next').disabled=searchPage*20>=searchTotal;}
+    catch(e){if(identityKey()!==identity){auth();return;}if(!ownsSearch(op))return;retireSearch(op);$('#patient-search-state').textContent=(e.code||'REQUEST_FAILED')+'：患者搜索失败';if(e.status===401)auth();}
   }
-  if (/找出|哪些|名单|多少|几位|患者/.test(t)) {
-    const top = list.slice(0, 5);
-    return { html: `<p>${scopeText}共 <b>${list.length}</b> 位患者。前 ${top.length} 位：</p>${table(['患者', '治疗', 'DAS28 基线 → ' + (f.at === '6m' ? '6 个月' : '当前'), ''], top.map(p => { const a = aiOf(p); return [escapeHTML(p.name), a.tx, `${fmt1(a.das0)} → ${fmt1(dasAt(a, f.at))}`, `<a href="patient-insight.html?id=${encodeURIComponent(p.id)}&from=ai">病程分析</a>`]; }))}<p class="msg-ev">${ev}</p>${cohortLink(f)}` };
+  $('#patient-search').addEventListener('submit',e=>{e.preventDefault();searchPatients($('#patient-keyword').value,1);});
+  $('#patient-prev').addEventListener('click',()=>{if(searchPage>1)searchPatients(searchTerm,searchPage-1);});$('#patient-next').addEventListener('click',()=>{if(searchPage*20<searchTotal)searchPatients(searchTerm,searchPage+1);});
+  $('#patient-search-cancel').addEventListener('click',()=>{retireSearch(searchFlight);$('#patient-search-state').textContent='REQUEST_CANCELLED：搜索已取消';});
+  $('#patient-results').addEventListener('click',e=>{const button=e.target.closest('[data-patient-id]'),selected=searchRows.find(p=>p.patientId===button?.dataset.patientId);if(!selected||disposed||identityKey()!==identity)return;clear('PATIENT_CHANGED');scope={kind:'PATIENT',patientId:selected.patientId,visitId:null};patientScope=scope;originalVisit=null;selectingPatient=true;patientDisplay();$('#scope-patient-note').textContent=(selected.name||'姓名未提供')+' · 患者 '+selected.patientId+' · 全程';state('idle','已选择患者全程，请显式提交问题');});
+  async function ask(question){if(disposed||!scope||!user())return;if(identityKey()!==identity){restore();return;}const q=String(question).trim();if(!q.isWellFormed()||[...q].length<1||[...q].length>500){state('error','INVALID_REQUEST：问题须为1至500个Unicode字符');return;}
+    retire(flight,'SUPERSEDED');const previousQuestions=questions.slice(-3);questions.push(q);questions=questions.slice(-3);const card={question:q,at:new Date().toISOString(),data:null,message:'正在读取本轮数据…'};cards.push(card);const op={controller:new AbortController(),timer:null,terminal:null,generation,identity,card,scope:structuredClone(scope)};flight=op;render();state('loading','正在读取本轮数据并选择事实…');
+    op.timer=setTimeout(()=>{if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'TIMEOUT');card.message='REQUEST_TIMEOUT：本轮等待已结束，请显式重试';render();state('timeout',card.message);},30000);
+    try{const response=await window.RACohortAPI.chat({scope:op.scope,question:q,previousQuestions},{signal:op.controller.signal});if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'SUCCESS');card.data=response.data;render();state(response.data.status==='ANSWER'?'success':'unsupported',response.data.status==='ANSWER'?'本轮回答已更新':'本轮问题不受支持，范围保持不变');}
+    catch(error){if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'ERROR');card.message=(error.code||'REQUEST_FAILED')+'：'+(error.message||'请求失败');if(error.status===401){clear('UNAUTHENTICATED');scope=null;}else render();state('error',card.message);}
   }
-  return { html: `<p>演示版还不能理解这个问题。可以试试：</p><ul>${SUGGEST[scope].slice(0, 4).map(x => `<li><a href="#" data-q="${escapeHTML(x)}">${escapeHTML(x)}</a></li>`).join('')}</ul><p class="msg-ev">接入 AI 引擎后将支持开放式提问</p>` };
-}
-
-function answerPatient(t) {
-  if (!current) return { html: '<p>请先在左侧选择一位患者。</p>' };
-  const p = current, a = aiOf(p), cs = comorbidCodes(p), link = `<a class="msg-link" href="patient-insight.html?id=${encodeURIComponent(p.id)}&from=ai">打开 ${escapeHTML(p.name)} 的病程分析 →</a>`;
-  if (/治疗|用药|方案|药/.test(t)) return { html: `<p>${escapeHTML(p.name)} 当前为 <b>${a.tx}</b>（${escapeHTML(a.drug)}），处于 ${a.line} 线治疗，已使用 ${a.months} 个月。</p><p class="msg-ev">依据：治疗暴露记录 · 演示数据</p>${link}` };
-  if (/DAS|变化|病情|活动/i.test(t)) return patientCourse(p, a, link);
-  if (/病史|合并|纤维肌痛|强直|\bFM\b|\bAS\b/i.test(t)) return { html: cs.length ? `<p>${escapeHTML(p.name)} 记录的其他病史：${cs.map(c => `<b>${c} ${COMORBIDITY_INFO[c].name}</b>（${p.comorbid[c].since} 年起，${escapeHTML(p.comorbid[c].status)}）`).join('；')}。${cs.includes('FM') ? '合并 FM 时 DAS28 中的压痛关节数与总体评估可能偏高，解读时请结合 SJC28 与 CRP。' : ''}</p>${link}` : `<p>${escapeHTML(p.name)} 未记录 FM / AS 等常见相关疾病。</p>${link}` };
-  if (/相似|类似|比较|对比/.test(t)) {
-    const f = { ...AI_FILTER_DEFAULT, sex: p.sex, age: `${a.age - 5}-${a.age + 5}`, sero: a.sero ? '1' : '' }, s = cohortStats(applyFilters(f));
-    return { html: `<p>与 ${escapeHTML(p.name)} 同性别、年龄 ±5 岁${a.sero ? '、血清学阳性' : ''}的患者共 ${s.n} 位，达标率 ${s.target}%。${escapeHTML(p.name)} 当前 DAS28 ${fmt1(a.dasNow)}，${atTarget(a.dasNow) ? '已达标，处于相似人群中较好的一侧' : '尚未达标'}。</p><p class="msg-ev">依据：相似人群为规则匹配 · 演示数据</p><a class="msg-link" href="ai-cohort.html?preset=similar&id=${encodeURIComponent(p.id)}">查看相似患者队列 →</a>` };
-  }
-  return patientCourse(p, a, link);
-}
-function patientCourse(p, a, link) {
-  const drop = a.das0 - a.dasNow, tone = drop >= 1.2 ? '良好应答' : drop > 0.6 ? '中等应答' : '无应答';
-  return { html: `<p>${escapeHTML(p.name)} 的 DAS28 从基线 <b>${fmt1(a.das0)}</b>${a.das6 != null ? ` → 6 个月 ${fmt1(a.das6)}` : ''} → 当前 <b>${fmt1(a.dasNow)}</b>（${actLabel(actOf(a.dasNow))}），下降 ${drop.toFixed(1)}，按 EULAR 标准属于<b>${tone}</b>。同期 CRP ${fmt1(a.crp0)} → ${fmt1(a.crpNow)} mg/L，TJC28 ${a.tjc} · SJC28 ${a.sjc}。</p><p class="msg-ev">依据：疾病活动与检验记录 · 演示数据</p>${link}` };
-}
-
-function ask(q) {
-  if (!q.trim()) return;
-  push(`<p>${escapeHTML(q)}</p>`, 'me');
-  const typing = push('<p class="typing">正在分析数据…</p>', 'ai');
-  setTimeout(() => { typing.innerHTML = answer(q).html; log.scrollTop = log.scrollHeight; }, 450);
-}
-$('#chat-form').addEventListener('submit', e => { e.preventDefault(); ask($('#chat-input').value); $('#chat-input').value = ''; });
-$('#suggest').addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (b) ask(b.dataset.q); });
-log.addEventListener('click', e => { const a = e.target.closest('a[data-q]'); if (a) { e.preventDefault(); ask(a.dataset.q); } });
-
-drawSuggest();
-push(`<p>你好，我可以围绕${scope === 'patient' && current ? `患者 <b>${escapeHTML(current.name)}</b>` : scope === 'cohort' ? '<b>当前队列</b>' : '<b>整个研究库</b>'}回答数据问题。每个回答都会附上依据，可一键转为队列分析。</p><p class="msg-ev">演示版：关键词识别 + 规则计算，数据为演示数据</p>`, 'ai');
-if (params.get('q')) ask(params.get('q'));
+  $('#chat-form').addEventListener('submit',e=>{e.preventDefault();const q=$('#chat-input').value;$('#chat-input').value='';ask(q);});
+  $('#suggest').addEventListener('click',e=>{const button=e.target.closest('[data-q]');if(button){$('#chat-input').value=button.dataset.q;$('#chat-input').focus();}});
+  $('#scope-all').addEventListener('change',()=>changeScope('ALL'));$('#scope-cohort').addEventListener('change',()=>changeScope('COHORT'));$('#scope-patient').addEventListener('change',()=>changeScope('PATIENT'));
+  $('#patient-course').addEventListener('click',()=>changeFocus(null));$('#patient-visit').addEventListener('click',()=>changeFocus(originalVisit));
+  $('#chat-cancel').addEventListener('click',()=>{const op=flight;if(!op)return;retire(op,'CANCELLED');op.card.message='REQUEST_CANCELLED：本轮请求已取消';render();state('cancelled',op.card.message);});
+  window.addEventListener('hashchange',()=>{if(!disposed)restore();});
+  const auth=()=>{clear('IDENTITY_CHANGED');scope=null;cohortScope=null;patientScope=null;originalVisit=null;selectingPatient=false;patientDisplay();identity=identityKey();state('invalid','登录身份已变化，请重新进入后显式提交');};
+  window.addEventListener('ra-auth-changed',auth);window.addEventListener('storage',e=>{if(e.key==='ra-auth'||e.key===null)auth();});
+  window.addEventListener('pagehide',()=>{disposed=true;clear('PAGEHIDE');scope=null;patientScope=null;originalVisit=null;selectingPatient=false;patientDisplay();state('disposed','页面已离开');});
+  window.addEventListener('pageshow',e=>{if(e.persisted){disposed=false;restore();}});
+  $('#chat-account').textContent=typeof user()?.name==='string'?user().name:'当前登录用户';
+  window.RAChatPage=Object.freeze({ask});restore();
+})();

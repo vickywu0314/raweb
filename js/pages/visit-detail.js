@@ -60,14 +60,15 @@ if(aiVisitSource){
  let safeHistory=false;
  try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('patient-visits.html',location.href).pathname&&ref.searchParams.getAll('id').length===1&&ref.searchParams.get('id')===id&&ref.searchParams.getAll('from').length===1&&ref.searchParams.get('from')===aiFrom&&[...ref.searchParams.keys()].every(k=>['id','from'].includes(k))&&history.length>1;}catch{}
  $('#back-visits').onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign(visitsUrl);};
- $('.app-footnote').textContent=`来源：${aiOrigin.label}。可信只读访视；编辑、删除、下载、病程及问答尚未接入。`;
+ $('.app-footnote').textContent=`来源：${aiOrigin.label}。可信只读访视；编辑、删除、下载、病程尚未接入；问答入口默认本次访视。`;
  let currentFlight=null,disposeBasic=null,disposeNav=null;
  function clearVisit(state,message){
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeNav){disposeNav();disposeNav=null;}
-  document.title='访视详情 · 患者数据研究平台';$('#visit-hero').setAttribute('data-state',state);
+  $('#visit-chat-link').removeAttribute('href');$('#visit-chat-link').setAttribute('aria-disabled','true');document.title='访视详情 · 患者数据研究平台';$('#visit-hero').setAttribute('data-state',state);
   $('#visit-hero').innerHTML=`<h1>访视详情${state==='loading'?'加载中':'未加载'}</h1><p>${escapeHTML(message)}</p>`;$('#visit-sections').innerHTML='';document.querySelector('.detail-anchor').classList.remove('is-loading');
  }
  function showVisit(p,v){
+  $('#visit-chat-link').href='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:id,visitId});$('#visit-chat-link').removeAttribute('aria-disabled');
   document.title=`${p.name||'患者'} · ${v.visitType||'访视'} · 患者数据研究平台`;
   $('#visit-hero').setAttribute('data-state','success');
   $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div><div class="reference-basic-grid visit-meta"><div><span>本次访视</span><b>${escapeHTML(v.visitType||'访视')} · ${escapeHTML(v.visitDate||'日期未填')}</b><small>访视 ID：${escapeHTML(v.visitId)}</small></div><div><span>记录医生</span><b>${escapeHTML(v.doctorName||v.doctorId||'未提供')}</b></div></div><details id="basic-collapse" class="basic-collapse"><summary>患者基础信息</summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}</details>`;
@@ -124,7 +125,7 @@ function renderHero(){
  <details class="basic-collapse" id="basic-collapse"${basicOpenPref()?' open':''}><summary><span class="basic-collapse-title">患者基础信息</span><span class="basic-collapse-hint">手机号、身份证号、确诊日期、DAS28-CRP、RF / 抗CCP、病史等</span></summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p)}</details>`;
  $('#download-one').onclick=()=>notReady('下载本次病历');
  $('#delete-visit').onclick=openDeleteDialog;
- $('#ask-ai').onclick=()=>notReady('问问AI');
+ const chatParams=new URLSearchParams(location.search);let chatHref=null;try{if(chatParams.getAll('id').length===1&&chatParams.getAll('visit').length===1)chatHref='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:chatParams.get('id'),visitId:chatParams.get('visit')});}catch{}$('#ask-ai').disabled=!chatHref;$('#ask-ai').onclick=()=>{if(chatHref)location.assign(chatHref);};
  $('#ai-import').onclick=()=>notReady('OCR识别录入');
  $('#basic-collapse').addEventListener('toggle',e=>{try{localStorage.setItem(BASIC_OPEN_KEY,e.target.open?'1':'0')}catch(err){}});
  bindPatientBasic($('#basic-collapse'),p);
