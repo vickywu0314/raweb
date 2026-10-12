@@ -1,3 +1,4 @@
+import {configuredSourcesBrowser} from './configured-sources-browser.mjs';
 import {patientSearchBrowser} from './ai-patient-search-browser.mjs';
 import {overviewBrowser} from './ai-overview-browser.mjs';
 import {patientFollowUpPolicyBrowser,trustedPatientBrowser,trustedPatientInteractionsBrowser,patientBrowser} from './cohort-patient-browser.mjs';
@@ -297,4 +298,12 @@ browserRegistry['analysis:patient-search-loopback']=async(owner,probe)=>{
  await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>patientSearchBrowser(context,p,i,o,pr,pid,'analysis:patient-search-loopback',r));
  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
  assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};
+
+// 两份生产配置的精确场景，沿原typed owner关闭浏览器后再关闭结果owner。
+browserRegistry['cohort:configured-sources-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p03-sources']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>configuredSourcesBrowser(context,p,i,o,pr,pid,'cohort:configured-sources-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.deepEqual(r.events.filter(e=>e.type==='table-released').map(e=>e.table),r.events.filter(e=>e.type==='table-owned').map(e=>e.table).reverse());assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
 };

@@ -45,6 +45,9 @@ test('cohort:clinical-projection',async({page,context,browser})=>{
   expect(await page.locator('main').evaluate(n=>n.outerHTML)).not.toContain('RAW_FORBIDDEN_SENTINEL');expect(page.url()).not.toContain('RAW_FORBIDDEN_SENTINEL');
   await expect(page.locator('#numeric-computed-at')).toHaveText('数值计算时间：2026-10-07T02:00:00Z');await expect(page.locator('#display-read-at')).toHaveText('名单显示字段读取时间：2026-10-07T02:00:00Z');
   const refresh=async next=>{data=next;await page.locator('#reanalyze').click();};
+  const configured=structuredClone(six);configured.meta.policyVersions.fmSource='synthetic-fm-v1';configured.patients.items[0].clinical.fm='FALSE';configured.patients.items[0].clinicalProvenance.fm={source:'CONFIGURED_FM_EVIDENCE',sourceField:'ra.ai.fm-evidence.json',quality:['SOURCE_UNVERIFIED'],missingReason:null,observations:[{evidenceId:'synthetic:fm1',observedAt:'2026-10-06',fmState:'FALSE',raw:'RAW_FORBIDDEN_SENTINEL'}]};
+  await refresh(configured);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await known.locator('details summary').click();
+  const configuredFm=known.locator('[data-clinical-source="fm"]');await expect(configuredFm).toContainText('CONFIGURED_FM_EVIDENCE');await expect(configuredFm).toContainText('evidenceId：synthetic:fm1');await expect(configuredFm).toContainText('observedAt：2026-10-06');await expect(configuredFm).toContainText('fmState：FALSE');await expect(known.locator('.patient-fm-version')).toContainText('fmSource：synthetic-fm-v1');await expect(configuredFm).not.toContainText('sourceRowId');expect(await page.locator('main').evaluate(n=>n.outerHTML)).not.toContain('RAW_FORBIDDEN_SENTINEL');
   // CRP的评价访视与当前化验独立解释，不能借evaluation.crp填充当前原因。
   const missingCrp=structuredClone(CLINICAL),missingPatient=missingCrp.patients.items[0];
   missingPatient.crpAt={value:null,unit:null,sourceVisitId:null,sourceField:null,observedAt:null,missingReason:'NO_EVALUATION',quality:['AT_MISSING']};

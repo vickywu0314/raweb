@@ -21,7 +21,7 @@ test('analysis:patient-search',async({page,context,browser})=>{
   else if(url.pathname==='/api/ra/ai/patientDetail')data={...odd,patientId:body.patientId,hasCardNo:false,visits:[{visitId:'9007199254741003',doctorId:'101',visitDate:'2026-10-01',visitType:'基线访视'}],comorbidities:[]};
   else if(url.pathname==='/api/ra/ai/visitDetail')data={patientId:body.patientId,visitId:body.visitId,doctorId:'101',modules:Array.from({length:7},(_,i)=>({title:'合成模块'+i,filled:false}))};
   else return route.abort('blockedbyclient');
-  return route.fulfill({status:http,contentType:'application/json',headers:{'X-Trace-Id':'search-browser'},body:JSON.stringify({success:http===200,code:error,message:'合成安全错误',data:http===200?data:null})});
+  return route.fulfill({status:http,contentType:'application/json',headers:{'X-Trace-Id':url.pathname==='/api/ra/ai/parse'?data.meta.traceId:'search-browser'},body:JSON.stringify({success:http===200,code:error,message:'合成安全错误',data:http===200?data:null})});
  });
  const state=s=>expect(page.locator('#patient-search-state')).toHaveAttribute('data-state',s),search=async keyword=>{await page.locator('#picker').fill(keyword);await page.locator('#patient-search-form button').click()};
  try{

@@ -30,7 +30,7 @@ export async function statisticsBrowser(context,port,identity,owner,probe,pid) {
     for(const side of ['base','current'])assert.deepEqual(await page.locator('#activity-'+side+' .statistics-bucket').evaluateAll(ns=>ns.map(n=>Number(n.dataset.count))),expected.activity[side].map(r=>r.count));
     assert.deepEqual(await page.locator('#tx-groups .statistics-bucket').evaluateAll(ns=>ns.map(n=>[n.dataset.tx,n.dataset.display])),expected.byTx.groups.map(r=>[r.tx,r.displayText]));
     assert.deepEqual(await page.locator('#line-groups .statistics-bucket').evaluateAll(ns=>ns.map(n=>[Number(n.dataset.count),n.dataset.display])),expected.lines.groups.map(r=>[r.count,r.displayText]));
-    await expect(page.locator('#fm-summary')).toContainText('非FM 0');await expect(page.locator('#fm-rows tr')).toHaveCount(0);await expect(page.locator('#fm-note')).toContainText('GROUP_SIZE_LT_3');await expect(page.locator('#analysis-policy')).toContainText('dev-stats-v04');
+    await expect(page.locator('#fm-summary')).toContainText('明确无FM 0');await expect(page.locator('#fm-rows tr')).toHaveCount(0);await expect(page.locator('#fm-note')).toContainText('GROUP_SIZE_LT_3');await expect(page.locator('#analysis-policy')).toContainText('dev-stats-v04');
   };
   try {
     const response=await page.goto(origin+'/ai-cohort.html');assert.equal(response.status(),200);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await checkDom('U');

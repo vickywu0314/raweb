@@ -12,7 +12,7 @@ function client(reply, base = '') {
 function pageClock() {
   const nodes = new Map(), timers = new Map(), listeners = {}, pending = [];
   const selects = ['#f-sex','#f-age','#f-sero','#f-tx','#f-at','#f-act','#f-cm','#f-data'];
-  function node() {return {value:'',textContent:'',dataset:{},hidden:false,disabled:false,selectedOptions:[{textContent:'不限'}],children:[],addEventListener(){},querySelectorAll(){return [];},replaceChildren(){this.children=[];},append(child){this.children.push(child);},setAttribute(){}};}
+  function node() {return {value:'',textContent:'',style:{setProperty(){}},dataset:{},hidden:false,disabled:false,selectedOptions:[{textContent:'不限'}],children:[],addEventListener(){},querySelectorAll(){return [];},replaceChildren(...children){this.children=[...children];},append(...children){this.children.push(...children);},setAttribute(){}};}
   const get = selector => {if(!nodes.has(selector))nodes.set(selector,node());return nodes.get(selector);};
   for(const selector of selects)get(selector);get('#f-at').value='now';
   let timerId=0;
@@ -94,6 +94,15 @@ test('cohort:api-contract', async () => {
   assert.equal(disconnected.requests.length,1);
   const nonJson = client(new Response('broken<html>',{status:200,headers:{'Content-Type':'text/html','X-Trace-Id':'trace-nonjson'}}));
   await assert.rejects(()=>nonJson.api.cohort({studyCode:'RA',at:'now'}),error=>error.status===200&&error.code==='INVALID_RESPONSE'&&error.traceId==='trace-nonjson');
+  const projectionClock=pageClock(),projection=JSON.parse(JSON.stringify(require('../fixtures/cohort-p02.json').CLINICAL));
+  projection.meta.policyVersions.fmSource='synthetic-fm-v1';
+  for(const patient of projection.patients.items){const state=patient.clinical.fm;patient.clinicalProvenance.fm={source:'CONFIGURED_FM_EVIDENCE',sourceField:'ra.ai.fm-evidence.json',quality:['SOURCE_UNVERIFIED'],missingReason:state==='UNKNOWN'?'EXPLICIT_UNKNOWN':null,observations:[{evidenceId:'synthetic:e1',observedAt:'2026-10-06',fmState:state,privateRaw:'private-config-canary'}]};}
+  projectionClock.pending[0].resolve(new Response(JSON.stringify({success:true,code:'200',data:projection}),{status:200,headers:{'Content-Type':'application/json','X-Trace-Id':'projection-trace'}}));await new Promise(setImmediate);
+  assert.equal(projectionClock.get('#cohort-state').dataset.state,'success','响应必须已解析并进入真实renderer');
+  const domText=node=>[node.textContent,...node.children.map(domText)].join(' '),projected=domText(projectionClock.get('#patient-rows'));
+  assert.match(projected,/evidenceId：synthetic:e1/);assert.match(projected,/observedAt：2026-10-06/);assert.match(projected,/fmState：FALSE/);assert.match(projected,/fmSource：synthetic-fm-v1/);assert.ok(!projected.includes('private-config-canary'));
+  assert.match(projectionClock.get('#fm-summary').textContent,/明确无FM/);
+  projectionClock.listeners.pagehide();assert.equal(projectionClock.timers.size,0);
   const sourceClock=pageClock(),selectedDefinition=require('../fixtures/cohort-comparison.json').definition;
   sourceClock.context.selectComparison('b',{source:'SAVED',cohortId:selectedDefinition.cohortId,item:selectedDefinition});assert.ok(sourceClock.get('#compare-source-b').textContent.includes(selectedDefinition.cohortId),'显式SAVED来源摘要须标明选中的独立定义ID');assert.equal(sourceClock.pending.length,1,'选择来源不能暗open或计数');
   const comparisonClock=pageClock(),comparisonFixture=require('../fixtures/cohort-comparison.json').before;

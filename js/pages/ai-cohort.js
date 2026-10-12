@@ -102,7 +102,7 @@ function renderPanels(data) {
   $('#tx-test').textContent=`${testText(byTx.test)} · 纳入组 ${JSON.stringify(byTx.test?.includedGroups??[])} · 排除组 ${JSON.stringify(byTx.test?.excludedGroups??[])} · 检验有效人数 ${JSON.stringify(byTx.test?.groupNs??[])}`;
   $('#tx-notice').textContent=byTx.comparisonNotice??'—';
   renderBuckets('#line-groups',lines.groups,'line');$('#line-summary').textContent=`线数未知 ${lines.unknownLineN??'—'} · 分母 ${data.n}`;
-  $('#fm-summary').textContent=`FM ${fm.nFM??'—'} · 非FM ${fm.nOther??'—'} · 未知 ${fm.unknownN??'—'} · ${fm.status??'—'} · ${fm.reason??''}`;
+  $('#fm-summary').textContent=`FM ${fm.nFM??'—'} · 明确无FM ${fm.nOther??'—'} · 未知 ${fm.unknownN??'—'} · ${fm.status??'—'} · ${fm.reason??''}`;
   $('#fm-note').textContent=(fm.rows?.length?'':`样本不足 · ${fm.reason??'—'}`)+'；疼痛尺度未核实，pain缺失，不能由raw推算。';
   $('#fm-rows').replaceChildren();$('#fm-table').hidden=!fm.rows?.length;
   for(const row of fm.rows||[]) {
@@ -198,9 +198,10 @@ function sourceBlock(label,value,keys,className) {
   for(const key of keys)block.append(textNode('span',`${key}：${sourceText(value[key])}`));
   return block;
 }
-function patientSources(patient) {
+function patientSources(patient,meta) {
   const details=document.createElement('details');details.className='patient-provenance';details.append(textNode('summary','临床来源与质量'));
   const body=textNode('div','','patient-sources');
+  if(patient.clinicalProvenance.fm.source==='CONFIGURED_FM_EVIDENCE')body.append(sourceBlock('policyVersions',meta?.policyVersions||{},['fmSource'],'patient-fm-version'));
   const measureKeys=['value','unit','sourceVisitId','sourceField','observedAt','quality','missingReason'];
   for(const key of ['tjc','sjc','gh','haq','crp','pain']) {
     const block=sourceBlock(`evaluation ${key}`,patient.evaluation[key],measureKeys,'patient-evaluation');block.dataset.evaluation=key;body.append(block);
@@ -212,7 +213,7 @@ function patientSources(patient) {
   for(const key of ['sex','age','diseaseDurationYears','sero','fm','as']) {
     const value=patient.clinicalProvenance[key],block=sourceBlock(`clinicalProvenance ${key}`,value,scoreKeys,'patient-clinical-source');block.dataset.clinicalSource=key;
     // 只读已知来源字段，绝不输出raw/病例或临床身份原值。
-    const keys=key==='sero'?['sourceVisitId','sourceField','observedAt','status']:['sourceRowId','sinceYear'];
+    const keys=key==='sero'?['sourceVisitId','sourceField','observedAt','status']:key==='fm'&&value.source==='CONFIGURED_FM_EVIDENCE'?['evidenceId','observedAt','fmState']:['sourceRowId','sinceYear'];
     if(['sero','fm','as'].includes(key))for(const observation of value.observations)block.append(sourceBlock('observation',observation,keys,'patient-observation'));
     body.append(block);
   }
@@ -226,7 +227,7 @@ function renderPatientTimes(meta) {
   $('#display-read-at').textContent=`名单显示字段读取时间：${clinicalText(meta.readCompletedAt,'未提供')}`;
 }
 function patientLongId(id){return typeof id==='string'&&/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));}
-function appendPatients(items) {
+function appendPatients(items,meta) {
   for (const patient of items) {
     const row=document.createElement('div');row.className='ai-row';row.dataset.patientId=patient.patientId;row.setAttribute('role','listitem');
     const c=patient.clinical,t=patient.treatment;
@@ -241,7 +242,7 @@ function appendPatients(items) {
     row.append(textNode('div',`DAS28-CRP 活动 ${activity[patient.activity]??'未知'}`,'patient-activity'+(Object.hasOwn(activity,patient.activity)?' activity-'+patient.activity:'')));
     row.append(textNode('div',crpText('评估',patient.crpAt)+'；'+crpText('当前',patient.crpCurrent),'patient-crp'));
     row.append(textNode('div',`FM ${clinicalText(c.fm)} · AS ${clinicalText(c.as)}`,'patient-comorbidity'));
-    row.append(patientSources(patient));$('#patient-rows').append(row);
+    row.append(patientSources(patient,meta));$('#patient-rows').append(row);
   }
 }
 function renderPageRights() {
@@ -267,7 +268,7 @@ function finish(operation, result, error) {
     state('empty','分析完成，当前条件下没有患者'); $('#no-result').hidden = false; return;
   }
   renderPanels(data);
-  appendPatients(data.patients.items);renderPatientTimes(data.meta);renderPageRights();
+  appendPatients(data.patients.items,data.meta);renderPatientTimes(data.meta);renderPageRights();
   state('success','分析完成，人数与名单来自本次服务端结果'); $('#results').hidden = false;
 }
 function finishPage(operation,result,error) {
@@ -285,7 +286,7 @@ function finishPage(operation,result,error) {
     endOperation(operation,'page','INVALID_RESPONSE');endExport('INVALID_RESPONSE');clearResults();showError({status:result.status,code:'INVALID_RESPONSE',message:'分页响应不完整',traceId:result.traceId});return;
   }
   endOperation(operation,'page','SUCCESS');
-  resource.consumed.add(operation.cursor);appendPatients(data.patients.items);resource.loaded+=data.patients.items.length;resource.cursor=data.patients.nextCursor;
+  resource.consumed.add(operation.cursor);appendPatients(data.patients.items,data.meta);resource.loaded+=data.patients.items.length;resource.cursor=data.patients.nextCursor;
   $('#display-read-at').textContent=`名单显示字段读取时间：${clinicalText(data.meta?.displayReadCompletedAt,'未提供')}`;
   $('#analysis-error').hidden=true;renderPageRights();state('success','分析完成，人数与名单来自本次服务端结果');
 }
