@@ -56,7 +56,7 @@ function renderVisitPage(){
 
  $('#download-all').onclick=e=>downloadRecordPdf(p,e.currentTarget);
  $('#ask-ai').onclick=()=>notReady('问问AI');
- $('#paper-import').onclick=()=>notReady('OCR识别录入');
+ $('#paper-import').onclick=()=>openOcrImport({mode:'visit',patientId:p.patientId});
  const wb=$('#withdraw-btn');if(wb)wb.onclick=withdrawDialog;
  const rb=$('#reactivate-btn');if(rb)rb.onclick=reactivateDialog;
  bindPatientBasic($('#patient-basic'),p);

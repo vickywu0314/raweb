@@ -40,7 +40,7 @@ function renderHero(){
  $('#download-one').onclick=e=>downloadRecordPdf(p,e.currentTarget,v);
  $('#delete-visit').onclick=openDeleteDialog;
  $('#ask-ai').onclick=()=>notReady('问问AI');
- $('#ai-import').onclick=()=>notReady('OCR识别录入');
+ $('#ai-import').onclick=()=>openOcrImport({mode:'visit',patientId:p.patientId});
  $('#basic-collapse').addEventListener('toggle',e=>{try{localStorage.setItem(BASIC_OPEN_KEY,e.target.open?'1':'0')}catch(err){}});
  bindPatientBasic($('#basic-collapse'),p);
 }

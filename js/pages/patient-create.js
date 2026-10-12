@@ -2,6 +2,8 @@
    新增患者：基本信息与患者详情页一致；ACR/EULAR 2010 在弹窗里评估，结果回显到基本信息。
    - 填完身份证号：POST /api/ra/patient/checkCardNo 查重（已在名下 / 其他医生名下可转入 / 其他病种复用档案）
    - 保存：POST /api/ra/patient/createPatient（JSON），成功后打开患者详情
+   - OCR识别录入（js/shared/ocr-import.js）：识别出的姓名、身份证号等预填表单（?ocr=1 打开时取草稿）；
+     草稿里有检验结果时，建档成功后接着打开新增随访（基线访视）预填辅助检查
    编辑档案（patient-edit.html，body data-mode="edit"）共用本脚本和同一套表单：
    - 打开：POST /api/ra/patient/editForm 取当前值预填
    - 保存：POST /api/ra/patient/updatePatient（JSON），只提交改动过的字段名（changed），后端只更新这些字段；保存后返回来源页 */
@@ -26,7 +28,7 @@ let editInit = null, acrInit = 'none', oldAcrScore = null;   // 编辑档案：�
 field('nation').innerHTML = '<option value="">请选择</option>' + NATIONS.map(n => `<option>${n}</option>`).join('');
 $('#comorbid-pick').innerHTML = COMORBID_CODES.map(c => `<label class="comorbid-option"><input type="checkbox" value="${c}"><span>${c} ${escapeHTML((COMORBIDITY_INFO[c] || {}).name || '')}</span><input type="number" class="since-year" min="1900" max="${TODAY.getFullYear()}" placeholder="起病年份" aria-label="${c} 起病年份" disabled></label>`).join('');
 $('#comorbid-pick').addEventListener('change', e => { if (e.target.type === 'checkbox') { const y = e.target.parentElement.querySelector('.since-year'); y.disabled = !e.target.checked; if (!e.target.checked) y.value = ''; } });
-if ($('#ocr-import')) $('#ocr-import').onclick = () => toast('「OCR识别录入」功能正在开发中');
+if ($('#ocr-import')) $('#ocr-import').onclick = () => openOcrImport({ mode: 'patient', onApply: applyOcr });
 
 // ===== 身份证号：校验、带出性别 / 出生年份，查重 =====
 function idInfo(no) {
@@ -91,6 +93,24 @@ function prefill(b) {
   refresh();
 }
 field('cardNo').addEventListener('change', checkCard);
+
+// ===== OCR 识别结果预填：只填识别出来的项，填上的蓝框标出，医生核对后保存 =====
+let ocrDraftUsed = null;
+function applyOcr(d) {
+  const b = d.basic || {}, filled = [];
+  const mark = n => { const el = field(n); (el instanceof RadioNodeList ? form.querySelector(`[name=${n}]`).closest('.choice-row') : el).classList.add('ocr-filled'); filled.push(n); };
+  ['name','mobile','height','weight','confirmDate','happenDate'].forEach(n => { if (b[n] && field(n)) { field(n).value = b[n]; mark(n); } });
+  if (b.nation && [...field('nation').options].some(o => o.value === b.nation)) { field('nation').value = b.nation; mark('nation'); }
+  if (b.marry != null && b.marry !== '') { field('marry').value = String(b.marry); mark('marry'); }
+  if (b.gender) { const r = form.querySelector(`[name=gender][value="${b.gender}"]`); if (r) { r.checked = true; mark('gender'); } }
+  if (b.cardNo) { field('cardNo').value = b.cardNo; mark('cardNo'); checkCard(); }
+  ocrDraftUsed = d;
+  $('.ocr-banner')?.remove();
+  const lab = Object.keys(d.fzjc || {}).length;
+  ocrBanner(form, `已用 OCR 识别结果预填 ${filled.length} 项基本信息（蓝框标出），<b>请对照原图核对后保存</b>。${ocrHasVisit(d) ? `识别出${lab ? ` ${lab} 项检验结果` : '报告日期'}，建档后会接着打开「新增随访」预填基线访视。` : ''}${b.age && !b.cardNo ? `报告上的年龄：${escapeHTML(b.age)} 岁。` : ''}<a href="${API_BASE + d.url}" target="_blank" rel="noopener">查看原图</a>`);
+  refresh();
+}
+if (!EDIT_ID && queryParam('ocr')) { const d = ocrDraft(); if (d && d.mode === 'patient') applyOcr(d); }
 
 // ===== 联动：BMI、血压提示、吸烟明细 =====
 function refresh() {
@@ -165,6 +185,11 @@ form.addEventListener('submit', async e => {
   try {
     const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b });
     toastNext(r.action === 'linked' ? `已加入 RA 研究库，研究编号 ${r.studyNo || '—'}` : `建档成功，研究编号 ${r.studyNo}`);
+    if (ocrDraftUsed && ocrHasVisit(ocrDraftUsed)) {   // OCR：接着录基线访视
+      ocrSaveDraft({ ...ocrDraftUsed, patientId: r.patientId });
+      location.href = `visit-create.html?id=${encodeURIComponent(r.patientId)}&ocr=1`; return;
+    }
+    if (ocrDraftUsed) ocrClearDraft();
     location.href = `patient-visits.html?id=${encodeURIComponent(r.patientId)}`;
   } catch (ex) {
     formError(`保存失败：${ex.message}`);

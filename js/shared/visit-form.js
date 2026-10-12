@@ -95,6 +95,22 @@ function vfValue(el) {
   return t === 'list' ? vfSplit(i.value) : i.value.trim();
 }
 function vfCurrent(scope, col, key) { const el = vfFieldEl(scope, col, key); return el ? vfValue(el) : null; }
+// 程序填值（如 OCR 识别结果）：单选 / 多选勾上对应选项，其他填文本框；填了值的去掉「未查」。返回是否填上
+function vfSetValue(scope, col, key, value) {
+  const el = vfFieldEl(scope, col, key); if (!el || value == null || value === '') return false;
+  const box = el.querySelector('.vf-choices'), vals = vfArr(value).map(String);
+  if (box) {
+    const inputs = [...box.querySelectorAll('input')]; if (!inputs.some(i => vals.includes(i.value))) return false;
+    inputs.forEach(i => i.checked = vals.includes(i.value));
+  } else {
+    const i = el.querySelector('.vf-input'); if (!i) return false;
+    i.value = Array.isArray(value) ? value.join('、') : value;
+  }
+  const wx = el.querySelector('.vf-wx'); if (wx) wx.checked = false;
+  el.classList.add('ocr-filled');
+  (box ? box.querySelector('input') : el.querySelector('.vf-input')).dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
 
 function vfRefreshOptions(scope, el) {
   const col = el.dataset.col, f = VF.defs[col][el.dataset.key];
