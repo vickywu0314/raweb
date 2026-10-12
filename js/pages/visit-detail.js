@@ -47,18 +47,20 @@ function bindSectionNav(){
 }
 
 const visitEntryParams=new URLSearchParams(location.search);
-const aiVisitSource=visitEntryParams.getAll('from').includes('ai-cohort');
+const aiVisitSource=visitEntryParams.getAll('from').some(value=>['ai-cohort','ai-analysis'].includes(value));
 if(aiVisitSource){
  shell('ai');
+ const aiFrom=visitEntryParams.getAll('from').find(value=>['ai-cohort','ai-analysis'].includes(value));
+ const aiOrigin=aiFrom==='ai-analysis'?{href:'ai-analysis.html',label:'AI 智能分析'}:{href:'ai-cohort.html',label:'AI 队列分析'};
  const id=visitEntryParams.getAll('id').length===1?visitEntryParams.get('id'):'',visitId=visitEntryParams.getAll('visit').length===1?visitEntryParams.get('visit'):'';
  const canonical=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
  const valid=canonical(id)&&canonical(visitId)&&visitEntryParams.getAll('from').length===1&&[...visitEntryParams.keys()].every(key=>['id','visit','from'].includes(key));
- const visitsUrl=`patient-visits.html?id=${encodeURIComponent(id||'')}&from=ai-cohort`;
- $('#crumb-origin').href='ai-cohort.html';$('#crumb-origin').textContent='AI 队列分析';$('#crumb-visits').href=visitsUrl;$('#back-visits').href=visitsUrl;
+ const visitsUrl=`patient-visits.html?id=${encodeURIComponent(id||'')}&from=${encodeURIComponent(aiFrom)}`;
+ $('#crumb-origin').href=aiOrigin.href;$('#crumb-origin').textContent=aiOrigin.label;$('#crumb-visits').href=visitsUrl;$('#back-visits').href=visitsUrl;
  let safeHistory=false;
- try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('patient-visits.html',location.href).pathname&&ref.searchParams.getAll('id').length===1&&ref.searchParams.get('id')===id&&ref.searchParams.getAll('from').length===1&&ref.searchParams.get('from')==='ai-cohort'&&[...ref.searchParams.keys()].every(k=>['id','from'].includes(k))&&history.length>1;}catch{}
+ try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('patient-visits.html',location.href).pathname&&ref.searchParams.getAll('id').length===1&&ref.searchParams.get('id')===id&&ref.searchParams.getAll('from').length===1&&ref.searchParams.get('from')===aiFrom&&[...ref.searchParams.keys()].every(k=>['id','from'].includes(k))&&history.length>1;}catch{}
  $('#back-visits').onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign(visitsUrl);};
- $('.app-footnote').textContent='来源：AI 队列分析。可信只读访视；编辑、删除、下载、病程及问答尚未接入。';
+ $('.app-footnote').textContent=`来源：${aiOrigin.label}。可信只读访视；编辑、删除、下载、病程及问答尚未接入。`;
  let currentFlight=null,disposeBasic=null,disposeNav=null;
  function clearVisit(state,message){
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeNav){disposeNav();disposeNav=null;}

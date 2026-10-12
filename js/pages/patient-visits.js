@@ -3,21 +3,23 @@
    「修改记录」展开时才请求 /api/ra/patient/auditLogs；身份证号明文点「眼睛」时请求 /api/ra/patient/patientSensitive。 */
 "use strict";
 const patientEntryParams=new URLSearchParams(location.search);
-const aiPatientSource=patientEntryParams.getAll('from').includes('ai-cohort');
+const aiPatientSource=patientEntryParams.getAll('from').some(value=>['ai-cohort','ai-analysis'].includes(value));
 if(aiPatientSource){
  shell('ai');
+ const aiFrom=patientEntryParams.getAll('from').find(value=>['ai-cohort','ai-analysis'].includes(value));
+ const aiOrigin=aiFrom==='ai-analysis'?{href:'ai-analysis.html',label:'AI 智能分析'}:{href:'ai-cohort.html',label:'AI 队列分析'};
  const ids=patientEntryParams.getAll('id'),from=patientEntryParams.getAll('from');
  const id=ids.length===1?ids[0]:'';
  const validId=/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));
  const valid=validId&&from.length===1&&[...patientEntryParams.keys()].every(key=>key==='id'||key==='from');
  $('#audit').hidden=true;$('#audit').open=false;
- $('.app-footnote').textContent='来源：AI 队列分析。此入口提供可信只读档案与访视；编辑、下载、病程分析及问答尚未接入。';
+ $('.app-footnote').textContent=`来源：${aiOrigin.label}。此入口提供可信只读档案与访视；编辑、下载、病程分析及问答尚未接入。`;
  function clearPatient(state,message){
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeAudit){disposeAudit();disposeAudit=null;}
   $('#audit').hidden=true;$('#audit').open=false;$('#audit-list').innerHTML='';$('#audit-count').textContent='';
   document.title='患者档案 · 患者数据研究平台';
   $('#patient-basic').setAttribute('data-state',state);
-  $('#patient-basic').innerHTML=`<h1>患者档案${state==='loading'?'加载中':'未加载'}</h1><p>来源：AI 队列分析</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:''}<p>${escapeHTML(message)}</p>`;
+  $('#patient-basic').innerHTML=`<h1>患者档案${state==='loading'?'加载中':'未加载'}</h1><p>来源：${escapeHTML(aiOrigin.label)}</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:''}<p>${escapeHTML(message)}</p>`;
   $('#visit-list').innerHTML='';$('#visit-total').textContent='';$('.visits-section-head').hidden=true;
  }
  function showPatient(p){
@@ -25,7 +27,7 @@ if(aiPatientSource){
   $('#patient-basic').setAttribute('data-state','success');
   $('#patient-basic').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}`;
   $('.visits-section-head').hidden=false;$('#visit-total').textContent=`${p.visits.length} 次访视`;
-  $('#visit-list').innerHTML=p.visits.length?p.visits.map(v=>`<article class="visit-row" data-visit-id="${escapeHTML(v.visitId)}"><a class="visit-row-main" href="${escapeHTML(`visit-detail.html?id=${encodeURIComponent(id)}&visit=${encodeURIComponent(v.visitId)}&from=ai-cohort`)}"><span>${escapeHTML(v.visitType||'访视')}</span><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>访视 ID：${escapeHTML(v.visitId)}${v.doctorName?` · 记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?` · 记录医生 ID ${escapeHTML(v.doctorId)}`:''}</small></a></article>`).join(''):'<p class="audit-empty">暂无随访记录</p>';
+  $('#visit-list').innerHTML=p.visits.length?p.visits.map(v=>`<article class="visit-row" data-visit-id="${escapeHTML(v.visitId)}"><a class="visit-row-main" href="${escapeHTML(`visit-detail.html?id=${encodeURIComponent(id)}&visit=${encodeURIComponent(v.visitId)}&from=${encodeURIComponent(aiFrom)}`)}"><span>${escapeHTML(v.visitType||'访视')}</span><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>访视 ID：${escapeHTML(v.visitId)}${v.doctorName?` · 记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?` · 记录医生 ID ${escapeHTML(v.doctorId)}`:''}</small></a></article>`).join(''):'<p class="audit-empty">暂无随访记录</p>';
   disposeBasic=bindPatientBasic($('#patient-basic'),p,{trusted:true});$('#audit').hidden=false;disposeAudit=bindTrustedPatientAudit($('#audit'),p);
  }
  let currentFlight=null,disposeBasic=null,disposeAudit=null;
@@ -48,10 +50,10 @@ if(aiPatientSource){
  window.addEventListener('storage',event=>{if(event.key==='ra-auth'||event.key===null)cancelPatient();});
  window.addEventListener('ra-auth-changed',cancelPatient);
  let safeHistory=false;
- try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('ai-cohort.html',location.href).pathname&&history.length>1;}catch(e){/* 无来源时使用固定安全目标。 */}
+ try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL(aiOrigin.href,location.href).pathname&&history.length>1;}catch(e){/* 无来源时使用固定安全目标。 */}
  for(const selector of ['#crumb-origin','#back-origin']){
-  const link=$(selector);link.href='ai-cohort.html';link.textContent=selector==='#back-origin'?'← 返回 AI 队列分析':'AI 队列分析';
-  link.onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign('ai-cohort.html');};
+  const link=$(selector);link.href=aiOrigin.href;link.textContent=selector==='#back-origin'?'← 返回 '+aiOrigin.label:aiOrigin.label;
+  link.onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign(aiOrigin.href);};
  }
 
  if(valid)loadPatient();else clearPatient('invalid','入口参数无效，请返回 AI 队列重新选择。');

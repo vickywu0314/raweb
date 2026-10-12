@@ -55,6 +55,37 @@ window.RACohortAPI = (()=>{
   const canonicalId=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
   const invalidDetail=result=>Object.assign(new Error('详情响应无效'),{status:result.status,code:'INVALID_RESPONSE',data:null,traceId:result.traceId});
   return Object.freeze({
+    async patientSearch(command,options){
+      const integer=n=>Number.isInteger(n)&&n>=1&&n<=2147483647;
+      if(!command||typeof command!=='object'||Array.isArray(command)||Object.keys(command).length!==3||
+          !['keyword','page','size'].every(k=>Object.hasOwn(command,k))||typeof command.keyword!=='string'||
+          !command.keyword.isWellFormed()||[...command.keyword].length>200||!integer(command.page)||!integer(command.size)||command.size>200)
+        throw Object.assign(new Error('患者搜索输入无效'),{code:'INVALID_REQUEST',data:null});
+      const result=await post('ai/patientSearch',command,options),d=result.data;
+      if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).length!==4||
+          !['items','total','page','size'].every(k=>Object.hasOwn(d,k))||d.page!==command.page||d.size!==command.size||
+          !Number.isInteger(d.total)||d.total<0||d.total>2147483647||!Array.isArray(d.items)||d.items.length>command.size||d.items.length>d.total||
+          d.items.some(item=>!item||typeof item!=='object'||Array.isArray(item)||Object.keys(item).length!==3||
+            !['patientId','name','studyNo'].every(k=>Object.hasOwn(item,k))||!canonicalId(item.patientId)||
+            !(item.name===null||typeof item.name==='string')||!(item.studyNo===null||typeof item.studyNo==='string'))||
+          new Set(d.items.map(item=>item.patientId)).size!==d.items.length)
+        throw Object.assign(new Error('患者搜索响应无效'),{status:result.status,success:false,code:'INVALID_RESPONSE',data:null,traceId:result.traceId});
+      return result;
+    },
+    async overview(options) {
+      const result=await post('ai/overview',{},options),d=result.data,m=d?.targetRate?.meta;
+      const count=n=>Number.isSafeInteger(n)&&n>=0;
+      if(!d||!['studyTotal','modHighN','fmN','missingN'].every(k=>count(d[k]))||
+          !m||!['numerator','denominator','unknownN'].every(k=>count(m[k]))||
+          !['OK','NO_DATA'].includes(m.status)||typeof m.displayText!=='string'||
+          typeof d.targetRate.value!=='number'||!Number.isFinite(d.targetRate.value)||d.targetRate.value<0||d.targetRate.value>1||
+          m.numerator>m.denominator||m.denominator+m.unknownN!==d.studyTotal||
+          (m.status==='NO_DATA')!==(m.denominator===0)||['modHighN','fmN','missingN'].some(k=>d[k]>d.studyTotal)||
+          !d.meta||d.meta.studyCode!=='RA'||d.meta.at!=='now'||typeof d.meta.asOfDate!=='string'||
+          typeof d.meta.readStartedAt!=='string'||typeof d.meta.readCompletedAt!=='string'||!d.meta.policyVersions||typeof d.meta.traceId!=='string')
+        throw Object.assign(new Error('研究库概览响应无效'),{status:result.status,success:false,code:'INVALID_RESPONSE',data:null,traceId:result.traceId});
+      return result;
+    },
     async patientAuditLogs(patientId,options){
       if(!canonicalId(patientId))throw Object.assign(new Error('患者入口无效'),{code:'INVALID_REQUEST',data:null});
       const result=await post('ai/patientAuditLogs',{patientId},options),d=result.data;

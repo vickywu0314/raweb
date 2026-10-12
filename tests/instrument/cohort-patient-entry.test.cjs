@@ -25,5 +25,8 @@ test('cohort:patient-entry',async()=>{
  for(const [referrer,length,expected] of [['http://fixture.invalid/ai-cohort.html?sex=F&ids=9007199254740993',2,'back'],['http://fixture.invalid/patients.html',2,'ai-cohort.html'],['https://unsafe.invalid/ai-cohort.html',2,'ai-cohort.html'],['',2,'ai-cohort.html'],['http://fixture.invalid/ai-cohort.html',1,'ai-cohort.html']]){
   for(const selector of ['#crumb-origin','#back-origin']){const o=await open('?id=1&from=ai-cohort',referrer,length);o.nodes.get(selector).onclick({preventDefault(){}});assert.deepEqual(o.navigation,[expected]);}
  }
+ for(const query of ['?id=1&from=ai-analysis&from=ai-cohort','?id=1&from=ai-analysis&from=patients','?id=1&from=ai-analysis&doctorId=101']){const o=await open(query);assert.equal(o.requests.length,0);assert.equal(o.doctorReads.length,0);assert.match(o.nodes.get('#patient-basic').innerHTML,/入口参数无效/)}
+ for(const [ref,length,expected] of [['http://fixture.invalid/ai-analysis.html',2,'back'],['http://fixture.invalid/ai-cohort.html',2,'ai-analysis.html'],['http://fixture.invalid/ai-analysis.html-extra',2,'ai-analysis.html'],['https://unsafe.invalid/ai-analysis.html',2,'ai-analysis.html'],['',2,'ai-analysis.html'],['http://fixture.invalid/ai-analysis.html',1,'ai-analysis.html']]){const o=await open('?id=9007199254740993&from=ai-analysis',ref,length);assert.equal(o.requests.length,0);assert.equal(o.doctorReads.length,0);o.nodes.get('#back-origin').onclick({preventDefault(){}});assert.deepEqual(o.navigation,[expected]);}
+
  const legacy=await open('?id=11&from=patients');assert.equal(legacy.requests.length,1);assert.equal(legacy.requests[0].url,'/api/ra/patient/patientDetail');assert.equal(legacy.doctorReads.length,1);
 });

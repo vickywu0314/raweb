@@ -1,3 +1,5 @@
+import {patientSearchBrowser} from './ai-patient-search-browser.mjs';
+import {overviewBrowser} from './ai-overview-browser.mjs';
 import {patientFollowUpPolicyBrowser,trustedPatientBrowser,trustedPatientInteractionsBrowser,patientBrowser} from './cohort-patient-browser.mjs';
 import {applicationBrowser} from './cohort-application-browser.mjs';
 import {entryBrowser} from './cohort-entry-browser.mjs';
@@ -279,6 +281,20 @@ browserRegistry['patient:trusted-interactions-loopback']=async(owner,probe)=>{
 browserRegistry['patient:followup-policy-loopback']=async(owner,probe)=>{
  const r=await owner.fixture(['--identity=synthetic','--scenario=p00-trusted']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
  await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>patientFollowUpPolicyBrowser(context,p,i,o,pr,pid,'patient:followup-policy-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};
+
+browserRegistry['analysis:overview-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p01-overview']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>overviewBrowser(context,p,i,o,pr,pid,'analysis:overview-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};
+
+browserRegistry['analysis:patient-search-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p00-trusted']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>patientSearchBrowser(context,p,i,o,pr,pid,'analysis:patient-search-loopback',r));
  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
  assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
 };
