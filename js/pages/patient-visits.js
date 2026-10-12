@@ -5,23 +5,56 @@
 const patientEntryParams=new URLSearchParams(location.search);
 const aiPatientSource=patientEntryParams.getAll('from').includes('ai-cohort');
 if(aiPatientSource){
- // 来源先分流：可信详情协议尚未接入，不能建立任何旧doctorId读取权。
  shell('ai');
  const ids=patientEntryParams.getAll('id'),from=patientEntryParams.getAll('from');
  const id=ids.length===1?ids[0]:'';
  const validId=/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));
  const valid=validId&&from.length===1&&[...patientEntryParams.keys()].every(key=>key==='id'||key==='from');
- document.title='患者档案未加载 · 患者数据研究平台';
- $('#patient-basic').innerHTML=`<h1>患者档案未加载</h1><p>来源：AI 队列分析</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:'<p>入口参数无效，请返回 AI 队列重新选择。</p>'}<p>患者档案暂未接入可信身份，当前未加载患者数据</p>`;
- $('#visit-list').innerHTML='';$('#visit-total').textContent='';
- $('.visits-section-head').hidden=true;$('#audit').hidden=true;$('#audit').open=false;
- $('.app-footnote').textContent='AI 队列来源患者档案暂未接入可信身份；未请求或加载患者数据，不提供演示病程及编辑操作。';
+ $('#audit').hidden=true;$('#audit').open=false;
+ $('.app-footnote').textContent='来源：AI 队列分析。此入口提供可信只读档案与访视；编辑、下载、病程分析及问答尚未接入。';
+ function clearPatient(state,message){
+  if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeAudit){disposeAudit();disposeAudit=null;}
+  $('#audit').hidden=true;$('#audit').open=false;$('#audit-list').innerHTML='';$('#audit-count').textContent='';
+  document.title='患者档案 · 患者数据研究平台';
+  $('#patient-basic').setAttribute('data-state',state);
+  $('#patient-basic').innerHTML=`<h1>患者档案${state==='loading'?'加载中':'未加载'}</h1><p>来源：AI 队列分析</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:''}<p>${escapeHTML(message)}</p>`;
+  $('#visit-list').innerHTML='';$('#visit-total').textContent='';$('.visits-section-head').hidden=true;
+ }
+ function showPatient(p){
+  document.title=`${p.name||'患者'} · 随访记录 · 患者数据研究平台`;
+  $('#patient-basic').setAttribute('data-state','success');
+  $('#patient-basic').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}`;
+  $('.visits-section-head').hidden=false;$('#visit-total').textContent=`${p.visits.length} 次访视`;
+  $('#visit-list').innerHTML=p.visits.length?p.visits.map(v=>`<article class="visit-row" data-visit-id="${escapeHTML(v.visitId)}"><a class="visit-row-main" href="${escapeHTML(`visit-detail.html?id=${encodeURIComponent(id)}&visit=${encodeURIComponent(v.visitId)}&from=ai-cohort`)}"><span>${escapeHTML(v.visitType||'访视')}</span><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>访视 ID：${escapeHTML(v.visitId)}${v.doctorName?` · 记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?` · 记录医生 ID ${escapeHTML(v.doctorId)}`:''}</small></a></article>`).join(''):'<p class="audit-empty">暂无随访记录</p>';
+  disposeBasic=bindPatientBasic($('#patient-basic'),p,{trusted:true});$('#audit').hidden=false;disposeAudit=bindTrustedPatientAudit($('#audit'),p);
+ }
+ let currentFlight=null,disposeBasic=null,disposeAudit=null;
+ function finishPatient(flight,cause,data){
+  if(currentFlight!==flight||flight.cause!==null)return;
+  flight.cause=cause;currentFlight=null;clearTimeout(flight.timer);
+  if(cause!=='success')flight.controller.abort();
+  if(cause==='success')showPatient(data);
+  else clearPatient(cause,cause==='timeout'?'患者详情查询超时，请返回重新选择':cause==='cancelled'?'患者详情请求已结束':data||'患者详情加载失败，请返回 AI 队列重新选择');
+ }
+ function cancelPatient(){if(currentFlight)finishPatient(currentFlight,'cancelled');else clearPatient('cancelled','患者详情请求已结束');}
+ function loadPatient(){
+  cancelPatient();clearPatient('loading','正在查询患者资料…');
+  const flight={cause:null,controller:new AbortController(),timer:null};currentFlight=flight;
+  flight.timer=setTimeout(()=>finishPatient(flight,'timeout'),30000);
+  RACohortAPI.patientDetail(id,{signal:flight.controller.signal}).then(result=>finishPatient(flight,'success',result.data),e=>finishPatient(flight,'error',e.code==='UNAUTHENTICATED'?'请先登录后重新选择患者':e.code==='RESOURCE_NOT_FOUND'?'患者资料不可用':e.code==='SERVICE_UNAVAILABLE'?'患者资料暂不可用':null));
+ }
+ window.addEventListener('pagehide',cancelPatient);
+ window.addEventListener('pageshow',event=>{if(event.persisted&&valid)loadPatient();});
+ window.addEventListener('storage',event=>{if(event.key==='ra-auth'||event.key===null)cancelPatient();});
+ window.addEventListener('ra-auth-changed',cancelPatient);
  let safeHistory=false;
  try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('ai-cohort.html',location.href).pathname&&history.length>1;}catch(e){/* 无来源时使用固定安全目标。 */}
  for(const selector of ['#crumb-origin','#back-origin']){
   const link=$(selector);link.href='ai-cohort.html';link.textContent=selector==='#back-origin'?'← 返回 AI 队列分析':'AI 队列分析';
   link.onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign('ai-cohort.html');};
  }
+
+ if(valid)loadPatient();else clearPatient('invalid','入口参数无效，请返回 AI 队列重新选择。');
 }else{
 shell(pageOrigin().nav);
 {const o=pageOrigin(),c=$('#crumb-origin'),b=$('#back-origin');c.textContent=o.crumb;bindBack(c,o.href);b.textContent=`← 返回${o.label}`;bindBack(b,o.href);}

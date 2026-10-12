@@ -52,8 +52,33 @@ window.RACohortAPI = (()=>{
     }
     throw fileError('接口未返回有效XLSX或JSON',response.status,'INVALID_RESPONSE',traceId);
   }
+  const canonicalId=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
+  const invalidDetail=result=>Object.assign(new Error('详情响应无效'),{status:result.status,code:'INVALID_RESPONSE',data:null,traceId:result.traceId});
   return Object.freeze({
+    async patientAuditLogs(patientId,options){
+      if(!canonicalId(patientId))throw Object.assign(new Error('患者入口无效'),{code:'INVALID_REQUEST',data:null});
+      const result=await post('ai/patientAuditLogs',{patientId},options),d=result.data;
+      if(!d||d.patientId!==patientId||!Array.isArray(d.logs)||d.logs.some(log=>!log||!canonicalId(log.id)||(log.visitId!=null&&!canonicalId(log.visitId))))throw invalidDetail(result);return result;
+    },
+    async patientSensitive(patientId,options){
+      if(!canonicalId(patientId))throw Object.assign(new Error('患者入口无效'),{code:'INVALID_REQUEST',data:null});
+      const result=await post('ai/patientSensitive',{patientId},options),d=result.data;
+      if(!d||d.patientId!==patientId||!(d.cardNo===null||typeof d.cardNo==='string'))throw invalidDetail(result);return result;
+    },
+    async visitDetail(patientId,visitId,options){
+      if(!canonicalId(patientId)||!canonicalId(visitId))throw Object.assign(new Error('访视入口无效'),{code:'INVALID_REQUEST',data:null});
+      const result=await post('ai/visitDetail',{patientId,visitId},options),d=result.data;
+      if(!d||d.patientId!==patientId||d.visitId!==visitId||!canonicalId(d.patientId)||!canonicalId(d.visitId)||(d.doctorId!=null&&!canonicalId(d.doctorId))||!Array.isArray(d.modules)||d.modules.length!==7)throw invalidDetail(result);
+      return result;
+    },
     exportXlsx,
+    async patientDetail(patientId,options){
+      const id=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
+      if(!id(patientId))throw Object.assign(new Error('患者入口无效'),{code:'INVALID_REQUEST',data:null});
+      const result=await post('ai/patientDetail',{patientId},options),data=result.data;
+      if(!data||typeof data!=='object'||data.patientId!==patientId||!id(data.patientId)||!Array.isArray(data.visits)||data.visits.some(v=>!v||!id(v.visitId)||(v.doctorId!=null&&!id(v.doctorId))))throw Object.assign(new Error('患者详情响应无效'),{status:result.status,code:'INVALID_RESPONSE',data:null,traceId:result.traceId});
+      return result;
+    },
     applyAnalysis(command,options) {return post('export/applyAnalysis',command,options);},
     retryNotification(command,options) {return post('export/retryNotification',command,options);},
     resolveEntry(indexPatientId,options) {return post('ai/resolveEntry',{source:'SIMILAR',indexPatientId},options);},

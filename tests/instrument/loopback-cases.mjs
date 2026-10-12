@@ -1,4 +1,4 @@
-import {patientBrowser} from './cohort-patient-browser.mjs';
+import {patientFollowUpPolicyBrowser,trustedPatientBrowser,trustedPatientInteractionsBrowser,patientBrowser} from './cohort-patient-browser.mjs';
 import {applicationBrowser} from './cohort-application-browser.mjs';
 import {entryBrowser} from './cohort-entry-browser.mjs';
 import {exportBrowser,exportComparisonBrowser} from './cohort-export-browser.mjs';
@@ -242,21 +242,43 @@ browserRegistry['cohort:browser-entry']=async owner=>{
 
 // P07b真实患者零详情链与独立统一context组合，沿既有owner串行释放。
 for(const [id,scenario,callback] of [
- ['cohort:browser-patient-entry-closed','p07-entry',patientBrowser],
+ ['cohort:browser-patient-entry-closed','p00-trusted',patientBrowser],
  ['cohort:browser-feature-gates','p07-composition',async(...args)=>(await import('./cohort-composition-browser.mjs')).featureGatesBrowser(...args)],
  ['cohort:browser-composition-time','p07-composition-time',async(...args)=>(await import('./cohort-composition-browser.mjs')).compositionTimeBrowser(...args)]
 ]){
  browserRegistry[id]=async owner=>{
-  const r=await owner.fixture(['--identity=synthetic','--scenario='+scenario]);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,scenario==='p07-entry'?4:37);
+  const r=await owner.fixture(['--identity=synthetic','--scenario='+scenario]);const ready=await owner.ready(r,scenario==='p00-trusted'?401:200);if(scenario!=='p00-trusted')assert.equal(ready.json.data.n,37);
   const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>callback(context,port,identity,owner,probe,pid,id,r));
-  for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);assert.equal(e.mysqlFailures,0);}
+  for(const e of r.events.filter(e=>e.type==='http-observation')){assert.equal(e.active,0);assert.equal(e.borrowed,e.returned);if(scenario!=='p00-trusted')assert.equal(e.mysqlFailures,0);}
   const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
   assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));
   assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test' ORDER BY TABLE_NAME")).trim(),'');
-  if(scenario!=='p07-entry'){
+  if(scenario!=='p00-trusted'){
    assert.ok(r.events.some(e=>e.type==='composition-context-closed'&&e.active===false&&e.sqlActive===0&&e.clean&&e.finalOwnerClose===true));assert.ok(r.events.some(e=>e.type==='application-peer-closed'&&e.failure===null));
    const owned=r.events.filter(e=>e.type==='table-owned').map(e=>e.table),released=r.events.filter(e=>e.type==='table-released').map(e=>e.table);assert.deepEqual(released.slice().sort(),owned.slice().sort());assert.equal(new Set(owned).size,owned.length);
   }
   owner.event('p07b-normal-owner-exit',{case:id,beforeFallback:true,tablesAbsent:true});
  };
 }
+
+// P00a is browser-only; preserve the original five default integration cases.
+browserRegistry['patient:trusted-detail-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p00-trusted']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>trustedPatientBrowser(context,p,i,o,pr,pid,'patient:trusted-detail-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};
+
+browserRegistry['patient:trusted-interactions-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p00-trusted']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>trustedPatientInteractionsBrowser(context,p,i,o,pr,pid,'patient:trusted-interactions-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};
+
+browserRegistry['patient:followup-policy-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=p00-trusted']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>patientFollowUpPolicyBrowser(context,p,i,o,pr,pid,'patient:followup-policy-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
+};

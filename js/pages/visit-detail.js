@@ -4,6 +4,89 @@
    - POST /api/ra/visit/visitDetail：本次随访的 7 个病历模块（随访表 bsbq / fzjc / bqpg / zyzd / zlfa / blsj / bblsj），
      后端按字段字典（raapi docs/随访字段字典.md）分好组、转好中文 */
 "use strict";
+// 7 个病历模块（按后端字段字典分组）：字段组、清单（西药等）、图片；普通文字或 {record, date} 显示记录内容；没内容显示「本次未记录」
+function trustedImageUrl(value){
+ if(typeof value!=='string'||!value.trim())return null;
+ try{const url=new URL(value,location.href);if(!['http:','https:'].includes(url.protocol))return null;
+  // Relative addresses must resolve on the current origin; explicit HTTP(S) is allowed.
+  if(!/^https?:/i.test(value.trim())&&url.origin!==location.origin)return null;return url.href;
+ }catch{return null;}
+}
+function moduleBody(m,trusted=false){
+ if(!m.filled)return '<p class="module-empty">本次未记录</p>';
+ let html='';
+ if(m.record)html+=`<div class="visit-record">${escapeHTML(m.record)}</div>`;
+ (m.groups||[]).forEach(g=>{
+  html+=`<div class="subcard">${g.title?`<h3>${escapeHTML(g.title)}</h3>`:''}<div class="detail-fields">${g.items.map(i=>`<div class="detail-field${i.notChecked?' not-checked':''}"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.value)}${i.unit?`<small class="field-unit">${escapeHTML(i.unit)}</small>`:''}</strong></div>`).join('')}</div></div>`;
+ });
+ (m.tables||[]).forEach(t=>{
+  html+=`<div class="subcard"><h3>${escapeHTML(t.title)} <small class="table-count">${t.rows.length} 项</small></h3><div class="visit-table-wrap"><table class="visit-table"><thead><tr>${t.columns.map(c=>`<th>${escapeHTML(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHTML(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+ });
+ (m.images||[]).forEach(g=>{
+  html+=`<div class="subcard"><h3>${escapeHTML(g.title)} <small class="table-count">${g.urls.length} 张</small></h3><div class="visit-images">${g.urls.map((u,i)=>{const safe=trusted?trustedImageUrl(u):u;return safe?`<a href="${escapeHTML(safe)}" target="_blank" rel="noopener" title="点击查看原图"><img src="${escapeHTML(safe)}" alt="${escapeHTML(g.title)} ${i+1}" loading="lazy"></a>`:'<span>图片地址不可用</span>'}).join('')}</div></div>`;
+ });
+ if(m.recordDate)html+=`<p class="record-date">记录日期：${escapeHTML(m.recordDate)}</p>`;
+ return html;
+}
+function renderSections(v,trusted=false){
+ $('#visit-sections').innerHTML=v.modules.map((m,i)=>`<section class="detail-section${m.filled?'':' is-empty'}" id="section-${i}"><div class="detail-section-head"><span class="section-check">${m.filled?'✓':'–'}</span><h2>${escapeHTML(m.title)}</h2></div>${moduleBody(m,trusted)}</section>`).join('');
+ // 左侧导航：有内容 ✓，没内容 –
+ [...document.querySelectorAll('.detail-anchor a')].forEach((a,i)=>{const m=v.modules[i];if(!m)return;a.classList.toggle('is-empty',!m.filled);const mark=a.querySelector('i');if(mark)mark.textContent=m.filled?'✓':'–'});
+ return bindSectionNav();
+}
+
+// 左侧导航：点击滚动到模块；滚动时高亮当前模块
+function bindSectionNav(){
+ const anchors=[...document.querySelectorAll('.detail-anchor a')], sections=[...document.querySelectorAll('.detail-section')];
+ const setActive=id=>anchors.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+id));
+ const clicks=anchors.map(a=>{const click=e=>{e.preventDefault();const target=document.querySelector(a.getAttribute('href'));if(!target)return;setActive(target.id);target.scrollIntoView({behavior:'smooth',block:'start'});};a.addEventListener('click',click);return {a,click};});
+ const sync=()=>{if(!sections.length)return;if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-8){setActive(sections.at(-1).id);return;}const y=window.scrollY+130;let cur=sections[0];for(const s of sections){if(s.offsetTop<=y)cur=s;else break;}setActive(cur.id)};
+ window.addEventListener('scroll',sync,{passive:true});window.addEventListener('resize',sync);sync();
+ const hashTarget=flashHashTarget();if(hashTarget&&hashTarget.classList.contains('detail-section'))setActive(hashTarget.id);
+ return ()=>{window.removeEventListener('scroll',sync);window.removeEventListener('resize',sync);for(const {a,click} of clicks)a.removeEventListener('click',click);};
+}
+
+const visitEntryParams=new URLSearchParams(location.search);
+const aiVisitSource=visitEntryParams.getAll('from').includes('ai-cohort');
+if(aiVisitSource){
+ shell('ai');
+ const id=visitEntryParams.getAll('id').length===1?visitEntryParams.get('id'):'',visitId=visitEntryParams.getAll('visit').length===1?visitEntryParams.get('visit'):'';
+ const canonical=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
+ const valid=canonical(id)&&canonical(visitId)&&visitEntryParams.getAll('from').length===1&&[...visitEntryParams.keys()].every(key=>['id','visit','from'].includes(key));
+ const visitsUrl=`patient-visits.html?id=${encodeURIComponent(id||'')}&from=ai-cohort`;
+ $('#crumb-origin').href='ai-cohort.html';$('#crumb-origin').textContent='AI 队列分析';$('#crumb-visits').href=visitsUrl;$('#back-visits').href=visitsUrl;
+ let safeHistory=false;
+ try{const ref=new URL(document.referrer);safeHistory=ref.origin===location.origin&&ref.pathname===new URL('patient-visits.html',location.href).pathname&&ref.searchParams.getAll('id').length===1&&ref.searchParams.get('id')===id&&ref.searchParams.getAll('from').length===1&&ref.searchParams.get('from')==='ai-cohort'&&[...ref.searchParams.keys()].every(k=>['id','from'].includes(k))&&history.length>1;}catch{}
+ $('#back-visits').onclick=event=>{event.preventDefault();if(safeHistory)history.back();else location.assign(visitsUrl);};
+ $('.app-footnote').textContent='来源：AI 队列分析。可信只读访视；编辑、删除、下载、病程及问答尚未接入。';
+ let currentFlight=null,disposeBasic=null,disposeNav=null;
+ function clearVisit(state,message){
+  if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeNav){disposeNav();disposeNav=null;}
+  document.title='访视详情 · 患者数据研究平台';$('#visit-hero').setAttribute('data-state',state);
+  $('#visit-hero').innerHTML=`<h1>访视详情${state==='loading'?'加载中':'未加载'}</h1><p>${escapeHTML(message)}</p>`;$('#visit-sections').innerHTML='';document.querySelector('.detail-anchor').classList.remove('is-loading');
+ }
+ function showVisit(p,v){
+  document.title=`${p.name||'患者'} · ${v.visitType||'访视'} · 患者数据研究平台`;
+  $('#visit-hero').setAttribute('data-state','success');
+  $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div><div class="reference-basic-grid visit-meta"><div><span>本次访视</span><b>${escapeHTML(v.visitType||'访视')} · ${escapeHTML(v.visitDate||'日期未填')}</b><small>访视 ID：${escapeHTML(v.visitId)}</small></div><div><span>记录医生</span><b>${escapeHTML(v.doctorName||v.doctorId||'未提供')}</b></div></div><details id="basic-collapse" class="basic-collapse"><summary>患者基础信息</summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}</details>`;
+  disposeNav=renderSections(v,true);disposeBasic=bindPatientBasic($('#basic-collapse'),p,{trusted:true});
+ }
+ function finishVisit(flight,cause,data){
+  if(currentFlight!==flight||flight.cause!==null)return;
+  flight.cause=cause;currentFlight=null;clearTimeout(flight.timer);if(cause!=='success')flight.controller.abort();
+  if(cause==='success')showVisit(data[0].data,data[1].data);else clearVisit(cause,cause==='timeout'?'访视详情查询超时':cause==='cancelled'?'访视详情请求已结束':data?.code==='UNAUTHENTICATED'?'请先登录后重新选择患者':data?.code==='RESOURCE_NOT_FOUND'?'患者资料不可用':'访视资料暂不可用');
+ }
+ function cancelVisit(){if(currentFlight)finishVisit(currentFlight,'cancelled');else clearVisit('cancelled','访视详情请求已结束');}
+ function loadVisit(){
+  cancelVisit();clearVisit('loading','正在查询患者及访视资料…');
+  const flight={cause:null,controller:new AbortController(),timer:null};currentFlight=flight;
+  flight.timer=setTimeout(()=>finishVisit(flight,'timeout'),30000);
+  Promise.all([RACohortAPI.patientDetail(id,{signal:flight.controller.signal}),RACohortAPI.visitDetail(id,visitId,{signal:flight.controller.signal})]).then(data=>finishVisit(flight,'success',data),e=>finishVisit(flight,'error',e));
+ }
+ window.addEventListener('pagehide',cancelVisit);window.addEventListener('ra-auth-changed',cancelVisit);
+ window.addEventListener('storage',event=>{if(event.key==='ra-auth'||event.key===null)cancelVisit();});window.addEventListener('pageshow',event=>{if(event.persisted&&valid)loadVisit();});
+ if(valid)loadVisit();else clearVisit('invalid','入口参数无效，请返回患者档案重新选择。');
+}else{
 shell(pageOrigin().nav);
 const patientId=queryParam('id'), visitId=queryParam('visit');
 let p=null, v=null;
@@ -67,39 +150,6 @@ function openDeleteDialog(){
  d.querySelector('[name=reason]').value='';d.querySelector('.delete-error').hidden=true;d.showModal();
 }
 
-// 7 个病历模块（按后端字段字典分组）：字段组、清单（西药等）、图片；普通文字或 {record, date} 显示记录内容；没内容显示「本次未记录」
-function moduleBody(m){
- if(!m.filled)return '<p class="module-empty">本次未记录</p>';
- let html='';
- if(m.record)html+=`<div class="visit-record">${escapeHTML(m.record)}</div>`;
- (m.groups||[]).forEach(g=>{
-  html+=`<div class="subcard">${g.title?`<h3>${escapeHTML(g.title)}</h3>`:''}<div class="detail-fields">${g.items.map(i=>`<div class="detail-field${i.notChecked?' not-checked':''}"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.value)}${i.unit?`<small class="field-unit">${escapeHTML(i.unit)}</small>`:''}</strong></div>`).join('')}</div></div>`;
- });
- (m.tables||[]).forEach(t=>{
-  html+=`<div class="subcard"><h3>${escapeHTML(t.title)} <small class="table-count">${t.rows.length} 项</small></h3><div class="visit-table-wrap"><table class="visit-table"><thead><tr>${t.columns.map(c=>`<th>${escapeHTML(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHTML(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
- });
- (m.images||[]).forEach(g=>{
-  html+=`<div class="subcard"><h3>${escapeHTML(g.title)} <small class="table-count">${g.urls.length} 张</small></h3><div class="visit-images">${g.urls.map((u,i)=>`<a href="${escapeHTML(u)}" target="_blank" rel="noopener" title="点击查看原图"><img src="${escapeHTML(u)}" alt="${escapeHTML(g.title)} ${i+1}" loading="lazy"></a>`).join('')}</div></div>`;
- });
- if(m.recordDate)html+=`<p class="record-date">记录日期：${escapeHTML(m.recordDate)}</p>`;
- return html;
-}
-function renderSections(){
- $('#visit-sections').innerHTML=v.modules.map((m,i)=>`<section class="detail-section${m.filled?'':' is-empty'}" id="section-${i}"><div class="detail-section-head"><span class="section-check">${m.filled?'✓':'–'}</span><h2>${escapeHTML(m.title)}</h2></div>${moduleBody(m)}</section>`).join('');
- // 左侧导航：有内容 ✓，没内容 –
- [...document.querySelectorAll('.detail-anchor a')].forEach((a,i)=>{const m=v.modules[i];if(!m)return;a.classList.toggle('is-empty',!m.filled);const mark=a.querySelector('i');if(mark)mark.textContent=m.filled?'✓':'–'});
- bindSectionNav();
-}
-
-// 左侧导航：点击滚动到模块；滚动时高亮当前模块
-function bindSectionNav(){
- const anchors=[...document.querySelectorAll('.detail-anchor a')], sections=[...document.querySelectorAll('.detail-section')];
- const setActive=id=>anchors.forEach(a=>a.classList.toggle('active',a.getAttribute('href')==='#'+id));
- anchors.forEach(a=>a.addEventListener('click',e=>{e.preventDefault();const target=document.querySelector(a.getAttribute('href'));if(!target)return;setActive(target.id);target.scrollIntoView({behavior:'smooth',block:'start'});}));
- const sync=()=>{if(!sections.length)return;if(window.innerHeight+window.scrollY>=document.documentElement.scrollHeight-8){setActive(sections.at(-1).id);return;}const y=window.scrollY+130;let cur=sections[0];for(const s of sections){if(s.offsetTop<=y)cur=s;else break;}setActive(cur.id)};
- window.addEventListener('scroll',sync,{passive:true});window.addEventListener('resize',sync);sync();
- const hashTarget=flashHashTarget();if(hashTarget&&hashTarget.classList.contains('detail-section'))setActive(hashTarget.id);
-}
 
 function renderError(msg){
  $('#visit-hero').innerHTML=`<p class="pv-load-error">访视详情加载失败：${escapeHTML(msg)}。请确认后端服务已启动（${escapeHTML(API_BASE)}），或返回随访记录重新选择。</p>`;
@@ -112,10 +162,12 @@ async function load(){
   const params={doctorId:currentDoctorId()};
   [p,v]=await Promise.all([apiPost('/api/ra/patient/patientDetail',{...params,patientId}),apiPost('/api/ra/visit/visitDetail',{...params,visitId})]);
   if(String(v.patientId)!==String(p.patientId)){renderError('这条随访记录不属于该患者');return}
-  renderHero();renderSections();
+  renderHero();renderSections(v);
   // 从病程分析跳入：提供返回入口
   if(queryParam('from')==='insight'){const back=document.createElement('a');back.className='from-insight';back.href=`patient-insight.html?id=${encodeURIComponent(p.patientId)}`;back.textContent='← 返回病程分析';const main=document.getElementById('main');main.insertBefore(back,main.querySelector('.breadcrumb')?.nextSibling||main.firstChild);}
  }catch(e){console.error(e);renderError(e.message)}
  finally{document.querySelector('.detail-anchor').classList.remove('is-loading')}
 }
 load();
+
+}

@@ -15,10 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const basic = document.getElementById('basic'), box = document.getElementById('basic-readonly');
   basic.open = false;
   apiPost('/api/ra/patient/patientDetail', { doctorId: currentDoctorId(), patientId }).then(p => {
-    const nth = (p.visits || []).length + 1;
+    const nth = (p.visits || []).length;
     document.title = `${p.name} · 新增随访 · 患者数据研究平台`;
     document.getElementById('visit-title').textContent = `新增随访 · ${p.name}`;
-    document.getElementById('visit-sub').textContent = `研究编号 ${p.studyNo || '—'} · 第 ${nth} 次随访${nth === 1 ? '（基线访视）' : ''} · 基本信息沿用患者档案，只录入本次随访内容；未完成内容可暂存草稿。`;
+    document.getElementById('visit-sub').textContent = `研究编号 ${p.studyNo || '—'} · ${nth === 0 ? '基线访视' : `第 ${nth} 次随访`} · 基本信息沿用患者档案，只录入本次随访内容；未完成内容可暂存草稿。`;
     box.innerHTML = patientTagsHTML(p) + patientBasicGridHTML(p) + patientHistoryHTML(p);
     bindPatientBasic(box, p);
   }).catch(e => {

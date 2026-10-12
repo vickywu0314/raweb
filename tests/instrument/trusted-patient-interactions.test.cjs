@@ -1,0 +1,95 @@
+const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve(__dirname,'../..'),checks=[];
+const detail=(id='9007199254740992')=>({patientId:id,name:'synthetic-patient-even',studyNo:'RA-EVEN',hasCardNo:true,cardNoMasked:'SYNTHETIC-MASKED',visits:[{visitId:'9007199254741001',doctorId:'101',visitDate:'2026-09-01',visitType:'基线访视'}],comorbidities:[]});
+const visit=()=>({patientId:'9007199254740992',visitId:'9007199254741001',doctorId:'101',visitType:'基线访视',visitDate:'2026-09-01',modules:[{title:'病史病情',filled:true,record:'SYNTHETIC-HISTORY',recordDate:'2026-09-01'},{title:'辅助检查',filled:true,images:[{title:'报告',urls:['/img/logo.svg','javascript:alert(1)','data:text/html,synthetic']}]},{title:'病情评估',filled:true,record:'SYNTHETIC-ASSESSMENT'},{title:'中医诊断',filled:true,record:'SYNTHETIC-DIAGNOSIS'},{title:'治疗方案',filled:true,record:'SYNTHETIC-TREATMENT'},{title:'不良反应',filled:true,record:'SYNTHETIC-REACTION'},{title:'不良事件',filled:false}]});
+async function flush(){for(let i=0;i<20;i++)await Promise.resolve();}
+function harness(page='patient-visits',query='?id=9007199254740992&from=ai-cohort',referrer='',length=1){
+ const nodes=new Map(),requests=[],events=new Map(),timers=new Map(),navigation=[],alerts=[],storage=[],legacyRequests=[],doctorReads=[];let now=0,seq=0;
+ const node=s=>{if(!nodes.has(s))nodes.set(s,{innerHTML:'',textContent:'',id:s.startsWith('#')?s.slice(1):'',hidden:false,open:false,disabled:false,attributes:{},style:{},classList:{add(){},remove(){},toggle(){},contains(){return false}},setAttribute(k,v){this.attributes[k]=String(v)},getAttribute(k){return this.attributes[k]},querySelector(sel){return node(sel)},querySelectorAll(){return []},addEventListener(type,fn){(this.listeners??={})[type]=fn},removeEventListener(type,fn){if(this.listeners?.[type]===fn)delete this.listeners[type]},remove(){for(const [key,value] of nodes)if(value===this)nodes.delete(key)},close(){this.open=false},showModal(){this.open=true}});return nodes.get(s)};
+ const location=new URL('http://fixture.invalid/'+page+'.html'+query);location.assign=x=>navigation.push(x);
+ const context={URL,URLSearchParams,AbortController,location,history:{length,back(){navigation.push('back')}},document:{referrer,title:'',querySelector:node,querySelectorAll:()=>[],getElementById:id=>nodes.get('#'+id)||null,createElement:()=>node('#created-dialog'),body:{appendChild(d){nodes.set('#'+d.id,d)}}},console:{error(){}},shell(){},$:node,queryParam:k=>location.searchParams.get(k),pageOrigin:()=>({nav:'patients',crumb:'患者管理',href:'patients.html',label:'患者列表'}),bindBack(){},withFrom:x=>x,flashHashTarget(){},escapeHTML:x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),badge:x=>`<span>${x}</span>`,cycleLabel:()=>'',COMORBIDITY_INFO:{FM:{}},TODAY:new Date('2026-10-12'),icon:()=>'',API_BASE:'http://fixture.invalid',apiPost(url,body){legacyRequests.push({url,body});return Promise.reject(Error('synthetic legacy boundary'))},currentDoctorId(){doctorReads.push(101);return 101},alert:x=>alerts.push(x),localStorage:{getItem:()=>null,setItem:(...args)=>storage.push(args)},setTimeout(fn,ms){const id=++seq;timers.set(id,{fn,at:now+ms});return id},clearTimeout(id){timers.delete(id)},addEventListener(type,fn){if(!events.has(type))events.set(type,[]);events.get(type).push(fn)},removeEventListener(type,fn){const list=events.get(type)||[];events.set(type,list.filter(x=>x!==fn))},fetch(url,options){let yes,no;const promise=new Promise((a,b)=>{yes=a;no=b});requests.push({url,options,resolve:yes,reject:no});return promise}};
+ context.window=context;vm.createContext(context);
+ for(const file of ['js/pages/ai-cohort-api.js','js/shared/patient-basic.js','js/pages/'+page+'.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
+ return {nodes,requests,events,timers,navigation,alerts,storage,legacyRequests,doctorReads,context,node,event(type,value={}){for(const fn of events.get(type)||[])fn(value)},async click(selector){const n=node(selector);n.listeners?.click?.({target:n,preventDefault(){}});await flush()},async toggle(selector,open){const n=node(selector);n.open=open;n.listeners?.toggle?.({target:n});await flush()},async advance(ms){now+=ms;for(const [id,t] of [...timers])if(t.at<=now){timers.delete(id);t.fn()}await flush()},async answer(index,data,status=200,code='200'){requests[index].resolve({ok:status===200,status,headers:{get:k=>k==='Content-Type'?'application/json':k==='X-Trace-Id'?'trace-patient':null},json:async()=>({success:status===200,code,message:'synthetic-response',data})});await flush()}};
+}
+checks.push(['trusted timeline navigates using both original IDs',async()=>{
+ const h=harness();assert.equal(h.requests.length,1);await h.answer(0,detail());
+ assert.match(h.node('#visit-list').innerHTML,/href="visit-detail.html\?id=9007199254740992&amp;visit=9007199254741001&amp;from=ai-cohort"/);
+ assert.equal(h.requests.length,1,'explicit interactions must not start on render');
+}]);
+checks.push(['trusted visit publishes only matching dual success',async()=>{
+ const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await flush();
+ assert.equal(h.requests.length,2);assert.equal(h.requests[0].url,'http://fixture.invalid/api/ra/ai/patientDetail');assert.equal(h.requests[1].url,'http://fixture.invalid/api/ra/ai/visitDetail');
+ assert.deepEqual(JSON.parse(h.requests[1].options.body),{patientId:'9007199254740992',visitId:'9007199254741001'});
+ await h.answer(1,visit());assert.doesNotMatch(h.node('#visit-sections').innerHTML,/SYNTHETIC-HISTORY/);
+ await h.answer(0,detail());assert.equal(h.node('#visit-hero').attributes['data-state'],'success');assert.match(h.node('#visit-sections').innerHTML,/SYNTHETIC-HISTORY/);assert.match(h.node('#visit-sections').innerHTML,/本次未记录/);assert.equal(h.timers.size,0);
+}]);
+checks.push(['trusted image links reject executable and unknown protocols',async()=>{
+ const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await h.answer(0,detail());await h.answer(1,visit());
+ const html=h.node('#visit-sections').innerHTML;assert.doesNotMatch(html,/(?:href|src)="(?:javascript:|data:)/);assert.match(html,/href="http:\/\/fixture.invalid\/img\/logo.svg"/);
+}]);
+checks.push(['explicit sensitive reads clear on collapse and fence already started late success',async()=>{
+ const h=harness();await h.answer(0,detail());assert.match(h.node('#patient-basic').innerHTML,/identity-toggle/);assert.equal(h.requests.length,1);
+ await h.click('.identity-toggle');assert.equal(h.requests.length,2);assert.equal(h.requests[1].url,'http://fixture.invalid/api/ra/ai/patientSensitive');assert.deepEqual(JSON.parse(h.requests[1].options.body),{patientId:'9007199254740992'});
+ await h.click('.identity-toggle');assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');assert.equal(h.requests[1].options.signal.aborted,true);assert.equal(h.timers.size,0);
+ await h.click('.identity-toggle');assert.equal(h.requests.length,3);assert.equal(h.timers.size,1);
+ await h.answer(1,{patientId:'9007199254740992',cardNo:'OLD-SYNTHETIC-CARD'});assert.doesNotMatch(h.node('.identity-number').textContent,/OLD-SYNTHETIC-CARD/);assert.equal(h.timers.size,1);assert.equal(h.requests[2].options.signal.aborted,false);
+ await h.answer(2,{patientId:'9007199254740992',cardNo:'SYNTHETIC-CARD-EVEN'});assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-CARD-EVEN');assert.equal(h.timers.size,0);
+ await h.click('.identity-toggle');assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');await h.click('.identity-toggle');assert.equal(h.requests.length,4,'reopen must re-read, no cached full value');
+ h.event('pagehide');assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');await h.answer(3,{patientId:'9007199254740992',cardNo:'LATE-SYNTHETIC-CARD'});assert.doesNotMatch(h.node('.identity-number').textContent,/LATE/);assert.deepEqual(h.storage,[]);
+}]);
+checks.push(['existing patient audit and both pages sensitive clear on collapse',async()=>{
+ for(const page of ['patient-visits','visit-detail']){
+  const h=harness(page,page==='visit-detail'?'?id=9007199254740992&visit=9007199254741001&from=ai-cohort':'?id=9007199254740992&from=ai-cohort');await h.answer(0,detail());if(page==='visit-detail')await h.answer(1,visit());
+  if(page==='patient-visits'){const initial=h.requests.length;assert.equal(h.node('#audit').hidden,false);await h.toggle('#audit',true);assert.equal(h.requests.length,initial+1);assert.equal(h.requests[initial].url,'http://fixture.invalid/api/ra/ai/patientAuditLogs');
+  await h.answer(initial,{patientId:'9007199254740992',logs:[{id:'9007199254741103',visitId:'9007199254741001',time:'2026-09-02 10:00',action:'编辑随访',detail:'SYNTHETIC-AUDIT-NEWER'}]});assert.match(h.node('#audit-list').innerHTML,/SYNTHETIC-AUDIT-NEWER/);assert.equal(h.node('#audit-count').textContent,'1 条');
+  await h.toggle('#audit',false);assert.equal(h.node('#audit-list').innerHTML,'');assert.equal(h.node('#audit-count').textContent,'');await h.toggle('#audit',true);assert.equal(h.requests.length,initial+2);
+  await h.toggle('#audit',false);await h.answer(initial+1,{patientId:'9007199254740992',logs:[{id:'9007199254741103',detail:'OLD-AUDIT'}]});assert.equal(h.node('#audit-list').innerHTML,'');}
+  assert.match(h.node(page==='visit-detail'?'#visit-hero':'#patient-basic').innerHTML,/identity-toggle/);await h.click('.identity-toggle');const index=h.requests.length-1;await h.answer(index,{patientId:'9007199254740992',cardNo:'SYNTHETIC-CARD-EVEN'});assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-CARD-EVEN');h.event('ra-auth-changed');assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');if(page==='patient-visits'){assert.equal(h.node('#audit-list').innerHTML,'');assert.equal(h.node('#audit').hidden,true);}
+ }
+}]);
+checks.push(['trusted related disease shows only returned facts and closes with identity',async()=>{
+ const h=harness(),d=detail();d.comorbidities=[{code:'FM',name:'纤维肌痛',sinceYear:null,status:'SYNTHETIC-STATUS',coreItems:['SYNTHETIC-CORE'],treatment:'SYNTHETIC-TX'}];await h.answer(0,d);
+ const box=h.node('#patient-basic');assert.equal(typeof box.listeners?.click,'function');box.listeners.click({target:{closest:()=>({dataset:{comorbid:'FM'}})}});const dialog=h.nodes.get('#trusted-comorbidity-dialog');assert.ok(dialog);assert.match(dialog.innerHTML,/SYNTHETIC-STATUS/);assert.match(dialog.innerHTML,/SYNTHETIC-CORE/);assert.match(dialog.innerHTML,/起病年份未填/);assert.doesNotMatch(dialog.innerHTML,/病程约|generic|初诊|阶段/);h.event('ra-auth-changed');assert.equal(h.nodes.has('#trusted-comorbidity-dialog'),false);
+}]);
+checks.push(['dual read deadline and first error terminate both flights before teardown',async()=>{
+ for(const cut of ['timeout','first-error','mismatch']){
+  const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');assert.equal(h.requests.length,2);assert.equal(h.timers.size,1);
+  if(cut==='timeout'){await h.advance(29999);assert.equal(h.node('#visit-hero').attributes['data-state'],'loading');await h.advance(1);}else if(cut==='first-error')await h.answer(0,null,503,'SERVICE_UNAVAILABLE');else await h.answer(1,{...visit(),patientId:'9007199254740993'});
+  const state=cut==='timeout'?'timeout':'error';assert.equal(h.node('#visit-hero').attributes['data-state'],state);assert.equal(h.timers.size,0);assert.ok(h.requests.every(r=>r.options.signal.aborted));assert.equal(h.node('#visit-sections').innerHTML,'');
+  h.event('pageshow',{persisted:true});assert.equal(h.requests.length,4);assert.equal(h.timers.size,1);await h.answer(0,{...detail(),name:'OLD-PATIENT'});await h.answer(1,visit());assert.equal(h.node('#visit-hero').attributes['data-state'],'loading');assert.equal(h.timers.size,1);assert.equal(h.requests[2].options.signal.aborted,false);await h.answer(2,detail());await h.answer(3,visit());assert.equal(h.node('#visit-hero').attributes['data-state'],'success');assert.doesNotMatch(h.node('#visit-hero').innerHTML,/OLD-PATIENT/);
+ }
+}]);
+checks.push(['sensitive and audit owners timeout and reject stale identity success or failure',async()=>{
+ for(const page of ['patient-visits','visit-detail'])for(const signal of ['pagehide','storage','ra-auth-changed'])for(const late of ['success','failure']){
+  const h=harness(page,page==='visit-detail'?'?id=9007199254740992&visit=9007199254741001&from=ai-cohort':'?id=9007199254740992&from=ai-cohort');await h.answer(0,detail());if(page==='visit-detail')await h.answer(1,visit());const at=h.requests.length;
+  await h.click('.identity-toggle');if(page==='patient-visits')await h.toggle('#audit',true);assert.equal(h.requests.length,at+(page==='patient-visits'?2:1));h.event(signal,{key:'ra-auth'});assert.equal(h.timers.size,0);
+  h.event('pageshow',{persisted:true});const mainAt=h.requests.length-(page==='visit-detail'?2:1);assert.equal(h.timers.size,1);
+  if(late==='success'){await h.answer(at,{patientId:'9007199254740992',cardNo:'LATE-SYNTHETIC-CARD'});if(page==='patient-visits')await h.answer(at+1,{patientId:'9007199254740992',logs:[{id:'9007199254741103',detail:'LATE-AUDIT'}]});}else{h.requests[at].reject(Error('late'));if(page==='patient-visits')h.requests[at+1].reject(Error('late'));await flush();}
+  assert.equal(h.timers.size,1);assert.equal(h.requests[mainAt].options.signal.aborted,false);assert.doesNotMatch(h.node('.identity-number').textContent,/LATE/);assert.doesNotMatch(h.node('#audit-list').innerHTML,/LATE/);assert.equal(h.alerts.length,0);
+  await h.answer(mainAt,detail());if(page==='visit-detail')await h.answer(mainAt+1,visit());await h.click('.identity-toggle');const sensitive=h.requests.length-1;await h.advance(30000);assert.equal(h.timers.size,0);assert.equal(h.requests[sensitive].options.signal.aborted,true);assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');await h.answer(sensitive,{patientId:'9007199254740992',cardNo:'TIMEOUT-LATE'});assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');
+  if(page==='patient-visits'){await h.toggle('#audit',true);const audit=h.requests.length-1;await h.advance(30000);assert.equal(h.timers.size,0);assert.match(h.node('#audit-list').innerHTML,/超时/);await h.answer(audit,{patientId:'9007199254740992',logs:[]});assert.match(h.node('#audit-list').innerHTML,/超时/);await h.toggle('#audit',false);assert.equal(h.node('#audit-list').innerHTML,'');}
+ }
+}]);
+checks.push(['strict visit entry and same patient safe return preserve ordinary requests',async()=>{
+ for(const q of ['?id=1&visit=2&from=ai-cohort&doctorId=101','?id=1&visit=2&from=ai-cohort&return=x','?id=1&id=2&visit=2&from=ai-cohort','?id=1&visit=2&visit=3&from=ai-cohort','?id=1&visit=01&from=ai-cohort','?id=1&visit=2&from=patients&from=ai-cohort','?id=1&from=ai-cohort']){const h=harness('visit-detail',q);assert.equal(h.requests.length,0);assert.equal(h.legacyRequests.length,0);assert.equal(h.doctorReads.length,0);assert.equal(h.node('#visit-hero').attributes['data-state'],'invalid');}
+ for(const [ref,expected] of [['http://fixture.invalid/patient-visits.html?id=9007199254740992&from=ai-cohort','back'],['http://fixture.invalid/patient-visits.html?id=9007199254740993&from=ai-cohort','patient-visits.html?id=9007199254740992&from=ai-cohort'],['https://unsafe.invalid/patient-visits.html?id=9007199254740992&from=ai-cohort','patient-visits.html?id=9007199254740992&from=ai-cohort']]){const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort',ref,2);h.node('#back-visits').onclick({preventDefault(){}});assert.deepEqual(h.navigation,[expected]);h.event('pagehide');}
+ for(const page of ['patient-visits','visit-detail']){const h=harness(page,'?id=11&visit=12&from=patients');await flush();assert.equal(h.requests.length,0);assert.equal(h.legacyRequests.length,page==='visit-detail'?2:1);assert.equal(h.legacyRequests[0].url,'/api/ra/patient/patientDetail');if(page==='visit-detail')assert.equal(h.legacyRequests[1].url,'/api/ra/visit/visitDetail');}
+}]);
+checks.push(['explicit empty success and failure remain distinct without stale content',async()=>{
+ for(const path of ['patientSensitive','patientAuditLogs'])for(const outcome of ['empty','401','404','503','mismatch','numeric']){
+  const h=harness();await h.answer(0,detail());if(path==='patientSensitive')await h.click('.identity-toggle');else await h.toggle('#audit',true);const at=h.requests.length-1;
+  let data=path==='patientSensitive'?{patientId:'9007199254740992',cardNo:null}:{patientId:'9007199254740992',logs:[]};
+  if(outcome==='mismatch')data.patientId='9007199254740993';if(outcome==='numeric'){if(path==='patientSensitive')data.cardNo=101;else data.logs=[{id:9007199254741103}];}
+  const status=/^\d/.test(outcome)?Number(outcome):200;await h.answer(at,status===200?data:null,status,status===401?'UNAUTHENTICATED':status===404?'RESOURCE_NOT_FOUND':status===503?'SERVICE_UNAVAILABLE':'200');assert.equal(h.timers.size,0);
+  if(path==='patientSensitive'){assert.equal(h.node('.identity-number').textContent,outcome==='empty'?'未提供':'SYNTHETIC-MASKED');assert.equal(h.alerts.length,outcome==='empty'?0:1);}else{assert.equal(h.node('#audit-count').textContent,'');assert.match(h.node('#audit-list').innerHTML,outcome==='empty'?/暂无修改记录/:/暂不可用/);}
+ }
+ const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await h.answer(0,detail());await h.answer(1,visit());await h.toggle('#basic-collapse',true);await h.click('.identity-toggle');assert.equal(h.requests.length,3);await h.toggle('#basic-collapse',false);assert.equal(h.timers.size,0);await h.answer(2,{patientId:'9007199254740992',cardNo:'HIDDEN-LATE'});assert.equal(h.node('.identity-number').textContent,'SYNTHETIC-MASKED');
+}]);
+checks.push(['collapse before transport starts prevents cancelled read from starting later',async()=>{
+ const h=harness();await h.answer(0,detail());h.node('.identity-toggle').listeners.click();h.node('.identity-toggle').listeners.click();await flush();assert.equal(h.requests.length,1);assert.equal(h.timers.size,0);
+}]);
+checks.push(['trusted visit detaches section observers before a new page generation',async()=>{
+ const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await h.answer(0,detail());await h.answer(1,visit());assert.equal(h.events.get('scroll').length,1);h.event('pagehide');assert.equal(h.events.get('scroll').length,0);assert.equal(h.events.get('resize').length,0);h.event('pageshow',{persisted:true});await h.answer(2,detail());await h.answer(3,visit());assert.equal(h.events.get('scroll').length,1);h.event('pagehide');assert.equal(h.events.get('scroll').length,0);
+}]);
+test('patient:trusted-interactions-contract'         ,async()=>{for(const [name,run] of checks){try{await run()}catch(error){error.message=name+': '+error.message;throw error}}});
