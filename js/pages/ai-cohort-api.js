@@ -169,13 +169,13 @@ window.RACohortAPI = (()=>{
       }
       if(!valid)throw invalidDetail(result);return result;
     },
-    async patientSearch(command,options){
+    async patientSearch(command,options,sameOrigin=false){
       const integer=n=>Number.isInteger(n)&&n>=1&&n<=2147483647;
       if(!command||typeof command!=='object'||Array.isArray(command)||Object.keys(command).length!==3||
           !['keyword','page','size'].every(k=>Object.hasOwn(command,k))||typeof command.keyword!=='string'||
           !command.keyword.isWellFormed()||[...command.keyword].length>200||!integer(command.page)||!integer(command.size)||command.size>200)
         throw Object.assign(new Error('患者搜索输入无效'),{code:'INVALID_REQUEST',data:null});
-      const result=await post('ai/patientSearch',command,options),d=result.data;
+      const result=await post('ai/patientSearch',command,options,sameOrigin),d=result.data;
       if(!d||typeof d!=='object'||Array.isArray(d)||Object.keys(d).length!==4||
           !['items','total','page','size'].every(k=>Object.hasOwn(d,k))||d.page!==command.page||d.size!==command.size||
           !Number.isInteger(d.total)||d.total<0||d.total>2147483647||!Array.isArray(d.items)||d.items.length>command.size||d.items.length>d.total||
