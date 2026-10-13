@@ -169,3 +169,22 @@
 .das28-level.low { color: #3c4a5c; background: #eef2f7; }
 .das28-level.moderate { color: #b06000; background: #fef3e0; }
 .das28-level.high { color: #c5221f; background: #fce8e6; }
+
+/* 身份证查询失败与重试保留在对应卡片行，不打断页面。 */
+.reference-basic-grid .identity-value { flex-wrap:wrap; }
+.reference-basic-grid .identity-feedback {
+  display:block;
+  flex-basis:100%;
+  margin-top:4px;
+  color:#b3322a;
+  font-size:var(--fs-xs);
+  font-weight:400;
+}
+.reference-basic-grid .identity-retry {
+  margin-top:4px;
+  padding:2px 8px;
+  font-size:var(--fs-xs);
+  color:var(--primary);
+}
+.reference-basic-grid .identity-feedback[hidden],
+.reference-basic-grid .identity-retry[hidden] { display:none; }

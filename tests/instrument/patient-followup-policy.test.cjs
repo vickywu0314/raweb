@@ -25,6 +25,15 @@ test('patient:followup-policy-contract',async()=>{
   const html=vm.runInContext('card(data)',c);assert.doesNotMatch(html,/疑似失访/);assert.match(html,new RegExp(`随访（不含基线） ${Math.max(total-1,0)} 次`));
   const vh=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await vh.answer(0,data);await vh.answer(1,{...visit(),followUpNumber:4,visitType:'第 4 次随访'});assert.match(vh.node('#visit-hero').innerHTML,/第 4 次随访/);assert.doesNotMatch(vh.node('#visit-hero').innerHTML,/疑似失访/);vh.event('pagehide');
  }
+
+ // 无访视且后端明确标记失访时仍消费该标记；新响应为 false 必须清除。
+ const noVisits={...p,visits:[],visitCount:0,followUpCount:0,suspectedLostToFollowUp:true};c.data=noVisits;
+ assert.match(vm.runInContext('card(data)',c),/疑似失访/);
+ const noVisitPage=harness();await noVisitPage.answer(0,noVisits);assert.match(noVisitPage.node('#patient-basic').innerHTML,/疑似失访/);assert.doesNotMatch(noVisitPage.node('#visit-list').innerHTML,/class="visit-row/);
+ noVisitPage.event('pageshow',{persisted:true});await noVisitPage.answer(1,{...noVisits,suspectedLostToFollowUp:false});assert.doesNotMatch(noVisitPage.node('#patient-basic').innerHTML,/疑似失访/);assert.doesNotMatch(noVisitPage.node('#visit-list').innerHTML,/class="visit-row/);noVisitPage.event('pagehide');
+ const {harness:ordinaryNoVisits}=require('../fixtures/issue1-patient-detail.cjs');
+ const noVisitOrdinary=ordinaryNoVisits('patient-visits','?id=9007199254740992');await flush();await noVisitOrdinary.answer(0,noVisits);assert.match(noVisitOrdinary.node('#patient-basic').innerHTML,/疑似失访/);assert.doesNotMatch(noVisitOrdinary.node('#visit-list').innerHTML,/class="visit-row/);
+ await noVisitOrdinary.event('pageshow',{persisted:true});await noVisitOrdinary.answer(1,{...noVisits,suspectedLostToFollowUp:false});assert.doesNotMatch(noVisitOrdinary.node('#patient-basic').innerHTML,/疑似失访/);assert.doesNotMatch(noVisitOrdinary.node('#visit-list').innerHTML,/class="visit-row/);await noVisitOrdinary.event('pagehide');
  const timeline=harness();await timeline.answer(0,{...p,visits:[{visitId:'9007199254741011',visitType:'第 1 次随访',followUpNumber:1},{visitId:'9007199254741012',visitType:'基线访视',followUpNumber:0}]});assert.match(timeline.node('#visit-list').innerHTML,/第 1 次随访/);assert.match(timeline.node('#visit-list').innerHTML,/基线访视/);timeline.event('pagehide');
  const {harness:ordinaryHarness}=require('../fixtures/issue1-patient-detail.cjs');
  for(const total of [0,1,2,3]){

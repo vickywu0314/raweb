@@ -25,7 +25,7 @@ const das28Text=p=>`${basicVal(p.latestDas28)}${p.das28Activity?`<span class="da
 function patientBasicGridHTML(p,{readOnly=false}={}){
  const cells=[
   ['患者手机号',basicVal(p.mobile)],
-  ['患者身份证号',`<span class="identity-number">${basicVal(p.cardNoMasked)}</span>${p.hasCardNo&&!readOnly?`<button type="button" class="identity-toggle" aria-label="显示完整身份证号" aria-pressed="false" title="显示完整身份证号">${BASIC_EYE}</button>`:''}`,'identity-value'],
+  ['患者身份证号',`<span class="identity-number">${basicVal(p.cardNoMasked)}</span>${p.hasCardNo&&!readOnly?`<button type="button" class="identity-toggle" aria-label="显示完整身份证号" aria-pressed="false" aria-describedby="patient-identity-feedback" title="显示完整身份证号">${BASIC_EYE}</button><span id="patient-identity-feedback" class="identity-feedback" role="status" aria-live="polite" aria-atomic="true" hidden></span><button type="button" class="identity-retry" hidden>重试</button>`:''}`,'identity-value'],
   ['民族',basicVal(p.nation)],
   ['婚史',basicVal(p.marryLabel||(p.marry==null?null:`代码 ${p.marry}`))],
   ['建档日期',basicVal(p.createDate)],
@@ -92,14 +92,20 @@ function bindTrustedPatientAudit(panel,p){
  panel.open=false;clear();panel.addEventListener('toggle',toggle);
  return ()=>{disposed=true;reader.cancel();clear();panel.open=false;panel.removeEventListener('toggle',toggle);};
 }
+// 错误仅使用固定安全文案，不将服务响应或身份证明文写入提示。
+function patientIdentityFeedback(box){
+ const status=box.querySelector('.identity-feedback'),retry=box.querySelector('.identity-retry');
+ return {retry,clear(){if(status){status.textContent='';status.hidden=true;}if(retry)retry.hidden=true;},fail(cause){if(status){status.textContent=cause==='timeout'?'身份证号查询超时，请重试。':'身份证号暂不可用，请重试。';status.hidden=false;}if(retry)retry.hidden=false;}};
+}
 function bindTrustedPatientBasic(box,p){
- const toggle=box.querySelector('.identity-toggle'),num=box.querySelector('.identity-number');let disposed=false,expanded=false;
- const mask=()=>{expanded=false;if(num)num.textContent=p.cardNoMasked||'未提供';if(toggle){toggle.setAttribute('aria-pressed','false');toggle.setAttribute('aria-label','显示完整身份证号');toggle.title='显示完整身份证号';}};
+ const toggle=box.querySelector('.identity-toggle'),num=box.querySelector('.identity-number'),feedback=patientIdentityFeedback(box);let disposed=false,expanded=false;
+ const mask=()=>{feedback.clear();expanded=false;if(num)num.textContent=p.cardNoMasked||'未提供';if(toggle){toggle.setAttribute('aria-pressed','false');toggle.setAttribute('aria-label','显示完整身份证号');toggle.title='显示完整身份证号';}};
  const reader=trustedDetailReader(options=>RACohortAPI.patientSensitive(p.patientId,options),(cause,data)=>{
-  if(cause==='success'&&!disposed&&expanded){num.textContent=data.cardNo==null?'未提供':data.cardNo;}
-  else{mask();if(cause==='error'||cause==='timeout')alert(cause==='timeout'?'身份证号查询超时':'身份证号暂不可用，请重新展开。');}
+  if(cause==='success'&&!disposed&&expanded){feedback.clear();num.textContent=data.cardNo==null?'未提供':data.cardNo;}
+  else{mask();if(!disposed&&(cause==='error'||cause==='timeout'))feedback.fail(cause);}
  });
- const click=()=>{if(disposed)return;if(expanded){expanded=false;reader.cancel();mask();}else{expanded=true;toggle.setAttribute('aria-pressed','true');toggle.setAttribute('aria-label','隐藏身份证号');toggle.title='隐藏身份证号';reader.start();}};
+ const click=()=>{if(disposed)return;if(expanded){expanded=false;reader.cancel();mask();}else{feedback.clear();expanded=true;toggle.setAttribute('aria-pressed','true');toggle.setAttribute('aria-label','隐藏身份证号');toggle.title='隐藏身份证号';reader.start();}};
+ const retry=()=>{if(feedback.retry&&!feedback.retry.hidden)click();};
  const closeRelated=()=>{const dialog=document.getElementById('trusted-comorbidity-dialog');if(dialog){dialog.close();dialog.innerHTML='';dialog.remove();}};
  const related=event=>{
   if(disposed)return;const button=event.target.closest('[data-comorbid]');if(!button)return;
@@ -109,21 +115,22 @@ function bindTrustedPatientBasic(box,p){
   document.body.appendChild(dialog);dialog.showModal();
  };
  const collapse=()=>{if(!box.open){expanded=false;reader.cancel();mask();closeRelated();}};
- if(toggle)toggle.addEventListener('click',click);box.addEventListener('click',related);if(box.id==='basic-collapse')box.addEventListener('toggle',collapse);
- return ()=>{disposed=true;expanded=false;reader.cancel();mask();closeRelated();if(toggle)toggle.removeEventListener('click',click);box.removeEventListener('click',related);box.removeEventListener('toggle',collapse);};
+ if(toggle)toggle.addEventListener('click',click);if(feedback.retry)feedback.retry.addEventListener('click',retry);box.addEventListener('click',related);if(box.id==='basic-collapse')box.addEventListener('toggle',collapse);
+ return ()=>{disposed=true;expanded=false;reader.cancel();mask();closeRelated();if(toggle)toggle.removeEventListener('click',click);if(feedback.retry)feedback.retry.removeEventListener('click',retry);box.removeEventListener('click',related);box.removeEventListener('toggle',collapse);};
 }
 function bindPatientBasic(box,p,{trusted=false}={}){
  if(trusted)return bindTrustedPatientBasic(box,p);
- const t=box.querySelector('.identity-toggle'),num=box.querySelector('.identity-number');
+ const t=box.querySelector('.identity-toggle'),num=box.querySelector('.identity-number'),feedback=patientIdentityFeedback(box);
  let disposed=false,expanded=false,full=null;
- const mask=()=>{expanded=false;full=null;if(num)num.textContent=p.cardNoMasked||'未提供';if(t){t.disabled=false;t.setAttribute('aria-pressed','false');t.setAttribute('aria-label','显示完整身份证号');t.title='显示完整身份证号';}};
+ const mask=()=>{feedback.clear();expanded=false;full=null;if(num)num.textContent=p.cardNoMasked||'未提供';if(t){t.disabled=false;t.setAttribute('aria-pressed','false');t.setAttribute('aria-label','显示完整身份证号');t.title='显示完整身份证号';}};
  const reader=trustedDetailReader(()=>apiPost('/api/ra/patient/patientSensitive',{doctorId:currentDoctorId(),patientId:p.patientId}).then(data=>({data})),(cause,data)=>{
-  if(cause==='success'&&!disposed&&expanded){full=data||'';num.textContent=full||p.cardNoMasked;t.disabled=false;}
-  else{mask();if(!disposed&&(cause==='error'||cause==='timeout'))toast(cause==='timeout'?'身份证号查询超时':'获取身份证号失败');}
+  if(cause==='success'&&!disposed&&expanded){feedback.clear();full=data||'';num.textContent=full||p.cardNoMasked;t.disabled=false;}
+  else{mask();if(!disposed&&(cause==='error'||cause==='timeout'))feedback.fail(cause);}
  });
- const click=()=>{if(disposed)return;if(expanded){reader.cancel();mask();}else{expanded=true;t.disabled=true;t.setAttribute('aria-pressed','true');t.setAttribute('aria-label','隐藏身份证号');t.title='隐藏身份证号';reader.start();}};
+ const click=()=>{if(disposed)return;if(expanded){reader.cancel();mask();}else{feedback.clear();expanded=true;t.disabled=true;t.setAttribute('aria-pressed','true');t.setAttribute('aria-label','隐藏身份证号');t.title='隐藏身份证号';reader.start();}};
+ const retry=()=>{if(feedback.retry&&!feedback.retry.hidden)click();};
  const related=e=>{if(disposed)return;const b=e.target.closest('[data-comorbid]');if(b)openComorbidity(b.dataset.comorbid,comorbidPatient(p));};
  const collapse=()=>{if(!box.open){reader.cancel();mask();}};
- if(t)t.addEventListener('click',click);box.addEventListener('click',related);if(box.id==='basic-collapse')box.addEventListener('toggle',collapse);
- return ()=>{disposed=true;reader.cancel();mask();const dialog=document.getElementById('comorbid-dialog');if(dialog){dialog.close();dialog.innerHTML='';dialog.remove();}if(t)t.removeEventListener('click',click);box.removeEventListener('click',related);box.removeEventListener('toggle',collapse);};
+ if(t)t.addEventListener('click',click);if(feedback.retry)feedback.retry.addEventListener('click',retry);box.addEventListener('click',related);if(box.id==='basic-collapse')box.addEventListener('toggle',collapse);
+ return ()=>{disposed=true;reader.cancel();mask();const dialog=document.getElementById('comorbid-dialog');if(dialog){dialog.close();dialog.innerHTML='';dialog.remove();}if(t)t.removeEventListener('click',click);if(feedback.retry)feedback.retry.removeEventListener('click',retry);box.removeEventListener('click',related);box.removeEventListener('toggle',collapse);};
 }
