@@ -105,7 +105,7 @@ document.querySelector('.detail-anchor').classList.add('is-loading');
  const b=$('#back-visits');b.textContent=direct?`← 返回${o.label}`:'← 返回随访记录';bindBack(b,direct?o.href:visitsUrl);}
 
 const val=x=>escapeHTML(x==null||x===''?'未提供':x);
-const notReady=name=>alert(`「${name}」功能的后端接口正在开发中，暂不可用。`);
+const notReady=name=>toast(`「${name}」功能正在开发中`);
 
 // 基础信息（与患者详情页一致，js/shared/patient-basic.js）默认收起，医生点开后记住选择（仅本机浏览器）
 const BASIC_OPEN_KEY='ra:visit-basic-open';
@@ -123,10 +123,10 @@ function renderHero(){
  $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><div class="patient-name-line"><h1>${escapeHTML(p.name)}</h1>${lost?`<span class="patient-dropout">已脱落</span>${p.withdrawReason?`<span class="patient-dropout-reason">脱落原因：${escapeHTML(p.withdrawReason)}</span>`:''}`:''}</div>${patientTagsHTML(p)}</div>${actions}</div>
  <div class="reference-basic-grid visit-meta"><div><span>本次访视</span><b>${escapeHTML(v.visitType)} · ${val(v.visitDate)}</b></div><div><span>记录医生</span><b>${val(v.doctorName||(v.doctorId?`医生 ID ${v.doctorId}`:null))}</b></div></div>
  <details class="basic-collapse" id="basic-collapse"${basicOpenPref()?' open':''}><summary><span class="basic-collapse-title">患者基础信息</span><span class="basic-collapse-hint">手机号、身份证号、确诊日期、DAS28-CRP、RF / 抗CCP、病史等</span></summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p)}</details>`;
- $('#download-one').onclick=()=>notReady('下载本次病历');
+ $('#download-one').onclick=e=>downloadRecordPdf(p,e.currentTarget,v);
  $('#delete-visit').onclick=openDeleteDialog;
  const chatParams=new URLSearchParams(location.search);let chatHref=null;try{if(chatParams.getAll('id').length===1&&chatParams.getAll('visit').length===1)chatHref='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:chatParams.get('id'),visitId:chatParams.get('visit')});}catch{}$('#ask-ai').disabled=!chatHref;$('#ask-ai').onclick=()=>{if(chatHref)location.assign(chatHref);};
- $('#ai-import').onclick=()=>notReady('OCR识别录入');
+ $('#ai-import').onclick=()=>openOcrImport({mode:'visit',patientId:p.patientId});
  $('#basic-collapse').addEventListener('toggle',e=>{try{localStorage.setItem(BASIC_OPEN_KEY,e.target.open?'1':'0')}catch(err){}});
  bindPatientBasic($('#basic-collapse'),p);
 }
@@ -156,7 +156,7 @@ function openDeleteDialog(){
 
 function renderError(msg){
  $('#visit-hero').innerHTML=`<p class="pv-load-error">访视详情加载失败：${escapeHTML(msg)}。请确认后端服务已启动（${escapeHTML(API_BASE)}），或返回随访记录重新选择。</p>`;
- $('#visit-sections').innerHTML='';
+ $('#visit-sections').innerHTML='';$('#audit').hidden=true;
 }
 
 async function load(){
@@ -171,6 +171,7 @@ async function load(){
  }catch(e){console.error(e);renderError(e.message)}
  finally{document.querySelector('.detail-anchor').classList.remove('is-loading')}
 }
+bindAuditPanel($('#audit'),patientId,visitId);
 load();
 
 }

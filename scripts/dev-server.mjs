@@ -10,7 +10,7 @@ export async function startDevServer({port=8090,upstream='http://127.0.0.1:8065'
   if(!Number.isInteger(Number(port))||Number(port)<0||Number(port)>65535)throw new Error('invalid loopback port');
   const staticRoot=await realpath(root),sockets=new Set(),outgoing=new Set(),agent=new http.Agent({keepAlive:false});
   let closing=false;
-  const fail=(response,status=502)=>{if(response.destroyed)return;if(response.headersSent){response.destroy();return;}if(!response.headersSent)response.writeHead(status,{'Content-Type':'application/json;charset=UTF-8'});response.end(JSON.stringify({success:false,code:'SERVICE_UNAVAILABLE',message:'本地代理无法连接服务',data:null}));};
+  const fail=(response,status=502,message='本地代理无法连接后端服务（'+target.origin+'），请确认后端已启动')=>{if(response.destroyed)return;if(response.headersSent){response.destroy();return;}if(!response.headersSent)response.writeHead(status,{'Content-Type':'application/json;charset=UTF-8'});response.end(JSON.stringify({success:false,code:'SERVICE_UNAVAILABLE',message,data:null}));};
   const server=http.createServer(async(request,response)=>{
     if(closing){fail(response,503);return;}
     if(request.url.startsWith('/api/')) {
@@ -27,8 +27,8 @@ export async function startDevServer({port=8090,upstream='http://127.0.0.1:8065'
         response.writeHead(backend.statusCode,resultHeaders);backend.pipe(response);
         backend.once('aborted',()=>response.destroy());backend.once('error',()=>response.destroy());
       });
-      outgoing.add(peer);const budget=['/api/ra/export/applyAnalysis','/api/ra/export/retryNotification'].includes(request.url)?15000:5000;const timer=setTimeout(()=>peer.destroy(new Error('proxy-timeout')),budget);
-      peer.once('close',()=>{clearTimeout(timer);outgoing.delete(peer);});peer.once('error',()=>fail(response));
+      outgoing.add(peer);const budget=60000;let timedOut=false;const timer=setTimeout(()=>{timedOut=true;peer.destroy(new Error('proxy-timeout'));},budget);
+      peer.once('close',()=>{clearTimeout(timer);outgoing.delete(peer);});peer.once('error',()=>timedOut?fail(response,504,`后端 ${budget/1000} 秒内没有响应（${request.url.split('?')[0]}）`):fail(response));
       request.once('aborted',()=>peer.destroy());response.once('close',()=>{if(!response.writableEnded)peer.destroy();});
       request.pipe(peer);return;
     }

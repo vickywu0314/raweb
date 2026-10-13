@@ -25,6 +25,6 @@ document.addEventListener('DOMContentLoaded',()=>{
   links.forEach((a,i)=>a.addEventListener('click',e=>{const s=secs[i];if(!s)return;e.preventDefault();setActive(s);lockUntil=Date.now()+900;s.scrollIntoView({behavior:'smooth',block:'start'});history.replaceState(null,'',a.getAttribute('href'));}));
   addEventListener('scroll',sync,{passive:true});sync();
   // 清空本机演示数据（新建患者、随访、档案修改、质控处理、修改记录）
-  document.getElementById('reset-demo')?.addEventListener('click',()=>{if(!confirm('确定清空本机保存的演示数据？新建的患者、录入的随访和修改记录都会被删除。'))return;resetStore();try{Object.keys(sessionStorage).filter(k=>k.startsWith('list:')).forEach(k=>sessionStorage.removeItem(k))}catch(e){}location.reload();});
+  document.getElementById('reset-demo')?.addEventListener('click',async()=>{if(!await confirmDialog('确定清空本机保存的演示数据？新建的患者、录入的随访和修改记录都会被删除。',{danger:true,okText:'清空'}))return;resetStore();try{Object.keys(sessionStorage).filter(k=>k.startsWith('list:')).forEach(k=>sessionStorage.removeItem(k))}catch(e){}location.reload();});
   flashHashTarget();
 });

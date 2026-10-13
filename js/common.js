@@ -59,7 +59,7 @@ function shell(active){
  const sidebar=document.querySelector('.sidebar');
  // 顶栏账号：显示当前登录用户，并提供退出登录
  const acc=document.querySelector('.account'), u=currentUser();
- if(acc&&u){acc.innerHTML=`<span class="avatar">${escapeHTML(u.name.slice(0,1))}</span><span>${escapeHTML(u.name)}<small>${escapeHTML(u.role)}</small></span><button type="button" class="logout-btn" title="退出登录" aria-label="退出登录"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></button>`;acc.querySelector('.logout-btn').onclick=()=>{if(confirm('确定退出登录？'))signOut()};}
+ if(acc&&u){acc.innerHTML=`<span class="avatar">${escapeHTML(u.name.slice(0,1))}</span><span>${escapeHTML(u.name)}<small>${escapeHTML(u.role)}</small></span><button type="button" class="logout-btn" title="退出登录" aria-label="退出登录"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg></button>`;acc.querySelector('.logout-btn').onclick=async()=>{if(await confirmDialog('确定退出登录？',{title:'退出登录',okText:'退出'}))signOut()};}
  document.querySelectorAll('.header-knowledge-links,.header-study').forEach(el=>el.remove());
  if(sidebar){
    const cur=STUDIES[0];
@@ -217,7 +217,8 @@ const PAGE_ORIGINS={
  followups:{nav:'followups',crumb:'研究执行 / 随访管理',label:'随访管理',href:'followups.html'},
  quality:{nav:'quality',crumb:'研究执行 / 数据质控',label:'数据质控',href:'data-quality.html'},
  ai:{nav:'ai',crumb:'智能分析 / AI 智能分析',label:'AI 智能分析',href:'ai-analysis.html'},
- 'ai-cohort':{nav:'ai',crumb:'智能分析 / 队列分析',label:'队列分析',href:'ai-cohort.html'}
+ 'ai-cohort':{nav:'ai',crumb:'智能分析 / 队列分析',label:'队列分析',href:'ai-cohort.html'},
+ dashboard:{nav:'dashboard',crumb:'数据分析 / 数据看板',label:'数据看板',href:'dashboard.html'}
 };
 function pageOrigin(){return PAGE_ORIGINS[queryParam('from')]||PAGE_ORIGINS.patients}
 function withFrom(url){const f=queryParam('from');return f&&PAGE_ORIGINS[f]?url.replace(/(#.*)?$/,m=>`${url.includes('?')?'&':'?'}from=${f}${m}`):url}
@@ -227,20 +228,35 @@ function bindBack(a,fallback){a.href=fallback;a.addEventListener('click',e=>{if(
 function flashHashTarget(){const t=location.hash&&document.querySelector(location.hash);if(!t)return null;t.scrollIntoView({block:'start'});t.classList.add('is-target');setTimeout(()=>t.classList.remove('is-target'),2600);return t}
 
 // 列表页状态（检索词、筛选、分页）：仅在“返回”回到列表时恢复，正常从菜单进入时为默认状态
-function loadListState(key,defaults){try{const nav=performance.getEntriesByType('navigation')[0];if(nav&&nav.type==='back_forward'){const s=JSON.parse(sessionStorage.getItem('list:'+key));if(s)return {...defaults,...s}}}catch(e){}return {...defaults}}
+function loadListState(key,defaults){try{const nav=performance.getEntriesByType('navigation')[0];if(nav&&(nav.type==='back_forward'||sessionStorage.getItem('ra-back-reload')===location.pathname)){sessionStorage.removeItem('ra-back-reload');const s=JSON.parse(sessionStorage.getItem('list:'+key));if(s)return {...defaults,...s}}}catch(e){}return {...defaults}}
 function saveListState(key,state){try{sessionStorage.setItem('list:'+key,JSON.stringify(state))}catch(e){}}
 
 // ===== 后端接口（raapi） =====
 // API_BASE：默认同源；仅由加载脚本前明确设置的 RA_CONFIG.apiBase 指定环境。
 // 统一返回 DataResult：{success, code, message, data}；success=false 时抛出 message。
 const API_BASE=typeof window.RA_CONFIG?.apiBase==='string'?window.RA_CONFIG.apiBase:'';
-const DEFAULT_DOCTOR_ID=82394; // 登录接口接入前，演示账号没有医生 ID 时使用
+const DEFAULT_DOCTOR_ID=82394; // 浏览器里的登录信息缺医生 ID 时兜底（测试账号言文静）
+// 后端会话已失效（超时 / 后端重启 / 之前的演示登录）：清掉浏览器里的登录信息，回登录页，登录后回到原页面；后端连不上时不处理
+document.addEventListener('DOMContentLoaded',()=>{
+  if(/login\.html$/.test(location.pathname)||!currentUser())return;
+  fetch(API_BASE+'/api/ra/auth/me',{method:'POST',credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(r=>{
+    if(r&&!r.success&&String(r.code)==='401'){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY)}catch(e){}location.replace('login.html?next='+encodeURIComponent((location.pathname.split('/').pop()||'projects.html')+location.search+location.hash))}
+    else if(r&&r.success&&r.data){const u=currentUser();if(u&&String(u.doctorId)!==String(r.data.doctorId))signIn({...u,...r.data},!!u.expires)}
+  }).catch(()=>{});
+});
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
+// 后退时浏览器可能直接显示缓存的旧页面（bfcache）：保存过数据（写接口成功）后，后退回来的页面自动重新加载，显示最新数据；
+// 重新加载时列表的检索条件、页码照常恢复（loadListState）。
+const RA_WRITE_API=/\/(createPatient|updatePatient|withdraw|reactivate|createVisit|updateVisit|deleteVisit)$/;
+const RA_PAGE_LOADED=Date.now();
+function markDataChanged(path){if(RA_WRITE_API.test(path))try{sessionStorage.setItem('ra-data-changed',String(Date.now()))}catch(e){}}
+window.addEventListener('pageshow',e=>{if(!e.persisted)return;try{if(+sessionStorage.getItem('ra-data-changed')>RA_PAGE_LOADED){sessionStorage.setItem('ra-back-reload',location.pathname);location.reload()}}catch(x){}});
 async function apiPost(path,params){
   const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(params||{})});
   if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
   const r=await res.json();
   if(!r.success)throw new Error(r.message||'接口返回失败');
+  markDataChanged(path);
   return r.data;
 }
 // JSON 请求体的接口（如编辑随访保存）
@@ -249,5 +265,28 @@ async function apiPostJson(path,body){
   if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
   const r=await res.json();
   if(!r.success)throw new Error(r.message||'接口返回失败');
+  markDataChanged(path);
   return r.data;
+}
+
+// ===== 提示：窗口中间的灰色 toast（代替 alert），确认弹窗（代替 confirm） =====
+// toast(msg)：显示 2~4 秒后自动消失；toastNext(msg)：跳转后在下一个页面显示（如「建档成功」后打开详情）
+function toast(msg,ms){
+  document.querySelectorAll('.ra-toast').forEach(t=>t.remove());
+  const t=document.createElement('div');t.className='ra-toast';t.setAttribute('role','status');t.textContent=msg;
+  document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),250)},ms||Math.min(4500,1800+String(msg).length*60));
+}
+function toastNext(msg){try{sessionStorage.setItem('ra-toast-next',msg)}catch(e){}}
+document.addEventListener('DOMContentLoaded',()=>{try{const m=sessionStorage.getItem('ra-toast-next');if(m){sessionStorage.removeItem('ra-toast-next');toast(m)}}catch(e){}});
+window.alert=msg=>toast(String(msg));
+// confirmDialog(msg,{title,okText,cancelText,danger}) → Promise<boolean>
+function confirmDialog(msg,opt={}){
+  return new Promise(resolve=>{
+    const d=document.createElement('dialog');d.className='ra-confirm';
+    d.innerHTML=`<form method="dialog"><h2>${escapeHTML(opt.title||'请确认')}</h2><p>${escapeHTML(msg).replace(/\n/g,'<br>')}</p><div class="ra-confirm-actions"><button class="button" value="cancel">${escapeHTML(opt.cancelText||'取消')}</button><button class="button ${opt.danger?'danger':'primary'}" value="ok">${escapeHTML(opt.okText||'确定')}</button></div></form>`;
+    document.body.appendChild(d);
+    d.addEventListener('close',()=>{resolve(d.returnValue==='ok');d.remove()});
+    d.showModal();d.querySelector('[value=ok]').focus();
+  });
 }

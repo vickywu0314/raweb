@@ -62,3 +62,15 @@
     grid-row:3;
   }
 }
+
+/* 统计卡片：5 张（第 5 张为疑似失访），可点的卡片筛出名单 */
+#fu-kpi { grid-template-columns:repeat(5,1fr); }
+#fu-kpi .kpi-link { cursor:pointer; transition:border-color .15s; }
+#fu-kpi .kpi-link:hover, #fu-kpi .kpi-link:focus-visible { border-color:#82b1ee; }
+@media (max-width:900px) { #fu-kpi { grid-template-columns:repeat(2,1fr); } }
+
+/* 当前筛选的卡片高亮；「i」悬停显示口径说明 */
+#fu-kpi .kpi-link.is-active { border-color:#2871d3; box-shadow:0 0 0 3px rgba(40,113,211,.1); }
+#fu-kpi .kpi-link.is-active strong { color:#1f63c6; }
+#fu-kpi article span { display:flex; align-items:center; gap:6px; }
+#fu-kpi article:nth-child(n+4) .kpi-info::after { left:auto; right:-10px; }

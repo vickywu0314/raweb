@@ -1,11 +1,7 @@
-/* login.html 页面脚本（依赖 boot.js）。演示版：账号写在前端，接入后端后改为登录接口。 */
+/* login.html 页面脚本（依赖 boot.js）。
+   登录：POST /api/ra/auth/login（后端校验账号、建立会话），返回医生 ID / 姓名；之后 AI 队列分析等接口按会话里的医生鉴权。
+   测试账号在后端 application.properties 的 ra.auth.accounts 配置（内部测试用 yanwenjing → 医生 82394 言文静）。 */
 "use strict";
-// doctorId：对应后端 user.id / patient_relation_doctor.doctor_id，接口按它只返回该医生名下的患者。
-// 测试期两个账号都用 82394（库里患者最多的医生），接入登录接口后由后端返回。
-const DEMO_USERS = [
-  { username: 'chen', password: 'ra2026', name: '陈医生', role: '研究者', doctorId: 82394 },
-  { username: 'admin', password: 'ra2026', name: '李敏', role: '数据管理员', doctorId: 82394 }
-];
 const REMEMBER_KEY = 'ra-remember-user';
 document.addEventListener('DOMContentLoaded', () => {
   const next = new URLSearchParams(location.search).get('next');
@@ -25,11 +21,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const u = user.value.trim(), p = pw.value;
     if (!u) { showErr('请输入用户名'); user.focus(); return; }
     if (!p) { showErr('请输入密码'); pw.focus(); return; }
-    const hit = DEMO_USERS.find(x => x.username === u && x.password === p);
-    if (!hit) { showErr('用户名或密码错误'); pw.select(); return; }
     const btn = document.getElementById('login-submit'); btn.disabled = true; btn.textContent = '登录中…';
-    try { remember.checked ? localStorage.setItem(REMEMBER_KEY, u) : localStorage.removeItem(REMEMBER_KEY); } catch (e2) {}
-    signIn({ username: hit.username, name: hit.name, role: hit.role, doctorId: hit.doctorId }, remember.checked);
-    setTimeout(go, 350);
+    const base = typeof window.RA_CONFIG?.apiBase === 'string' ? window.RA_CONFIG.apiBase : '';
+    fetch(base + '/api/ra/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: new URLSearchParams({ username: u, password: p, remember: remember.checked }) })
+      .then(res => { if (!res.ok) throw new Error(`登录服务暂不可用（HTTP ${res.status}），请确认后端已启动`); return res.json(); })
+      .then(r => {
+        if (!r.success) { showErr(r.message || '用户名或密码错误'); pw.select(); return; }
+        try { remember.checked ? localStorage.setItem(REMEMBER_KEY, u) : localStorage.removeItem(REMEMBER_KEY); } catch (e2) {}
+        signIn(r.data, remember.checked);
+        go();
+      })
+      .catch(ex => showErr(ex.message === 'Failed to fetch' ? '无法连接后端服务，请确认后端已启动' : ex.message))
+      .finally(() => { btn.disabled = false; btn.textContent = '登 录'; });
   });
 });

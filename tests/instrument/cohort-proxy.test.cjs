@@ -2,9 +2,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const net = require('node:net');
-const {resolve} = require('node:path');
+const {resolve,join} = require('node:path');
+const {tmpdir} = require('node:os');
 const {pathToFileURL} = require('node:url');
-const {symlink,unlink} = require('node:fs/promises');
+const {mkdtemp,writeFile,symlink,unlink,rmdir} = require('node:fs/promises');
 test('cohort:dev-proxy', async () => {
   const {startDevServer} = await import(pathToFileURL(resolve(__dirname,'../../scripts/dev-server.mjs')));
   const requests = [];
@@ -16,14 +17,18 @@ test('cohort:dev-proxy', async () => {
   });
   await new Promise(yes=>upstream.listen(0,'127.0.0.1',yes));
   let server;
-  const link=resolve(__dirname,`../../node_modules/p01a-outside-link-${process.pid}`);
+  const link=resolve(__dirname,`p01a-outside-link-${process.pid}`);
+  let canaryDir,canaryFile;
   try {
+    canaryDir=await mkdtemp(join(tmpdir(),'raweb-proxy-canary-'));
+    canaryFile=join(canaryDir,'outside-root.txt');
+    await writeFile(canaryFile,'synthetic outside-root canary');
     server=await startDevServer({port:0,upstream:`http://127.0.0.1:${upstream.address().port}`});
     const origin=`http://127.0.0.1:${server.port}`;
     assert.equal((await fetch(origin+'/ai-cohort.html')).status,200);
     assert.equal((await fetch(origin+'/js/common.js',{method:'HEAD'})).status,200);
-    await symlink(resolve(__dirname,'../../../AGENTS.md'),link);
-    for(const path of [`/node_modules/p01a-outside-link-${process.pid}`,'/.hidden','/%2ehidden','/%2e%2e/AGENTS.md','/%5coutside','/%zz'])assert.equal((await fetch(origin+path)).status,404,path);
+    await symlink(canaryFile,link);
+    for(const path of [`/tests/instrument/p01a-outside-link-${process.pid}`,'/.hidden','/%2ehidden','/%2e%2e/AGENTS.md','/%5coutside','/%zz'])assert.equal((await fetch(origin+path)).status,404,path);
     const response=await fetch(origin+'/api/ra/ai/cohort',{method:'POST',headers:{'Content-Type':'application/json','X-Doctor-Id':'101','X-Upstream':'http://example.invalid'},body:'{"filters":{"studyCode":"RA","sex":"F"}}'});
     assert.equal(response.status,401);assert.equal(response.headers.get('x-trace-id'),'proxy-401');assert.equal((await response.json()).code,'UNAUTHENTICATED');
     assert.equal(requests.length,1);assert.equal(requests[0].headers['x-doctor-id'],undefined);assert.equal(requests[0].headers['x-upstream'],undefined);assert.equal(requests[0].headers.host,`127.0.0.1:${upstream.address().port}`);
@@ -50,7 +55,13 @@ test('cohort:dev-proxy', async () => {
     await applicationBudgets(startDevServer);
     const port=server.port;await server.close();server=null;
     await assert.rejects(()=>new Promise((yes,no)=>{const s=net.connect(port,'127.0.0.1');s.once('connect',()=>{s.destroy();yes();});s.once('error',no);}),/ECONNREFUSED/);
-  } finally {await unlink(link).catch(()=>{});await server?.close();await new Promise(yes=>upstream.close(yes));}
+  } finally {
+    await unlink(link).catch(()=>{});
+    if(canaryFile)await unlink(canaryFile).catch(()=>{});
+    if(canaryDir)await rmdir(canaryDir).catch(()=>{});
+    await server?.close();
+    await new Promise(yes=>upstream.close(yes));
+  }
 });
 
 // 同一受控慢peer证明新申请预算与原5秒路独立，无全局timeout放宽。
@@ -62,7 +73,8 @@ async function applicationBudgets(startDevServer){
   dev=await startDevServer({port:0,upstream:`http://127.0.0.1:${upstream.address().port}`});const loopback=await owner.proxy({scenario:'p06-application-replay',port:upstream.address().port});
   const request=(port,path)=>fetch(`http://127.0.0.1:${port}${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(async r=>{await r.arrayBuffer();return r.status;});
   const statuses=await Promise.all([dev.port,loopback].flatMap(port=>['/api/ra/export/applyAnalysis','/api/ra/export/retryNotification','/api/ra/ai/cohort'].map(path=>request(port,path))));
-  assert.deepEqual(statuses,[200,200,502,200,200,502],'两申请路必须活过5秒；原cohort仍5秒结束');assert.equal(received.length,6);
+  assert.deepEqual(statuses.slice(0,3),[200,200,200],'merged dev-server accepts 6.1s real-library responses under the 60s budget');
+  assert.deepEqual(statuses.slice(3),[200,200,502],'LoopbackOwner fixture retains its independent 15s/5s route budgets');assert.equal(received.length,6);
   assert.equal((await request(loopback,'/api/ra/export/applyAnalysis/')).valueOf(),404,'不得扩到非准确路');
  }finally{for(const timer of timers)clearTimeout(timer);await dev?.close();for(const server of owner.proxies){server.closeAllConnections();await new Promise(yes=>server.close(yes));}upstream.closeAllConnections();await new Promise(yes=>upstream.close(yes));}
 }
