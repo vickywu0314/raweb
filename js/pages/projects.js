@@ -26,6 +26,6 @@ document.addEventListener('DOMContentLoaded',async()=>{
     console.error(e);
     IDS.forEach(id=>set(id,'—'));set('pv-progress-note','跟踪患者');
     const err=document.getElementById('pv-error');
-    if(err){err.hidden=false;err.textContent=`项目总览数据加载失败：${e.message}。请确认后端服务已启动（${API_BASE}）。`;}
+    if(err){err.hidden=false;err.textContent=`项目总览数据加载失败：${apiErrorMessage(e)}`;}
   }
 });

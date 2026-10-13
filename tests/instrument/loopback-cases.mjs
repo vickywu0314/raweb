@@ -1,3 +1,4 @@
+import {legacyDetailBrowser} from './issue1-patient-detail-browser.mjs';
 import {currentAnalysisJourney} from './current-analysis-composition-browser.mjs';
 import {currentExportBrowser} from './current-export-browser.mjs';
 import {chatBrowser,patientChatBrowser} from './ai-chat-browser.mjs';
@@ -350,4 +351,11 @@ browserRegistry['cohort:current-composition-loopback']=async(owner,probe)=>{
  }
  await owner.browserScenario(port,'synthetic',probe,currentAnalysisBrowser);
  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);assert.ok(r.events.some(e=>e.type==='current-export-owners-observed'&&e.beforeFallback&&e.networkActive===0&&e.sqlActive===0));assert.ok(r.events.some(e=>e.type==='chat-owners-observed'&&e.beforeFallback&&e.sqlActive===0));assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.deepEqual(r.events.filter(e=>e.type==='table-released').map(e=>e.table),r.events.filter(e=>e.type==='table-owned').map(e=>e.table).reverse());
+};
+
+browserRegistry['patient:legacy-detail-loopback']=async(owner,probe)=>{
+ const r=await owner.fixture(['--identity=synthetic','--scenario=issue1-detail']);failure(await owner.ready(r,401),401,'UNAUTHENTICATED');const port=await owner.proxy(r);
+ await owner.browserScenario(port,'synthetic',probe,(context,p,i,o,pr,pid)=>legacyDetailBrowser(context,p,i,o,pr,pid,'patient:legacy-detail-loopback',r));
+ const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);
+ assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.equal((await owner.mysqlQuery("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='ra_synthetic_test'")).trim(),'');
 };

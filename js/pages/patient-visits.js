@@ -63,7 +63,7 @@ shell(pageOrigin().nav);
 {const o=pageOrigin(),c=$('#crumb-origin'),b=$('#back-origin');c.textContent=o.crumb;bindBack(c,o.href);b.textContent=`← 返回${o.label}`;bindBack(b,o.href);}
 const patientId=queryParam('id');
 const STATUS_TONE={active:'success',soon:'warning',overdue:'danger',pending_first:'neutral',withdrawn:'danger'};
-let p=null;
+let p=null,disposeBasic=null,pdfGeneration=0;
 
 function visitsSkeleton(){
  $('#patient-basic').innerHTML=`<div class="patient-basic-head"><div><i class="skeleton skeleton-title"></i><i class="skeleton skeleton-tags"></i></div><div class="heading-actions"><i class="skeleton skeleton-button"></i><i class="skeleton skeleton-button wide"></i></div></div><div class="skeleton-grid visits-basic-skeleton">${Array.from({length:15},()=>'<div><i class="skeleton skeleton-label"></i><i class="skeleton skeleton-value"></i></div>').join('')}</div>`;
@@ -90,12 +90,13 @@ function renderVisitPage(){
  $('#visit-list').innerHTML=visits.length?visits.map(v=>{const href=withFrom(`visit-detail.html?id=${pid}&visit=${encodeURIComponent(v.visitId)}`);return `<article class="visit-row"><a class="visit-row-main" href="${href}"><span class="record-icon">${icon('record')}</span><span><strong>${escapeHTML(v.visitType)}</strong><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>${v.doctorName?`记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?`记录医生 ID ${escapeHTML(v.doctorId)}`:''}</small></span></a><div class="visit-row-status"><a class="visit-chevron-link" aria-label="查看本次随访详情" href="${href}">${icon('chevron','chevron')}</a></div></article>`}).join(''):'<p class="audit-empty">暂无随访记录，点击右上角「＋ 新增随访」录入基线访视。</p>';
  $('#visit-total').textContent=`${visits.length} 次访视`;
 
- $('#download-all').onclick=e=>downloadRecordPdf(p,e.currentTarget);
+ const pdfPatient=p,pdfOwner=pdfGeneration;
+ $('#download-all').onclick=e=>downloadRecordPdf(pdfPatient,e.currentTarget,null,{isCurrent:()=>pdfGeneration===pdfOwner&&p===pdfPatient&&detailOwner.state==='success'});
  const chatParams=new URLSearchParams(location.search);let chatHref=null;try{if(chatParams.getAll('id').length===1)chatHref='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:chatParams.get('id'),visitId:null});}catch{}$('#ask-ai').disabled=!chatHref;$('#ask-ai').onclick=()=>{if(chatHref)location.assign(chatHref);};
  $('#paper-import').onclick=()=>openOcrImport({mode:'visit',patientId:p.patientId});
  const wb=$('#withdraw-btn');if(wb)wb.onclick=withdrawDialog;
  const rb=$('#reactivate-btn');if(rb)rb.onclick=reactivateDialog;
- bindPatientBasic($('#patient-basic'),p);
+ disposeBasic=bindPatientBasic($('#patient-basic'),p);
 }
 
 // 标记脱落：选原因（选「其他」时说明必填）→ POST /api/ra/patient/withdraw；成功后重新加载，按钮变「恢复随访」
@@ -116,6 +117,7 @@ function withdrawDialog(){
  const d=formDialog('标记脱落',`<p>患者：${escapeHTML(p.name)}（ID号 ${escapeHTML(p.patientId)}）。标记后不再推算下次随访，之后患者回来可点「恢复随访」。</p>
   <fieldset class="ra-form-field"><legend>脱落原因 <em>*</em></legend><div class="ra-radio-row">${WITHDRAW_OPTIONS.map(o=>`<label><input type="radio" name="reason" value="${o}" required> ${o}</label>`).join('')}</div></fieldset>
   <label class="ra-form-field"><span>补充说明 <small>选「其他」时必填</small></span><textarea name="remark" rows="3" maxlength="200" placeholder="如：连续 2 次电话随访未联系上"></textarea></label>`,'确认脱落',true,async form=>{
+  if(!p)throw new Error('患者资料已失效');
   const reason=(form.querySelector('[name=reason]:checked')||{}).value,remark=form.remark.value.trim();
   if(!reason)throw new Error('请选择脱落原因');
   if(reason==='其他'&&!remark)throw new Error('选「其他」时请填写说明');
@@ -128,30 +130,36 @@ function withdrawDialog(){
 function reactivateDialog(){
  formDialog('恢复随访',`<p>患者「${escapeHTML(p.name)}」${p.withdrawReason?`（脱落原因：${escapeHTML(p.withdrawReason)}）`:''}重新回来继续随访？恢复后状态按随访记录重新计算。</p>
   <label class="ra-form-field"><span>说明 <small>选填</small></span><textarea name="remark" rows="2" maxlength="200" placeholder="如：患者 2026-10 复诊，继续入组随访"></textarea></label>`,'恢复随访',false,async form=>{
+  if(!p)throw new Error('患者资料已失效');
   await apiPost('/api/ra/patient/reactivate',{doctorId:currentDoctorId(),patientId:p.patientId,remark:form.remark.value.trim()});
   toast('已恢复随访');reloadPatient();
  });
 }
-async function reloadPatient(){
- try{p=await apiPost('/api/ra/patient/patientDetail',{doctorId:currentDoctorId(),patientId});renderVisitPage()}catch(e){toast(`刷新失败：${e.message}`)}
- reloadAudit();
-}
+function reloadPatient(){ detailOwner.load(patientId); }
 
 // 修改记录：默认收起，第一次展开时才查询（js/shared/audit-log.js）
-const reloadAudit=bindAuditPanel($('#audit'),patientId);
+let reloadAudit=()=>{};
 
-async function load(){
- visitsSkeleton();
- if(!patientId){renderLoadError('缺少患者 ID');return}
- try{
-  p=await apiPost('/api/ra/patient/patientDetail',{doctorId:currentDoctorId(),patientId});
-  renderVisitPage();flashHashTarget();
- }catch(e){console.error(e);renderLoadError(e.message)}
-}
+const detailOwner=RAPatientDetail.owner({
+ clear(state,message){
+  pdfGeneration++;
+  const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
+  if(disposeBasic){disposeBasic();disposeBasic=null;}if(reloadAudit.dispose)reloadAudit.dispose();
+  p=null;document.title='随访记录 · 患者数据研究平台';
+  $('#patient-basic').setAttribute('data-state',state);
+  $('#audit').hidden=true;$('#audit').open=false;$('#audit-list').innerHTML='';$('#audit-count').textContent='';
+  document.querySelectorAll('.ra-form-dialog').forEach(d=>{d.close();d.remove();});
+  if(state==='loading')visitsSkeleton();else renderLoadError(message);
+ },
+ publish(data){p=data.patient;$('#patient-basic').setAttribute('data-state','success');renderVisitPage();reloadAudit=bindAuditPanel($('#audit'),patientId);$('#audit').hidden=false;flashHashTarget();return ()=>{if(disposeBasic)disposeBasic();if(reloadAudit.dispose)reloadAudit.dispose();};}
+});
+function load(){detailOwner.load(patientId);}
+window.addEventListener('pageshow',event=>{if(event.persisted)load();});
 function renderLoadError(msg){
- $('#patient-basic').innerHTML=`<p class="pv-load-error">患者详情加载失败：${escapeHTML(msg)}。请确认后端服务已启动（${escapeHTML(API_BASE)}），或返回患者列表重新选择。</p>`;
+ $('#patient-basic').innerHTML=`<p class="pv-load-error">患者详情加载失败：${escapeHTML(msg)}。请返回患者列表重新选择。</p>`;
  $('#visit-list').innerHTML='';$('#visit-total').textContent='';
 }
+
 load();
 
 }

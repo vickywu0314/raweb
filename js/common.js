@@ -239,9 +239,24 @@ const DEFAULT_DOCTOR_ID=82394; // 浏览器里的登录信息缺医生 ID 时兜
 // 后端会话已失效（超时 / 后端重启 / 之前的演示登录）：清掉浏览器里的登录信息，回登录页，登录后回到原页面；后端连不上时不处理
 document.addEventListener('DOMContentLoaded',()=>{
   if(/login\.html$/.test(location.pathname)||!currentUser())return;
-  fetch(API_BASE+'/api/ra/auth/me',{method:'POST',credentials:'same-origin'}).then(r=>r.ok?r.json():null).then(r=>{
-    if(r&&!r.success&&String(r.code)==='401'){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY)}catch(e){}location.replace('login.html?next='+encodeURIComponent((location.pathname.split('/').pop()||'projects.html')+location.search+location.hash))}
-    else if(r&&r.success&&r.data){const u=currentUser();if(u&&String(u.doctorId)!==String(r.data.doctorId))signIn({...u,...r.data},!!u.expires)}
+  const generation=authGeneration;
+  fetch(API_BASE+'/api/ra/auth/me',{method:'POST',credentials:'same-origin'}).then(async response=>{
+    if(generation!==authGeneration)return null;
+    if(response.status===401)return {success:false,code:'401'};
+    return response.ok?response.json():null;
+  }).then(r=>{
+    if(generation!==authGeneration)return;
+    if(r&&!r.success&&['401','UNAUTHENTICATED'].includes(String(r.code))){clearAuth();location.replace('login.html?next='+encodeURIComponent((location.pathname.split('/').pop()||'projects.html')+location.search+location.hash))}
+    else if(r&&r.success&&r.data){
+      const u=currentUser();if(!u)return;
+      const data={...r.data},sameDoctor=!Object.hasOwn(data,'doctorId')||String(data.doctorId)===String(u.doctorId);
+      // 会话资料回读不是再次登录；同一医生的数字/字符串 ID 不得改动 owner 快照。
+      if(Object.hasOwn(data,'doctorId')&&sameDoctor)data.doctorId=u.doctorId;
+      if(!Object.keys(data).some(key=>JSON.stringify(data[key])!==JSON.stringify(u[key])))return;
+      signIn({...u,...data},!!u.expires);
+      // 同医生的姓名、角色等真实资料变化同样撤销旧页面的数据权限。
+      if(sameDoctor)authChanged();
+    }
   }).catch(()=>{});
 });
 const currentDoctorId=()=>(currentUser()||{}).doctorId||DEFAULT_DOCTOR_ID;
@@ -251,20 +266,47 @@ const RA_WRITE_API=/\/(createPatient|updatePatient|withdraw|reactivate|createVis
 const RA_PAGE_LOADED=Date.now();
 function markDataChanged(path){if(RA_WRITE_API.test(path))try{sessionStorage.setItem('ra-data-changed',String(Date.now()))}catch(e){}}
 window.addEventListener('pageshow',e=>{if(!e.persisted)return;try{if(+sessionStorage.getItem('ra-data-changed')>RA_PAGE_LOADED){sessionStorage.setItem('ra-back-reload',location.pathname);location.reload()}}catch(x){}});
+// 错误对象保留状态和业务码供排查；message 只用于给用户说明下一步。
+function apiErrorMessage(error){
+  const message=typeof error?.message==='string'?error.message.trim():'';
+  const diagnostic=/HTTP\b|API_BASE|后端|\/api\/|https?:\/\/|[{}\r\n]|\b(?:SQL|JDBC|\w*Error|\w*Exception)\b|<[/!]?[a-z][^>]*>|(?:code|status|traceId|requestId)\s*[:=]/i;
+  if(/[\u3400-\u9fff]/.test(message)&&!diagnostic.test(message)&&!/[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+/.test(message))return message;
+  const code=String(error?.code||'').toUpperCase(),httpStatus=Number(error?.status)||0,status=httpStatus>=400?httpStatus:Number(code)||httpStatus;
+  if(status===401||['UNAUTHENTICATED','UNAUTHORIZED'].includes(code))return '登录已失效，请重新登录后再试。';
+  if(status===403||code==='FORBIDDEN')return '您没有执行此操作的权限，请联系项目数据管理员。';
+  if(status===400||status===422||['BAD_REQUEST','INVALID_ARGUMENT','INVALID_ARGUMENTS','VALIDATION_ERROR'].includes(code))return '提交的信息有误，请检查填写内容后重试。';
+  if(status===404||code==='NOT_FOUND')return '所需内容已不存在，请刷新页面后重试。';
+  if(status===409||code==='CONFLICT'||code.endsWith('_CONFLICT'))return '数据已发生变化，请刷新页面确认后重试。';
+  if(status===429||code==='RATE_LIMITED')return '操作过于频繁，请稍后重试。';
+  if(status>=500||code==='SERVICE_UNAVAILABLE'||code==='INVALID_RESPONSE')return '服务暂不可用，请稍后重试；若持续出现，请联系项目数据管理员。';
+  if(code==='NETWORK_ERROR'||/Failed to fetch|NetworkError|Load failed|network|连接/i.test(message))return '暂时无法连接服务，请检查网络后重试。';
+  return '操作未完成，请稍后重试；若持续出现，请联系项目数据管理员。';
+}
+function apiFailure(status,code,message){
+  const error=new Error(apiErrorMessage({status,code,message}));
+  error.status=status;error.code=code||'';
+  return error;
+}
 async function apiPost(path,params){
-  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(params||{})});
-  if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
-  const r=await res.json();
-  if(!r.success)throw new Error(r.message||'接口返回失败');
+  let res;
+  try{res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body:new URLSearchParams(params||{})});}
+  catch(e){throw apiFailure(0,'NETWORK_ERROR');}
+  let r;
+  try{r=await res.json();}catch(e){throw apiFailure(res.status,res.ok?'INVALID_RESPONSE':'');}
+  if(!r||typeof r!=='object')throw apiFailure(res.status,'INVALID_RESPONSE');
+  if(!res.ok||!r.success)throw apiFailure(res.status,r.code,r.message);
   markDataChanged(path);
   return r.data;
 }
 // JSON 请求体的接口（如编辑随访保存）
 async function apiPostJson(path,body){
-  const res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json;charset=UTF-8'},body:JSON.stringify(body)});
-  if(!res.ok)throw new Error(`接口请求失败（HTTP ${res.status}）`);
-  const r=await res.json();
-  if(!r.success)throw new Error(r.message||'接口返回失败');
+  let res;
+  try{res=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json;charset=UTF-8'},body:JSON.stringify(body)});}
+  catch(e){throw apiFailure(0,'NETWORK_ERROR');}
+  let r;
+  try{r=await res.json();}catch(e){throw apiFailure(res.status,res.ok?'INVALID_RESPONSE':'');}
+  if(!r||typeof r!=='object')throw apiFailure(res.status,'INVALID_RESPONSE');
+  if(!res.ok||!r.success)throw apiFailure(res.status,r.code,r.message);
   markDataChanged(path);
   return r.data;
 }

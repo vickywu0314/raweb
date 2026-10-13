@@ -74,7 +74,15 @@ checks.push(['sensitive and audit owners timeout and reject stale identity succe
 checks.push(['strict visit entry and same patient safe return preserve ordinary requests',async()=>{
  for(const q of ['?id=1&visit=2&from=ai-cohort&doctorId=101','?id=1&visit=2&from=ai-cohort&return=x','?id=1&id=2&visit=2&from=ai-cohort','?id=1&visit=2&visit=3&from=ai-cohort','?id=1&visit=01&from=ai-cohort','?id=1&visit=2&from=patients&from=ai-cohort','?id=1&from=ai-cohort']){const h=harness('visit-detail',q);assert.equal(h.requests.length,0);assert.equal(h.legacyRequests.length,0);assert.equal(h.doctorReads.length,0);assert.equal(h.node('#visit-hero').attributes['data-state'],'invalid');}
  for(const [ref,expected] of [['http://fixture.invalid/patient-visits.html?id=9007199254740992&from=ai-cohort','back'],['http://fixture.invalid/patient-visits.html?id=9007199254740993&from=ai-cohort','patient-visits.html?id=9007199254740992&from=ai-cohort'],['https://unsafe.invalid/patient-visits.html?id=9007199254740992&from=ai-cohort','patient-visits.html?id=9007199254740992&from=ai-cohort']]){const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort',ref,2);h.node('#back-visits').onclick({preventDefault(){}});assert.deepEqual(h.navigation,[expected]);h.event('pagehide');}
- for(const page of ['patient-visits','visit-detail']){const h=harness(page,'?id=11&visit=12&from=patients');await flush();assert.equal(h.requests.length,0);assert.equal(h.legacyRequests.length,page==='visit-detail'?2:1);assert.equal(h.legacyRequests[0].url,'/api/ra/patient/patientDetail');if(page==='visit-detail')assert.equal(h.legacyRequests[1].url,'/api/ra/visit/visitDetail');const before=h.legacyRequests.length;await h.toggle('#audit',true);assert.equal(h.legacyRequests.length,before+1);assert.equal(h.legacyRequests.at(-1).url,'/api/ra/patient/auditLogs');assert.equal(h.legacyRequests.at(-1).body.patientId,'11');assert.equal(h.legacyRequests.at(-1).body.doctorId,101);assert.equal(h.requests.length,0,'ordinary audit must keep its legacy API boundary');}
+ const {harness:ordinaryHarness}=require('../fixtures/issue1-patient-detail.cjs');
+ for(const page of ['patient-visits','visit-detail']){
+  const h=ordinaryHarness(page,'?id=11&visit=12&from=patients');await flush();assert.equal(h.requests.length,1);assert.equal(h.requests[0].url,'/api/ra/patient/patientDetail');
+  await h.answer(0,{...detail('11'),patientId:'11',visits:[]});
+  if(page==='visit-detail'){assert.equal(h.requests[1].url,'/api/ra/visit/visitDetail');await h.answer(1,{...visit(),patientId:'11',visitId:'12'});}
+  const before=h.requests.length;h.node('#audit').open=true;h.node('#audit').dispatchEvent({type:'toggle'});await flush();assert.equal(h.requests.length,before+1);assert.equal(h.requests.at(-1).url,'/api/ra/patient/auditLogs');
+  const body=Object.fromEntries(new URLSearchParams(h.requests.at(-1).options.body));assert.equal(body.patientId,'11');assert.equal(body.doctorId,'101','ordinary audit retains legacy doctor hint and route');await h.event('pagehide');
+ }
+
 }]);
 checks.push(['explicit empty success and failure remain distinct without stale content',async()=>{
  for(const path of ['patientSensitive','patientAuditLogs'])for(const outcome of ['empty','401','404','503','mismatch','numeric']){

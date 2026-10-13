@@ -92,7 +92,7 @@ if(aiVisitSource){
 }else{
 shell(pageOrigin().nav);
 const patientId=queryParam('id'), visitId=queryParam('visit');
-let p=null, v=null;
+let p=null, v=null,disposeBasic=null,disposeNav=null,disposeAudit=null,pdfGeneration=0;
 
 // 加载占位
 $('#visit-hero').innerHTML=`<div class="skeleton skeleton-title"></div><div class="skeleton skeleton-tags"></div><div class="skeleton-grid">${Array.from({length:6},()=>'<div><i class="skeleton skeleton-label"></i><i class="skeleton skeleton-value"></i></div>').join('')}</div>`;
@@ -123,16 +123,18 @@ function renderHero(){
  $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><div class="patient-name-line"><h1>${escapeHTML(p.name)}</h1>${lost?`<span class="patient-dropout">已脱落</span>${p.withdrawReason?`<span class="patient-dropout-reason">脱落原因：${escapeHTML(p.withdrawReason)}</span>`:''}`:''}</div>${patientTagsHTML(p)}</div>${actions}</div>
  <div class="reference-basic-grid visit-meta"><div><span>本次访视</span><b>${escapeHTML(v.visitType)} · ${val(v.visitDate)}</b></div><div><span>记录医生</span><b>${val(v.doctorName||(v.doctorId?`医生 ID ${v.doctorId}`:null))}</b></div></div>
  <details class="basic-collapse" id="basic-collapse"${basicOpenPref()?' open':''}><summary><span class="basic-collapse-title">患者基础信息</span><span class="basic-collapse-hint">手机号、身份证号、确诊日期、DAS28-CRP、RF / 抗CCP、病史等</span></summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p)}</details>`;
- $('#download-one').onclick=e=>downloadRecordPdf(p,e.currentTarget,v);
+ const pdfPatient=p,pdfVisit=v,pdfOwner=pdfGeneration;
+ $('#download-one').onclick=e=>downloadRecordPdf(pdfPatient,e.currentTarget,pdfVisit,{isCurrent:()=>pdfGeneration===pdfOwner&&p===pdfPatient&&v===pdfVisit&&detailOwner.state==='success'});
  $('#delete-visit').onclick=openDeleteDialog;
  const chatParams=new URLSearchParams(location.search);let chatHref=null;try{if(chatParams.getAll('id').length===1&&chatParams.getAll('visit').length===1)chatHref='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:chatParams.get('id'),visitId:chatParams.get('visit')});}catch{}$('#ask-ai').disabled=!chatHref;$('#ask-ai').onclick=()=>{if(chatHref)location.assign(chatHref);};
  $('#ai-import').onclick=()=>openOcrImport({mode:'visit',patientId:p.patientId});
  $('#basic-collapse').addEventListener('toggle',e=>{try{localStorage.setItem(BASIC_OPEN_KEY,e.target.open?'1':'0')}catch(err){}});
- bindPatientBasic($('#basic-collapse'),p);
+ disposeBasic=bindPatientBasic($('#basic-collapse'),p);
 }
 
 // 删除本次随访：物理删除，不可恢复；必须填写原因（写入修改记录）。删除后回到该患者的随访记录
 function openDeleteDialog(){
+ if(!p||!v)return;
  let d=document.getElementById('delete-dialog');
  if(!d){
   d=document.createElement('dialog');d.id='delete-dialog';
@@ -141,6 +143,7 @@ function openDeleteDialog(){
   d.querySelector('form').addEventListener('submit',async e=>{
    if(e.submitter&&e.submitter.value!=='ok')return;
    e.preventDefault();
+   if(!p||!v)return;
    const reason=d.querySelector('[name=reason]').value.trim(),err=d.querySelector('.delete-error'),btn=d.querySelector('#confirm-delete');
    if(!reason){err.hidden=false;err.textContent='请填写删除原因';return}
    btn.disabled=true;btn.textContent='删除中…';err.hidden=true;
@@ -155,23 +158,31 @@ function openDeleteDialog(){
 
 
 function renderError(msg){
- $('#visit-hero').innerHTML=`<p class="pv-load-error">访视详情加载失败：${escapeHTML(msg)}。请确认后端服务已启动（${escapeHTML(API_BASE)}），或返回随访记录重新选择。</p>`;
+ $('#visit-hero').innerHTML=`<p class="pv-load-error">访视详情加载失败：${escapeHTML(msg)}。请返回随访记录重新选择，或稍后重试。</p>`;
  $('#visit-sections').innerHTML='';$('#audit').hidden=true;
 }
 
-async function load(){
- if(!patientId||!visitId){renderError('缺少患者 ID 或随访 ID');return}
- try{
-  const params={doctorId:currentDoctorId()};
-  [p,v]=await Promise.all([apiPost('/api/ra/patient/patientDetail',{...params,patientId}),apiPost('/api/ra/visit/visitDetail',{...params,visitId})]);
-  if(String(v.patientId)!==String(p.patientId)){renderError('这条随访记录不属于该患者');return}
-  renderHero();renderSections(v);
-  // 从病程分析跳入：提供返回入口
+const detailOwner=RAPatientDetail.owner({
+ clear(state,message){
+  pdfGeneration++;
+  const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
+  if(disposeBasic)disposeBasic();if(disposeNav)disposeNav();disposeBasic=disposeNav=null;
+  if(disposeAudit){disposeAudit();disposeAudit=null;}
+  p=null;v=null;document.title='访视详情 · 患者数据研究平台';
+  $('#visit-hero').setAttribute('data-state',state);renderError(message);
+  const auditPanel=$('#audit');auditPanel.open=false;auditPanel.querySelector('.audit-list').innerHTML='';auditPanel.querySelector('.audit-count').textContent='';
+  document.querySelector('.detail-anchor').classList.remove('is-loading');
+  const d=document.getElementById('delete-dialog');if(d){d.close();d.remove();}
+  document.querySelectorAll('.from-insight').forEach(n=>n.remove());
+ },
+ publish(data){
+  p=data.patient;v=data.related;$('#visit-hero').setAttribute('data-state','success');renderHero();disposeNav=renderSections(v);disposeAudit=bindAuditPanel($('#audit'),patientId,visitId).dispose;$('#audit').hidden=false;
   if(queryParam('from')==='insight'){const back=document.createElement('a');back.className='from-insight';back.href=`patient-insight.html?id=${encodeURIComponent(p.patientId)}`;back.textContent='← 返回病程分析';const main=document.getElementById('main');main.insertBefore(back,main.querySelector('.breadcrumb')?.nextSibling||main.firstChild);}
- }catch(e){console.error(e);renderError(e.message)}
- finally{document.querySelector('.detail-anchor').classList.remove('is-loading')}
-}
-bindAuditPanel($('#audit'),patientId,visitId);
+  return ()=>{if(disposeBasic)disposeBasic();if(disposeNav)disposeNav();if(disposeAudit)disposeAudit();disposeBasic=disposeNav=disposeAudit=null;};
+ }
+});
+function load(){detailOwner.load(patientId,{route:'visitDetail',visitId});}
+window.addEventListener('pageshow',event=>{if(event.persisted)load();});
 load();
 
 }

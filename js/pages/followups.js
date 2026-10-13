@@ -55,6 +55,6 @@ async function load(){
   try{
     plans=await apiPost('/api/ra/followup/plans',{doctorId:currentDoctorId()})||[];
     kpi();render();
-  }catch(e){console.error(e);$('#rows').innerHTML=`<p class="pv-load-error">随访计划加载失败：${escapeHTML(e.message)}。请确认后端服务已启动后刷新页面。</p>`;$('#result-count').textContent='';}
+  }catch(e){console.error(e);$('#rows').innerHTML=`<p class="pv-load-error">随访计划加载失败：${escapeHTML(apiErrorMessage(e))}</p>`;$('#result-count').textContent='';}
 }
 load();

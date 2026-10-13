@@ -26,12 +26,15 @@ test('patient:followup-policy-contract',async()=>{
   const vh=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await vh.answer(0,data);await vh.answer(1,{...visit(),followUpNumber:4,visitType:'第 4 次随访'});assert.match(vh.node('#visit-hero').innerHTML,/第 4 次随访/);assert.doesNotMatch(vh.node('#visit-hero').innerHTML,/疑似失访/);vh.event('pagehide');
  }
  const timeline=harness();await timeline.answer(0,{...p,visits:[{visitId:'9007199254741011',visitType:'第 1 次随访',followUpNumber:1},{visitId:'9007199254741012',visitType:'基线访视',followUpNumber:0}]});assert.match(timeline.node('#visit-list').innerHTML,/第 1 次随访/);assert.match(timeline.node('#visit-list').innerHTML,/基线访视/);timeline.event('pagehide');
+ const {harness:ordinaryHarness}=require('../fixtures/issue1-patient-detail.cjs');
  for(const total of [0,1,2,3]){
-  const createRequests=[];
-  const create={...c,location:{replace(){}},window:{addEventListener(){}},queryParam:k=>k==='id'?'9007199254740992':null,document:{title:'',querySelector:node,querySelectorAll:()=>[],getElementById:id=>node('#'+id)},TODAY:new Date('2026-10-12'),bindBack(){},withFrom:x=>x,apiPost:async(url,body)=>{createRequests.push({url,body});if(url==='/api/ra/patient/patientDetail')return {...p,visits:Array.from({length:total},()=>({}))};if(url==='/api/ra/visit/visitCreateForm')return {visitNo:total+1,visitType:total===0?'基线访视':`第 ${total} 次随访`,visitDate:'2026-10-12',modules:[]};throw Error('unexpected create request '+url)},patientTagsHTML:()=>'',patientBasicGridHTML:()=>'',patientHistoryHTML:()=>'',bindPatientBasic(){},vfRender(){},vfBind(){},ymd:()=> '2026-10-12'};
-  vm.createContext(create);vm.runInContext(fs.readFileSync(path.join(root,'js/pages/visit-create.js'),'utf8'),create);await flush();
+  const create=ordinaryHarness('visit-create','?id=9007199254740992');await flush();
+  await create.answer(0,{...p,visits:Array.from({length:total},(_,i)=>({visitId:String(9000+i),doctorId:'101',visitDate:'2026-09-01',visitType:i?'常规随访':'基线访视'}))});
+  await create.answer(1,{patientId:'9007199254740992',visitId:null,visitNo:total+1,visitType:total===0?'基线访视':'常规随访',visitDate:'2026-10-12',modules:[]});
+  const createRequests=create.requests.map(r=>({url:new URL(r.url,'http://fixture.invalid').pathname,body:Object.fromEntries(new URLSearchParams(r.options.body))}));
   assert.deepEqual(createRequests.map(r=>r.url),['/api/ra/patient/patientDetail','/api/ra/visit/visitCreateForm']);
   assert.equal(createRequests[1].body.patientId,'9007199254740992');
-  assert.match(node('#visit-sub').textContent,total===0?/基线访视/:new RegExp(`第 ${total} 次随访`));if(total===0)assert.doesNotMatch(node('#visit-sub').textContent,/第 1 次随访/);
+  assert.match(create.node('#visit-sub').textContent,total===0?/基线访视/:new RegExp(`第 ${total} 次随访`));if(total===0)assert.doesNotMatch(create.node('#visit-sub').textContent,/第 1 次随访/);
+  await create.event('pagehide');
  }
 });

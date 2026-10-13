@@ -55,13 +55,15 @@ $('#edit-form').addEventListener('submit',async e=>{
  }
 });
 
-async function load(){
- if(!patientId||!visitId){showError('缺少患者 ID 或随访 ID');return}
- try{
-  const params={doctorId:currentDoctorId()};
-  [p,form]=await Promise.all([apiPost('/api/ra/patient/patientDetail',{...params,patientId}),apiPost('/api/ra/visit/visitEditForm',{...params,visitId})]);
-  if(String(form.patientId)!==String(p.patientId)){showError('这条随访记录不属于该患者');return}
-  render();
- }catch(ex){console.error(ex);showError(`编辑表单加载失败：${escapeHTML(ex.message)}。请确认后端服务已启动（${escapeHTML(API_BASE)}）。`)}
-}
+const detailOwner=RAPatientDetail.owner({
+ clear(state,message){
+  form=null;p=null;VF.form=null;VF.defs={};dirty=false;document.title='编辑随访 · 患者数据研究平台';
+  $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
+  $('#save-edit').disabled=true;$('#visit-title').textContent='编辑随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
+  $('#edit-profile').removeAttribute('href');showError(message);
+ },
+ publish(data){p=data.patient;form=data.related;$('#visit-title').setAttribute('data-state','success');showError('');render();}
+});
+function load(){detailOwner.load(patientId,{route:'visitEditForm',visitId});}
+window.addEventListener('pageshow',event=>{if(event.persisted)load();});
 load();

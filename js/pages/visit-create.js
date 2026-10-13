@@ -14,7 +14,7 @@ let form = null, dirty = false, saving = false;
 document.querySelectorAll('.js-back-visits').forEach(a => bindBack(a, visitsUrl));
 $('#back-visits').textContent = '← 返回';
 $('#edit-profile').href = `patient-edit.html?id=${pid}`;
-$('#ocr-import').onclick = () => { if (form) openOcrImport({ mode: 'visit', patientId, onApply: applyOcr }); };
+$('#ocr-import').onclick = () => { const openedForm=form;if(openedForm)openOcrImport({mode:'visit',patientId,onApply:d=>{if(form===openedForm)applyOcr(d);}}); };
 const showError = msg => { const e = $('#edit-error'); e.hidden = !msg; e.innerHTML = msg || ''; };
 
 // 随访日期改了：病史病情的「随访时间」跟着改（医生没单独改过它时）
@@ -34,6 +34,7 @@ $('#create-form').addEventListener('submit', async e => {
   const btn = $('#save-create'); btn.disabled = true; btn.textContent = '保存中…'; showError(''); saving = true;
   try {
     const r = await apiPostJson('/api/ra/visit/createVisit', { doctorId: currentDoctorId(), patientId, visitDate: d, modules });
+    if (!r || !RAPatientDetail.canonical(r.visitId) || !RAPatientDetail.canonical(r.patientId) || r.patientId !== patientId) throw new Error('保存响应的患者或随访 ID 无效，请刷新确认结果');
     dirty = false;
     if (ocrUsed) ocrClearDraft();
     toastNext(`已保存本次随访（填写了 ${r.filledCount} 个模块）`);
@@ -46,6 +47,7 @@ $('#create-form').addEventListener('submit', async e => {
 // OCR 识别结果填表：随访日期、辅助检查各项；填上的字段高亮，医生核对后保存
 let ocrUsed = false;
 function applyOcr(d) {
+  if(!form)return;
   const box = $('#edit-sections'), labels = [];
   if (d.visitDate && d.visitDate <= ymd(TODAY)) { const i = $('#visit-date'); i.value = d.visitDate; i.dispatchEvent(new Event('change')); i.classList.add('ocr-filled'); }
   Object.entries(d.fzjc || {}).forEach(([k, v]) => { if (vfSetValue(box, 'fzjc', k, v)) labels.push(k); });
@@ -56,30 +58,32 @@ function applyOcr(d) {
 }
 window.addEventListener('beforeunload', e => { if (dirty && !saving) { e.preventDefault(); e.returnValue = ''; } });
 
-async function load() {
-  if (!patientId) { showError('缺少患者 ID'); return; }
-  $('#basic').open = false;
-  const box = $('#basic-readonly');
-  try {
-    const params = { doctorId: currentDoctorId(), patientId };
-    const [p, f] = await Promise.all([apiPost('/api/ra/patient/patientDetail', params), apiPost('/api/ra/visit/visitCreateForm', params)]);
-    form = f;
-    document.title = `${p.name} · 新增随访 · 患者数据研究平台`;
-    $('#visit-title').textContent = `新增随访 · ${p.name}`;
-    $('#visit-sub').textContent = `研究编号 ${p.studyNo || '—'} · ${f.visitNo === 1 ? '基线访视' : `第 ${f.visitNo - 1} 次随访`} · 基本信息沿用患者档案，只录入本次随访内容`;
-    box.innerHTML = patientTagsHTML(p) + patientBasicGridHTML(p) + patientHistoryHTML(p);
-    bindPatientBasic(box, p);
-    $('#visit-date').value = lastDate = f.visitDate; $('#visit-date').max = ymd(TODAY);
-    $('#visit-type').textContent = `${f.visitType}（时间最早的一次随访为基线访视）`;
-    vfRender($('#edit-sections'), f, { baseline: f.visitNo === 1, hint: '选填' });
-    vfBind($('#edit-sections'), () => dirty = true);
-    $('#save-create').disabled = false;
-    const d = queryParam('ocr') && ocrDraft();
-    if (d && (!d.patientId || String(d.patientId) === String(patientId)) && ocrHasVisit(d)) applyOcr(d);
-  } catch (e) {
-    console.error(e);
-    box.innerHTML = '';
-    showError(`新增随访表单加载失败：${escapeHTML(e.message)}`);
-  }
-}
+let disposeBasic=null;
+const detailOwner=RAPatientDetail.owner({
+ clear(state,message){
+  const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
+  if(disposeBasic){disposeBasic();disposeBasic=null;}
+  form=null;VF.form=null;VF.defs={};ocrUsed=false;dirty=false;document.title='新增随访 · 患者数据研究平台';
+  $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
+  $('#save-create').disabled=true;$('#visit-title').textContent='新增随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
+  $('#edit-profile').removeAttribute('href');$('#ocr-import').disabled=true;showError(message);
+ },
+ publish(data){
+  const p=data.patient,f=data.related;form=f;showError('');$('#visit-title').setAttribute('data-state','success');$('#ocr-import').disabled=false;
+  document.title=`${p.name} · 新增随访 · 患者数据研究平台`;
+  $('#visit-title').textContent=`新增随访 · ${p.name}`;
+  $('#visit-sub').textContent=`研究编号 ${p.studyNo||'—'} · ${f.visitNo===1?'基线访视':`第 ${f.visitNo-1} 次随访`} · 基本信息沿用患者档案，只录入本次随访内容`;
+  $('#edit-profile').href=`patient-edit.html?id=${pid}`;
+  $('#basic').open=false;const box=$('#basic-readonly');box.innerHTML=patientTagsHTML(p)+patientBasicGridHTML(p)+patientHistoryHTML(p);
+  disposeBasic=bindPatientBasic(box,p);
+  $('#visit-date').value=lastDate=f.visitDate;$('#visit-date').max=ymd(TODAY);
+  $('#visit-type').textContent=`${f.visitType}（时间最早的一次随访为基线访视）`;
+  vfRender($('#edit-sections'),f,{baseline:f.visitNo===1,hint:'选填'});vfBind($('#edit-sections'),()=>dirty=true);
+  $('#save-create').disabled=false;
+  const d=queryParam('ocr')&&ocrDraft();if(d&&(!d.patientId||d.patientId===patientId)&&ocrHasVisit(d))applyOcr(d);
+  return disposeBasic;
+ }
+});
+function load(){detailOwner.load(patientId,{route:'visitCreateForm'});}
+window.addEventListener('pageshow',event=>{if(event.persisted)load();});
 load();

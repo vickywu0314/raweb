@@ -52,6 +52,6 @@ $('#export-report')?.addEventListener('click', () => {
 async function load() {
   $('#dashboard').innerHTML = '<p class="metric-note">正在统计…</p>';
   try { D = await apiPost('/api/ra/dashboard/summary', { doctorId: currentDoctorId() }); render(); }
-  catch (e) { console.error(e); $('#dashboard').innerHTML = `<p class="pv-load-error">看板数据加载失败：${escapeHTML(e.message)}。请确认后端服务已启动后刷新页面。</p>`; }
+  catch (e) { console.error(e); $('#dashboard').innerHTML = `<p class="pv-load-error">看板数据加载失败：${escapeHTML(apiErrorMessage(e))}</p>`; }
 }
 load();

@@ -121,20 +121,26 @@ function recordPages(blocks) {
 }
 
 // 生成并下载：p 为 patientDetail 的返回；btn 为触发按钮（生成期间禁用）；visit 传了就用这次随访，否则取最近一次
-async function downloadRecordPdf(p, btn, visit) {
+// options.isCurrent 由页面绑定显示世代；撤权后任何迟到结果均不得下载或写回 UI。
+async function downloadRecordPdf(p, btn, visit, options = {}) {
+  const active = () => !!p && (!options.isCurrent || options.isCurrent());
+  if (!active()) return;
   const label = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = '生成中…'; }
   try {
     await loadScriptOnce(RECORD_PDF_LIB);
+    if (!active()) return;
     const last = (p.visits || [])[0];
     const v = visit || (last ? await apiPost('/api/ra/visit/visitDetail', { doctorId: currentDoctorId(), patientId: p.patientId, visitId: last.visitId }) : null);
+    if (!active()) return;
     const pages = recordPages(recordBlocks(p, v, !!visit));
     const pdf = new window.jspdf.jsPDF({ unit: 'pt', format: 'a4', compress: true });
     pages.forEach((c, i) => { if (i) pdf.addPage(); pdf.addImage(c.toDataURL('image/jpeg', 0.9), 'JPEG', 0, 0, RP.W, RP.H); });
     const name = `病历_${p.name}_${p.studyNo || p.patientId}${visit && v ? `_${v.visitDate || ''}` : ''}.pdf`;
+    if (!active()) return;
     const a = document.createElement('a'); a.href = URL.createObjectURL(pdf.output('blob')); a.download = name;
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 30000);
     toast('病历 PDF 已生成');
-  } catch (e) { console.error(e); toast(`生成病历失败：${e.message}`); }
-  finally { if (btn) { btn.disabled = false; btn.textContent = label; } }
+  } catch (e) { if (active()) { console.error(e); toast(`生成病历失败：${e.message}`); } }
+  finally { if (btn && active()) { btn.disabled = false; btn.textContent = label; } }
 }

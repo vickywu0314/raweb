@@ -3,6 +3,23 @@
    测试账号在后端 application.properties 的 ra.auth.accounts 配置（内部测试用 yanwenjing → 医生 82394 言文静）。 */
 "use strict";
 const REMEMBER_KEY = 'ra-remember-user';
+// 登录页不加载 common.js；错误说明保持与其它页面一致，账号验证流程不变。
+function loginErrorMessage(error){
+  const message=typeof error?.message==='string'?error.message.trim():'';
+  const diagnostic=/HTTP\b|API_BASE|后端|\/api\/|https?:\/\/|[{}\r\n]|\b(?:SQL|JDBC|\w*Error|\w*Exception)\b|<[/!]?[a-z][^>]*>|(?:code|status|traceId|requestId)\s*[:=]/i;
+  if(/[\u3400-\u9fff]/.test(message)&&!diagnostic.test(message)&&!/[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+/.test(message))return message;
+  const code=String(error?.code||'').toUpperCase(),httpStatus=Number(error?.status)||0,status=httpStatus>=400?httpStatus:Number(code)||httpStatus;
+  if(status===401||['UNAUTHENTICATED','UNAUTHORIZED'].includes(code))return '用户名或密码错误，请检查后重试。';
+  if(status===403||code==='FORBIDDEN')return '此账号没有访问权限，请联系项目数据管理员。';
+  if(status===400||status===422||['BAD_REQUEST','INVALID_ARGUMENT','INVALID_ARGUMENTS','VALIDATION_ERROR'].includes(code))return '登录信息有误，请检查用户名和密码后重试。';
+  if(status===409||code==='CONFLICT'||code.endsWith('_CONFLICT'))return '登录信息已发生变化，请重新输入后重试。';
+  if(status===429||code==='RATE_LIMITED')return '登录尝试过于频繁，请稍后重试。';
+  if(code==='NETWORK_ERROR'||/Failed to fetch|NetworkError|Load failed|network/i.test(message))return '暂时无法连接登录服务，请检查网络后重试。';
+  return '登录服务暂不可用，请稍后重试；若持续出现，请联系项目数据管理员。';
+}
+function loginFailure(status,code,message){
+  const error=new Error(loginErrorMessage({status,code,message}));error.status=status;error.code=code||'';return error;
+}
 document.addEventListener('DOMContentLoaded', () => {
   const next = new URLSearchParams(location.search).get('next');
   const go = () => location.replace(next && !/^(https?:)?\/\//.test(next) ? next : 'projects.html');
@@ -24,14 +41,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const btn = document.getElementById('login-submit'); btn.disabled = true; btn.textContent = '登录中…';
     const base = typeof window.RA_CONFIG?.apiBase === 'string' ? window.RA_CONFIG.apiBase : '';
     fetch(base + '/api/ra/auth/login', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }, body: new URLSearchParams({ username: u, password: p, remember: remember.checked }) })
-      .then(res => { if (!res.ok) throw new Error(`登录服务暂不可用（HTTP ${res.status}），请确认后端已启动`); return res.json(); })
+      .then(async res => {
+        let r;
+        try { r = await res.json(); } catch (ex) { throw loginFailure(res.status, res.ok ? 'INVALID_RESPONSE' : ''); }
+        if (!r || typeof r !== 'object') throw loginFailure(res.status, 'INVALID_RESPONSE');
+        if (!res.ok) throw loginFailure(res.status, r.code, r.message);
+        return r;
+      })
       .then(r => {
-        if (!r.success) { showErr(r.message || '用户名或密码错误'); pw.select(); return; }
+        if (!r.success) { showErr(loginErrorMessage({ code: r.code, message: r.message })); pw.select(); return; }
         try { remember.checked ? localStorage.setItem(REMEMBER_KEY, u) : localStorage.removeItem(REMEMBER_KEY); } catch (e2) {}
         signIn(r.data, remember.checked);
         go();
       })
-      .catch(ex => showErr(ex.message === 'Failed to fetch' ? '无法连接后端服务，请确认后端已启动' : ex.message))
+      .catch(ex => showErr(loginErrorMessage(ex)))
       .finally(() => { btn.disabled = false; btn.textContent = '登 录'; });
   });
 });

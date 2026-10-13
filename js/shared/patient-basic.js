@@ -114,17 +114,16 @@ function bindTrustedPatientBasic(box,p){
 }
 function bindPatientBasic(box,p,{trusted=false}={}){
  if(trusted)return bindTrustedPatientBasic(box,p);
- const t=box.querySelector('.identity-toggle');
- if(t){let full=null;
-  t.addEventListener('click',async()=>{
-   const num=box.querySelector('.identity-number'),shown=t.getAttribute('aria-pressed')==='true';
-   if(shown){num.textContent=p.cardNoMasked;}
-   else{
-    if(full==null){t.disabled=true;try{full=await apiPost('/api/ra/patient/patientSensitive',{doctorId:currentDoctorId(),patientId:p.patientId})||''}catch(e){toast(`获取身份证号失败：${e.message}`);return}finally{t.disabled=false}}
-    num.textContent=full||p.cardNoMasked;
-   }
-   t.setAttribute('aria-pressed',String(!shown));t.setAttribute('aria-label',shown?'显示完整身份证号':'隐藏身份证号');t.title=shown?'显示完整身份证号':'隐藏身份证号';
-  });
- }
- box.addEventListener('click',e=>{const b=e.target.closest('[data-comorbid]');if(b)openComorbidity(b.dataset.comorbid,comorbidPatient(p))});
+ const t=box.querySelector('.identity-toggle'),num=box.querySelector('.identity-number');
+ let disposed=false,expanded=false,full=null;
+ const mask=()=>{expanded=false;full=null;if(num)num.textContent=p.cardNoMasked||'未提供';if(t){t.disabled=false;t.setAttribute('aria-pressed','false');t.setAttribute('aria-label','显示完整身份证号');t.title='显示完整身份证号';}};
+ const reader=trustedDetailReader(()=>apiPost('/api/ra/patient/patientSensitive',{doctorId:currentDoctorId(),patientId:p.patientId}).then(data=>({data})),(cause,data)=>{
+  if(cause==='success'&&!disposed&&expanded){full=data||'';num.textContent=full||p.cardNoMasked;t.disabled=false;}
+  else{mask();if(!disposed&&(cause==='error'||cause==='timeout'))toast(cause==='timeout'?'身份证号查询超时':'获取身份证号失败');}
+ });
+ const click=()=>{if(disposed)return;if(expanded){reader.cancel();mask();}else{expanded=true;t.disabled=true;t.setAttribute('aria-pressed','true');t.setAttribute('aria-label','隐藏身份证号');t.title='隐藏身份证号';reader.start();}};
+ const related=e=>{if(disposed)return;const b=e.target.closest('[data-comorbid]');if(b)openComorbidity(b.dataset.comorbid,comorbidPatient(p));};
+ const collapse=()=>{if(!box.open){reader.cancel();mask();}};
+ if(t)t.addEventListener('click',click);box.addEventListener('click',related);if(box.id==='basic-collapse')box.addEventListener('toggle',collapse);
+ return ()=>{disposed=true;reader.cancel();mask();const dialog=document.getElementById('comorbid-dialog');if(dialog){dialog.close();dialog.innerHTML='';dialog.remove();}if(t)t.removeEventListener('click',click);box.removeEventListener('click',related);box.removeEventListener('toggle',collapse);};
 }

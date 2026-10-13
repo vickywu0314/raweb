@@ -10,9 +10,19 @@ function currentUser(){
   }
   return null;
 }
-function signIn(user,remember){const u={...user,at:Date.now(),expires:remember?Date.now()+30*864e5:0};try{(remember?localStorage:sessionStorage).setItem(AUTH_KEY,JSON.stringify(u))}catch(e){}return u}
-// 退出：同时结束后端会话
-function signOut(){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY)}catch(e){}const base=typeof window.RA_CONFIG?.apiBase==='string'?window.RA_CONFIG.apiBase:'';fetch(base+'/api/ra/auth/logout',{method:'POST',credentials:'same-origin'}).catch(()=>{}).finally(()=>location.href='login.html')}
+let authGeneration=0;
+window.addEventListener('storage',event=>{if(event.key===AUTH_KEY||event.key===null)authGeneration++;});
+window.addEventListener('pagehide',()=>{authGeneration++;});
+function authChanged(){authGeneration++;window.dispatchEvent(new Event('ra-auth-changed'));}
+function clearAuth(){try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY)}catch(e){}authChanged();}
+function signIn(user,remember){
+ const previous=currentUser();const u={...user,at:Date.now(),expires:remember?Date.now()+30*864e5:0};
+ try{localStorage.removeItem(AUTH_KEY);sessionStorage.removeItem(AUTH_KEY);(remember?localStorage:sessionStorage).setItem(AUTH_KEY,JSON.stringify(u))}catch(e){}
+ if(!previous||String(previous.doctorId)!==String(u.doctorId))authChanged();
+ return u;
+}
+// Revoke displayed data immediately; logout's peer may remain pending.
+function signOut(){clearAuth();const base=typeof window.RA_CONFIG?.apiBase==='string'?window.RA_CONFIG.apiBase:'';fetch(base+'/api/ra/auth/logout',{method:'POST',credentials:'same-origin'}).catch(()=>{}).finally(()=>location.href='login.html')}
 // 未登录访问任何页面 → 跳转登录页，登录后回到原页面
 (function guard(){
   const page=location.pathname.split('/').pop()||'index.html';

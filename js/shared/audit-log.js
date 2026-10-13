@@ -10,19 +10,24 @@ const auditDetailHTML = d => escapeHTML(d || '').split('；').map(part => part.r
 // panel：<details class="audit-panel">，内含 .audit-count 和 .audit-list；返回 reload()，数据有变化（如标记脱落）后调用
 function bindAuditPanel(panel, patientId, visitId) {
   const box = panel.querySelector('.audit-list'), count = panel.querySelector('.audit-count');
-  let loaded = false;
+  let loaded = false, disposed = false, generation = 0;
   async function load() {
-    if (loaded) return; loaded = true;
+    if (disposed || loaded) return; loaded = true;
+    const token=++generation, active=()=>!disposed&&panel.open&&generation===token;
     box.innerHTML = '<li class="audit-empty">正在查询修改记录…</li>';
     try {
       let list = await apiPost('/api/ra/patient/auditLogs', { doctorId: currentDoctorId(), patientId }) || [];
+      if(!active())return;
       if (visitId != null) list = list.filter(a => String(a.visitId) === String(visitId));
       count.textContent = list.length ? `${list.length} 条` : '';
       box.innerHTML = list.length ? list.map(a => `<li><time>${escapeHTML(a.time)}</time><b class="audit-tag ${AUDIT_TONE[a.action] || 'edit'}">${escapeHTML(a.action)}</b><div class="audit-detail">${auditDetailHTML(a.detail)}</div><em>${escapeHTML(a.operator || '')}</em></li>`).join('')
         : `<li class="audit-empty">${visitId != null ? '这次随访暂无修改记录（新系统上线前的修改没有记录）' : '暂无修改记录'}</li>`;
-    } catch (e) { loaded = false; box.innerHTML = `<li class="audit-empty">修改记录加载失败：${escapeHTML(e.message)}（收起后再展开可重试）</li>`; }
+    } catch (e) { if(!active())return;loaded = false; box.innerHTML = `<li class="audit-empty">修改记录加载失败：${escapeHTML(e.message)}（收起后再展开可重试）</li>`; }
   }
-  panel.open = false;
-  panel.addEventListener('toggle', () => { if (panel.open) load(); });
-  return () => { loaded = false; count.textContent = ''; if (panel.open) load(); };
+  const clear=()=>{generation++;loaded=false;box.innerHTML='';count.textContent='';};
+  const toggle=()=>{if(disposed)return;if(panel.open)load();else clear();};
+  panel.open=false;panel.addEventListener('toggle',toggle);
+  const reload=()=>{if(disposed)return;clear();if(panel.open)load();};
+  reload.dispose=()=>{if(disposed)return;disposed=true;clear();panel.open=false;panel.removeEventListener('toggle',toggle);};
+  return reload;
 }

@@ -57,7 +57,7 @@ function markDone(e) {
     if (ev.submitter && ev.submitter.value !== 'ok') return; ev.preventDefault();
     const err = d.querySelector('.ra-form-error'), ok = d.querySelector('[value=ok]'); ok.disabled = true; err.hidden = true;
     try { await apiPost('/api/ra/quality/resolve', { doctorId: currentDoctorId(), patientId: x.patientId, issueKey: x.key, note: d.querySelector('[name=note]').value.trim() }); d.close(); toast('已标记处理'); load(); }
-    catch (ex) { err.textContent = ex.message; err.hidden = false; ok.disabled = false; }
+    catch (ex) { err.textContent = apiErrorMessage(ex); err.hidden = false; ok.disabled = false; }
   });
   d.showModal();
 }
@@ -79,8 +79,8 @@ async function load(manual) {
     D = await apiPost('/api/ra/quality/issues', { doctorId: currentDoctorId() }); issues = D.issues || [];
     kpi(); render();
     if (manual) toast(`质控检查完成：${D.openCount} 个待处理问题`);
-    if (!D.resolutionReady) toast('质控处理记录表还没建，暂时不能「标记已处理」');
-  } catch (e) { console.error(e); $('#rows').innerHTML = `<p class="pv-load-error">质控检查失败：${escapeHTML(e.message)}。请确认后端服务已启动后刷新页面。</p>`; $('#result-count').textContent = ''; }
+    if (!D.resolutionReady) toast('暂时无法标记已处理，请稍后重试；若持续出现，请联系项目数据管理员。');
+  } catch (e) { console.error(e); $('#rows').innerHTML = `<p class="pv-load-error">质控检查失败：${escapeHTML(apiErrorMessage(e))}</p>`; $('#result-count').textContent = ''; }
   finally { btn.disabled = false; btn.textContent = '运行质控检查'; }
 }
 load();

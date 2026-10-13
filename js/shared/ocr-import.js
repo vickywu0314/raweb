@@ -25,9 +25,13 @@ function ocrValue(opt, raw) {
 
 async function ocrUpload(file) {
   const body = new FormData(); body.append('file', file);
-  const res = await fetch(API_BASE + '/api/ra/ocr/upload', { method: 'POST', body });
-  if (!res.ok) throw new Error(`上传失败（HTTP ${res.status}）`);
-  const r = await res.json(); if (!r.success) throw new Error(r.message || '上传失败');
+  let res;
+  try { res = await fetch(API_BASE + '/api/ra/ocr/upload', { method: 'POST', body }); }
+  catch (e) { throw apiFailure(0, 'NETWORK_ERROR'); }
+  let r;
+  try { r = await res.json(); } catch (e) { throw apiFailure(res.status, res.ok ? 'INVALID_RESPONSE' : ''); }
+  if (!r || typeof r !== 'object') throw apiFailure(res.status, 'INVALID_RESPONSE');
+  if (!res.ok || !r.success) throw apiFailure(res.status, r.code, r.message);
   return r.data;
 }
 
@@ -60,7 +64,7 @@ function openOcrImport(opts = {}) {
       status('正在识别，约需 5～15 秒…');
       result = await apiPost('/api/ra/ocr/recognize', { fileId: up.fileId });
       status(''); render();
-    } catch (e) { status(`${escapeHTML(e.message)}`, true); }
+    } catch (e) { status(`${escapeHTML(apiErrorMessage(e))}`, true); }
     finally { busy = false; $d('#ocr-drop').classList.remove('busy'); input.value = ''; }
   }
   input.addEventListener('change', () => run(input.files[0]));
@@ -128,7 +132,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     const btn = $d('#ocr-apply'); btn.disabled = true;
     if (mappings.length) {
       try { await apiPostJson('/api/ra/ocr/saveAliases', { doctorId: currentDoctorId(), mappings }); }
-      catch (e) { toastNext(`对应关系没有记住：${e.message}`); }
+      catch (e) { toastNext(`对应关系没有记住：${apiErrorMessage(e)}`); }
     }
     const draft = { mode, patientId: opts.patientId || null, basic: result.basic || {}, visitDate: result.visitDate || null, fzjc, fileId: result.fileId, url: result.url, at: Date.now() };
     ocrSaveDraft(draft);
