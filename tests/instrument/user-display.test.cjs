@@ -1,0 +1,6 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');const display=require('../../js/shared/user-display.js');
+test('display:user-language',()=>{
+assert.equal(display.conditions({studyCode:'RA',sex:'F',act:'mod-high',at:'6m',ids:['21','22']}),'女性；中高疾病活动；治疗后六个月；指定患者 2 人');
+assert.equal(display.code('UNKNOWN'),'未知');assert.equal(display.code('NO_DATA'),'无可评估数据');assert.equal(display.code('SENT'),'通知已提交');assert.equal(display.list(['LEGACY_UNVERIFIED','SCALE_UNVERIFIED']),'历史记录尚未核实、量表尚未核实');
+assert.equal(display.fieldValue('sourceField','bqpg.result.ytgjs'),'压痛关节数');assert.equal(display.fieldValue('sourceVisitId','9007199254740993'),'9007199254740993');assert.equal(display.fieldValue('value',0),'0');assert.equal(display.fieldValue('unit','mg/L'),'mg/L');assert.equal(display.error({status:401,code:'UNAUTHENTICATED'}),'登录已失效，请重新登录');assert.equal(display.error({status:403}),'当前账号没有此操作权限');assert.equal(display.code('INTERNAL_SECRET_CODE'),'未提供说明');assert.equal(display.label('internal.path'),'其他资料');assert.equal(display.fieldValue('value','Methotrexate'),'Methotrexate');assert.equal(display.fieldValue('evidenceId','synthetic:e1'),'已记录，可按记录日期核对');assert.equal(display.drugLabel('dev:甲氨蝶呤'),'甲氨蝶呤');assert.equal(display.drugLabel('synthetic:g2'),'已记录药物（名称待核对）');assert.equal(display.fieldValue('genericDrugId','opaque-123'),'已记录药物（名称待核对）');
+});

@@ -1,3 +1,4 @@
+import {installAuthBootstrapObserver} from '../fixtures/auth-bootstrap-observer.cjs';
 import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -7,11 +8,12 @@ import {createHash} from 'node:crypto';
 export async function currentExportBrowser(context,port,identity,owner,probe,pid,id,fixture){
  assert.equal(identity,'synthetic');assert.equal(fixture.scenario,'p06-current');
  const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],downloads=[],errors=[],blocked=[],books={};
- await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
- await context.route('**/*',route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==origin){blocked.push(url.origin);return route.abort('blockedbyclient');}if(url.pathname.startsWith('/api/'))requests.push({path:url.pathname,body:request.postDataJSON()});return route.continue();});
+ const auth=await installAuthBootstrapObserver(context,{origin,identity:'anonymous'});
+ await context.addInitScript(()=>{window.__bootstrapAuthChanges=0;window.addEventListener('ra-auth-changed',()=>window.__bootstrapAuthChanges++);});
+ await context.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(url.origin!==origin){blocked.push(url.origin);return route.abort('blockedbyclient');}if(await auth.handle(route))return;if(url.pathname.startsWith('/api/'))requests.push({path:url.pathname,body:request.postDataJSON()});return route.continue();});
  const page=await context.newPage();page.setDefaultTimeout(30000);page.on('pageerror',e=>errors.push(e.message));owner.event('page-created',{pid,port});
  const perform=async(action,path)=>{const pending=page.waitForResponse(r=>new URL(r.url()).pathname===path&&r.request().method()==='POST');await action();const response=await pending;responses.push({path,status:response.status(),trace:response.headers()['x-trace-id']});return response;};
- const cohort=async(action)=>{const response=await perform(action,'/api/ra/ai/cohort');assert.equal(response.status(),200);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');return (await response.json()).data;};
+ const cohort=async(action)=>{const response=await perform(action,'/api/ra/ai/cohort');assert.equal(response.status(),200);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await verifyDocument(page,auth);return (await response.json()).data;};
  const cell=(book,row,column)=>book.sheets[0].cells.find(c=>c.row===row&&c.column===column);
  const numeric=(book,row,column,value)=>{const c=cell(book,row,column);assert.equal(c?.type,'NUMERIC');assert.equal(Number(c.raw),value);};
  const string=(book,row,column,value)=>{const c=cell(book,row,column);assert.equal(c?.type,'STRING');assert.equal(c.string,value);};
@@ -20,15 +22,37 @@ export async function currentExportBrowser(context,port,identity,owner,probe,pid
   await owner.command(`${owner.javaEnv.JAVA_HOME}/bin/java`,['-cp',owner.classpath,'com.wenwen.ai.cohort.WebExportWorkbookInspector',owner.dir+'/'+name,owner.dir+'/workbook-observation.json'],{env:owner.javaEnv,cwd:owner.repo},'workbook-inspector',10000);const book=JSON.parse(await readFile(owner.dir+'/workbook-observation.json','utf8')),bytes=await readFile(owner.dir+'/'+name);assert.equal(book.sha256,createHash('sha256').update(bytes).digest('hex'));assert.equal(book.metadata.referenceId,referenceId);assert.equal(book.metadata.rowN,String(rows));assert.equal(book.metadata.freeStart,'2026-04-01');assert.equal(book.metadata.today,'2026-10-07');const versions=JSON.parse(book.metadata.policyVersions);assert.equal(versions.drugDictionary,'synthetic-drug-v1');assert.equal(versions.fmSource,'synthetic-fm-v1');assert.ok(!JSON.stringify(book).includes('合成患者'));books[name]=book;return book;
  };
  try{
-  assert.equal((await context.request.post(origin+'/api/ra/test/session',{data:''})).status(),204);
+  assert.equal((await context.request.post(origin+'/api/ra/test/session',{data:''})).status(),204);await seedRealProfile(context,page,origin,auth);
   const first=await cohort(()=>page.goto(origin+'/ai-cohort.html?ids=1,2,3,4,5'));assert.equal(first.n,5);assert.deepEqual(first.patients.items.map(p=>p.patientId),['5','4','3','2','1']);
   await page.locator('#export').click();for(const field of ['das28Current','crpCurrent'])await page.locator(`#export-fields input[value="${field}"]`).check();const book=await file('current-cohort-download.xlsx',()=>page.locator('#export-confirm').click(),first.analysisId,5);assert.deepEqual(book.sheetNames,['cohort','metadata']);assert.equal(book.sheets[0].rows,6);assert.equal(book.sheets[0].cells.length,12);string(book,0,0,'das28Current');string(book,0,1,'crpCurrent');for(let i=0;i<5;i++){numeric(book,i+1,0,[4.11,4.1,2.71,2.7,2][i]);numeric(book,i+1,1,6);}
   await cohort(()=>page.goto(origin+'/ai-cohort.html'));await cohort(()=>page.locator('#f-sex').selectOption('F'));await page.locator('#compare-current-a').click();await cohort(()=>page.locator('#f-sex').selectOption('M'));await page.locator('#compare-current-b').click();await page.locator('#compare-exclude').uncheck();const compared=await perform(()=>page.locator('#compare-start').click(),'/api/ra/ai/compare');assert.equal(compared.status(),200);const comparison=(await compared.json()).data;assert.deepEqual([comparison.a.n,comparison.b.n],[3,3]);await expect(page.locator('#compare-state')).toHaveAttribute('data-state','success');
   await page.locator('#compare-export').click();for(const metric of ['n','das28At'])await page.locator(`#export-fields input[value="${metric}"]`).check();const wide=await file('current-comparison-download.xlsx',()=>page.locator('#export-confirm').click(),comparison.compareResultId,2);assert.deepEqual(wide.sheetNames,['comparison','metadata']);assert.equal(wide.sheets[0].rows,3);assert.equal(wide.sheets[0].cells.length,111);string(wide,1,0,'n');string(wide,1,1,'COUNT');numeric(wide,1,3,3);numeric(wide,1,4,3);string(wide,2,0,'das28At');string(wide,2,1,'CONTINUOUS');for(const [column,value] of [[5,2],[6,3],[7,1],[8,0],[15,2.1775],[16,2.355],[17,2.5325],[18,.355],[19,3.4],[20,4.1],[21,4.105],[22,.705],[27,-1.745],[33,2],[34,3]])numeric(wide,2,column,value);for(const column of [28,30])assert.equal(cell(wide,2,column).type,'BLANK');string(wide,2,29,'—');string(wide,2,31,'INSUFFICIENT_SAMPLE');string(wide,2,32,'VALID_N_LT_5');string(wide,2,35,'NON_MISSING_METRIC');
   const all=await cohort(()=>page.goto(origin+'/ai-cohort.html'));assert.equal(all.n,6);await page.locator('#export').click();await page.locator('#export-fields input[value="sex"]').check();const rejected=await perform(()=>page.locator('#export-confirm').click(),'/api/ra/export/xlsx');assert.equal(rejected.status(),409);assert.equal((await rejected.json()).code,'NEED_APPLY');assert.equal(downloads.length,2);await page.locator('#application-open').click();await page.locator('#application-start').fill('2026-01-01');await page.locator('#application-end').fill('2026-10-07');await page.locator('#application-purpose').selectOption('RESEARCH');await page.locator('#application-reason').fill('ordinary-application-canary');const applied=await perform(()=>page.locator('#application-submit').click(),'/api/ra/export/applyAnalysis');assert.equal(applied.status(),200);const application=(await applied.json()).data;assert.equal(application.status,'APPLICATION_RECORDED');assert.equal(application.notification.mailStatus,'SENT');assert.equal(application.notification.deliveryStatus,'UNKNOWN');await expect(page.locator('#application-receipt')).toContainText('送达待确认');assert.equal(downloads.length,2);await owner.control(fixture,'SMTP_ASSERT');
   assert.equal((await context.request.post(origin+'/api/ra/test/logout',{data:''})).status(),204);const anonymous=await perform(()=>page.locator('#reanalyze').click(),'/api/ra/ai/cohort');assert.equal(anonymous.status(),401);await expect(page.locator('#patient-rows')).toBeEmpty();await expect(page.locator('#export')).toBeDisabled();await expect(page.locator('#application-panel')).toBeHidden();
-  const observed=fixture.events.filter(e=>e.type==='current-export-http-observation');assert.ok(observed.every(e=>e.typedProvider&&e.active===0));assert.ok(observed.filter(e=>e.status===401).every(e=>e.bodyBytes===0&&e.borrowDelta===0));assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);
+  const observed=fixture.events.filter(e=>e.type==='current-export-http-observation');assert.ok(observed.every(e=>e.typedProvider&&e.active===0));assert.ok(observed.filter(e=>e.status===401).every(e=>e.bodyBytes===0&&e.borrowDelta===0));await auth.verifyAll();assert.deepEqual(errors,[]);assert.deepEqual(blocked,[]);
  }finally{
-  await writeFile(owner.dir+'/workbook-observation.json',JSON.stringify(books,null,2)+'\n');const evidence={scenario:id,requests,responses,downloads,errors,blocked,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(owner.dir+'/'+name,JSON.stringify(evidence,null,2)+'\n');
+  await writeFile(owner.dir+'/workbook-observation.json',JSON.stringify(books,null,2)+'\n');const evidence={scenario:id,authRequests:auth.requests,requests,responses,downloads,errors,blocked,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(owner.dir+'/'+name,JSON.stringify(evidence,null,2)+'\n');
  }
+}
+
+
+// 会话从真实生产 /auth/me 取回；这里只写前端显示缓存，不替换任何后端响应。
+async function seedRealProfile(context,page,origin,auth){
+ const response=await context.request.post(origin+'/api/ra/auth/me');assert.equal(response.status(),200);const body=await response.json();assert.equal(body.success,true);assert.equal(body.code,'200');assert.ok(body.data&&body.data.doctorId!=null);
+ auth.expectIdentity('authenticated',body.data);
+ if(new URL(page.url()).origin!==origin){await page.goto(origin+'/login.html');await auth.verify(page,{expected:0});}
+ await page.evaluate(profile=>sessionStorage.setItem('ra-auth',JSON.stringify({...profile,expires:0})),body.data);return body.data;
+}
+async function verifyDocument(page,auth,expected=1){
+ await auth.verify(page,{expected});
+ if(expected===1)assert.equal(await page.evaluate(()=>window.__bootstrapAuthChanges),0,'same real doctor bootstrap must not revoke the initial business flight');
+}
+async function loginClosed(page,origin,target,auth,cached=false){
+ const url=new URL(target);await expect(page).toHaveURL(origin+'/login.html?next='+encodeURIComponent(url.pathname.split('/').pop()+url.search+url.hash));
+ await auth.verify(page,{expected:0});await auth.verifyAll();
+ if(cached){const denied=auth.requests.filter(r=>r.identity==='anonymous');assert.equal(denied.length,1,'expired server session with cached browser identity must really bootstrap once and be denied');assert.equal(denied[0].result,'ANONYMOUS_DENIED');}
+ await expect(page.locator('body')).not.toContainText('synthetic-patient');await expect(page.locator('body')).not.toContainText('SYNTHETIC-CARD');await expect(page.locator('body')).not.toContainText('合成患者');
+}
+async function anonymousDenied(context,origin,path,data){
+ const response=await context.request.post(origin+path,{data});assert.equal(response.status(),401);const body=await response.json();assert.equal(body.success,false);assert.equal(body.data,null);
 }

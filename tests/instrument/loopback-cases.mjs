@@ -1,3 +1,4 @@
+import {installAuthBootstrapObserver} from '../fixtures/auth-bootstrap-observer.cjs';
 import {legacyDetailBrowser} from './issue1-patient-detail-browser.mjs';
 import {currentAnalysisJourney} from './current-analysis-composition-browser.mjs';
 import {currentExportBrowser} from './current-export-browser.mjs';
@@ -343,11 +344,16 @@ browserRegistry['cohort:current-export-loopback']=async(owner,probe)=>{
 browserRegistry['cohort:current-composition-loopback']=async(owner,probe)=>{
  const r=await owner.fixture(['--identity=synthetic','--scenario=p07-current']);await owner.ready(r,401);const port=await owner.proxy(r);
  async function currentAnalysisBrowser(context,p,identity,o,pr,pid){
-  const origin=`http://127.0.0.1:${p}`,requests=[],blocked=[],errors=[];await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
-  await context.route('**/*',route=>{const req=route.request(),url=new URL(req.url());if(url.origin!==origin){blocked.push(req.url());return route.abort('blockedbyclient');}if(url.pathname.startsWith('/api/'))requests.push({path:url.pathname,body:req.postDataJSON(),method:req.method()});return route.continue();});
-  assert.equal((await context.request.post(origin+'/api/ra/test/session',{data:''})).status(),204);const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));o.event('page-created',{pid,port:p,case:'cohort:current-composition-loopback'});
-  try{await currentAnalysisJourney(page,origin,{planChat:command=>o.control(r,command)});assert.deepEqual(blocked,[]);assert.deepEqual(errors,[]);for(const event of r.events.filter(e=>e.type==='current-export-http-observation'))assert.ok(event.typedProvider&&event.active===0);await o.control(r,'SMTP_ASSERT');}
-  finally{const data={scenario:'cohort:current-composition-loopback',requests,blocked,errors,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(o.dir+'/'+name,JSON.stringify(data,null,2)+'\n');await page.close();}
+  const origin=`http://127.0.0.1:${p}`,requests=[],blocked=[],errors=[];
+  assert.equal((await context.request.post(origin+'/api/ra/test/session',{data:''})).status(),204);
+  const me=await context.request.post(origin+'/api/ra/auth/me');assert.equal(me.status(),200);const body=await me.json();assert.equal(body.success,true);assert.equal(body.code,'200');assert.ok(body.data&&body.data.doctorId!=null);
+  const auth=await installAuthBootstrapObserver(context,{origin,identity:'authenticated',profile:body.data});
+  await context.addInitScript(profile=>{if(!sessionStorage.getItem('ra-auth'))sessionStorage.setItem('ra-auth',JSON.stringify({...profile,expires:0}));window.__bootstrapAuthChanges=0;window.addEventListener('ra-auth-changed',()=>window.__bootstrapAuthChanges++);},body.data);
+  await context.route('**/*',async route=>{const req=route.request(),url=new URL(req.url());if(url.origin!==origin){blocked.push(req.url());return route.abort('blockedbyclient');}if(await auth.handle(route))return;if(url.pathname.startsWith('/api/'))requests.push({path:url.pathname,body:req.postDataJSON(),method:req.method()});return route.continue();});
+  const page=await context.newPage();page.on('pageerror',error=>errors.push(error.message));o.event('page-created',{pid,port:p,case:'cohort:current-composition-loopback'});
+  const verifyDocument=async target=>{const expected=new URL(target.url()).pathname==='/ai-chat.html'?0:1;await auth.verify(target,{expected});assert.equal(await target.evaluate(()=>window.__bootstrapAuthChanges),0,'same real doctor bootstrap must not revoke business data');};
+  try{await currentAnalysisJourney(page,origin,{planChat:command=>o.control(r,command),verifyDocument});await auth.verifyAll();assert.deepEqual(blocked,[]);assert.deepEqual(errors,[]);for(const event of r.events.filter(e=>e.type==='current-export-http-observation'))assert.ok(event.typedProvider&&event.active===0);await o.control(r,'SMTP_ASSERT');}
+  finally{const data={scenario:'cohort:current-composition-loopback',authRequests:auth.requests,requests,blocked,errors,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(o.dir+'/'+name,JSON.stringify(data,null,2)+'\n');await page.close();}
  }
  await owner.browserScenario(port,'synthetic',probe,currentAnalysisBrowser);
  const record=owner.browserRecords.at(-1);await owner.closeBrowser(record);owner.browserRecords.splice(owner.browserRecords.indexOf(record),1);await owner.stop(r);assert.ok(r.events.some(e=>e.type==='current-export-owners-observed'&&e.beforeFallback&&e.networkActive===0&&e.sqlActive===0));assert.ok(r.events.some(e=>e.type==='chat-owners-observed'&&e.beforeFallback&&e.sqlActive===0));assert.ok(r.events.some(e=>e.type==='closed'&&e.clean&&e.active===0));assert.deepEqual(r.events.filter(e=>e.type==='table-released').map(e=>e.table),r.events.filter(e=>e.type==='table-owned').map(e=>e.table).reverse());

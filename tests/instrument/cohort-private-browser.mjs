@@ -1,5 +1,8 @@
+import {installUnavailableAuthBootstrapObserver} from '../fixtures/auth-bootstrap-observer.cjs';
 import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
+// 独立中文错误真值，协议/SQL仍核对原code。
+const expectedError={"UNAUTHENTICATED":"登录已失效，请重新登录","RESOURCE_NOT_FOUND":"所需记录不存在或当前账号无法访问","IDEMPOTENCY_CONFLICT":"此次重试与原内容不一致，请核对后重新操作","NAME_CONFLICT":"名称已被使用，请修改名称","VERSION_CONFLICT":"记录已更新，请刷新并核对后重试"};
 import {writeFile} from 'node:fs/promises';
 import {createHash,randomUUID} from 'node:crypto';
 const MAX='9223372036854775807';
@@ -10,12 +13,14 @@ const targetFilters={studyCode:'RA',at:'now',act:'target',ids:null,sex:null,age:
 export async function privateBrowser(context,port,identity,owner,probe,pid,id,fixture){
  const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],reads=[],allowed=[],blocked=[],pageErrors=[],proof={};let dropNextSave=false,commitResolve;
  const commitRead=new Promise(resolve=>commitResolve=resolve);
+ // 此调用仅限已核 non-typed SQL fixture；真实404明确不等于认证通过。
+ const auth=await installUnavailableAuthBootstrapObserver(context,{origin});
  await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(owner.controller.signal.aborted||url.origin!==origin){blocked.push(request.url());await route.abort('blockedbyclient');return;}
   allowed.push(request.url());
-  if(url.pathname.startsWith('/api/')){
+  if(await auth.handle(route))return;if(url.pathname.startsWith('/api/')){
    const record={url:request.url(),method:request.method(),headers:request.headers(),body:request.postDataJSON()};requests.push(record);
    if(dropNextSave&&url.pathname==='/api/ra/cohort/save'){
     dropNextSave=false;const real=await route.fetch();assert.equal(real.status(),200);const json=await real.json(),trace=real.headers()['x-trace-id'];
@@ -27,8 +32,8 @@ export async function privateBrowser(context,port,identity,owner,probe,pid,id,fi
   await route.continue();
  });
  const page=await context.newPage();owner.event('page-created',{pid,port});page.on('pageerror',error=>pageErrors.push(error.message));
- page.on('response',response=>{if(new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json(),via:'page'}))());});
- const perform=async(action,path,status=200)=>{const awaited=page.waitForResponse(response=>new URL(response.url()).pathname===path&&response.request().method()==='POST');await action();const response=await awaited,json=await response.json();assert.equal(response.status(),status,JSON.stringify({path,actual:response.status(),code:json.code}));return {json,trace:response.headers()['x-trace-id']};};
+ page.on('response',response=>{if(!auth.isHandled(response.request())&&new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json(),via:'page'}))());});
+ const perform=async(action,path,status=200)=>{const awaited=page.waitForResponse(response=>new URL(response.url()).pathname===path&&response.request().method()==='POST');await action();await auth.verify(page);const response=await awaited,json=await response.json();assert.equal(response.status(),status,JSON.stringify({path,actual:response.status(),code:json.code}));return {json,trace:response.headers()['x-trace-id']};};
  const fresh=async(query='?act=target')=>{const r=await perform(()=>page.goto(origin+'/ai-cohort.html'+query),'/api/ra/ai/cohort');await expect(page.locator('#cohort-state')).toHaveAttribute('data-state',r.json.data.n===0?'empty':'success');return r.json.data;};
  const counts=async(n,total)=>{await expect(page.locator('#cohort-n')).toHaveText(String(n));await expect(page.locator('#study-total')).toHaveText(String(total));await expect(page.locator('#cohort-state')).toHaveAttribute('data-state',n===0?'empty':'success');};
  const rows=()=>page.locator('#patient-rows [data-patient-id]').evaluateAll(ns=>ns.map(n=>n.dataset.patientId));
@@ -50,7 +55,7 @@ export async function privateBrowser(context,port,identity,owner,probe,pid,id,fi
   const middle=await more();assert.equal(middle.analysisId,analysis.analysisId);assert.deepEqual(middle.patients.items.map(p=>p.patientId),middleIds);assert.equal(requests.at(-1).body.cursor,analysis.patients.nextCursor);assert.equal(middle.patients.returnedCount,20);
   const last=await more();assert.deepEqual(last.patients.items.map(p=>p.patientId),lastIds);assert.equal(requests.at(-1).body.cursor,middle.patients.nextCursor);assert.equal(last.patients.returnedCount,7);assert.equal(last.patients.nextCursor,null);assert.deepEqual(await rows(),[...firstIds,...middleIds,...lastIds]);await expect(page.locator('#more')).toBeHidden();await expect(page.locator('#display-read-at')).toHaveText('名单显示字段读取时间：'+last.meta.displayReadCompletedAt);proof.pagination={analysisId:analysis.analysisId,first:firstIds,middle:middleIds,last:lastIds};
   // 服务器真提交后阻断本次回包：页面只见网络未知，然后原命令重放。
-  await beginSave('Lost response');dropNextSave=true;await page.locator('#private-save').click();const lost=await commitRead;await expect(page.locator('#private-save-state')).toHaveAttribute('data-state','error');await expect(page.locator('#private-save-state')).toContainText('NETWORK_ERROR');await expect(page.locator('#private-save-state')).toContainText('不能确定是否已提交');await expect(page.locator('#private-retry')).toBeVisible();
+  await beginSave('Lost response');dropNextSave=true;await page.locator('#private-save').click();const lost=await commitRead;await expect(page.locator('#private-save-state')).toHaveAttribute('data-state','error');await expect(page.locator('#private-save-state')).toContainText('网络连接失败，请检查连接后重试');await expect(page.locator('#private-save-state')).toContainText('不能确定是否已提交');await expect(page.locator('#private-retry')).toBeVisible();
   const replay=await perform(()=>page.locator('#private-retry').click(),'/api/ra/cohort/save');await expect(page.locator('#private-save-state')).toHaveAttribute('data-state','success');await expect(page.locator('#private-list-state')).toHaveAttribute('data-state','success');assert.deepEqual(replay.json.data,{...lost.json.data,meta:{traceId:replay.trace}});assert.notEqual(replay.trace,lost.trace);assert.deepEqual(requests.filter(r=>r.url.endsWith('/save')).at(-1).body,lost.body);
   assert.equal((await owner.mysqlQuery(`SELECT COUNT(*) FROM ra_synthetic_test.ra_private_cohort_command WHERE owner_doctor_id=101 AND action='SAVE' AND request_id='${lost.body.requestId}'`)).trim(),'1');assert.equal((await owner.mysqlQuery(`SELECT COUNT(*) FROM ra_synthetic_test.ra_private_cohort_definition WHERE owner_doctor_id=101 AND name='Lost response'`)).trim(),'1');assert.equal(await sqlCount('ra_private_cohort_definition'),2);proof.replay={cohortId:replay.json.data.cohortId,version:replay.json.data.version,trace:replay.trace,oneReceipt:true,oneDefinition:true};
   // 每路以真实页面动作验证anonymous；固定stdin控制不授予header身份。
@@ -64,21 +69,23 @@ export async function privateBrowser(context,port,identity,owner,probe,pid,id,fi
   await owner.control(fixture,'IDENTITY_101');await fresh();await list();await owner.control(fixture,'IDENTITY_202');const foreign=await perform(()=>page.locator('#private-items [data-open-cohort]').first().click(),'/api/ra/cohort/open',404);assert.equal(foreign.json.code,'RESOURCE_NOT_FOUND');await expect(page.locator('#cohort-n')).toHaveText('—');const other=await list();assert.equal(other.total,0);assert.deepEqual(other.items,[]);await expect(page.locator('#private-list-state')).toHaveAttribute('data-state','empty');
   for(const path of ['compare','export']){const r=await fetch(origin+'/api/ra/cohort/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,404,'test-only proxy must not expose future private routes');}
   assert.deepEqual(await definition(cohortId),stored);
-  await Promise.all(reads);assert.deepEqual(blocked,[]);assert.deepEqual(pageErrors,[]);assert.ok(requests.every(r=>r.method==='POST'&&r.headers['content-type']==='application/json;charset=UTF-8'&&!r.headers['x-doctor-id']&&!r.headers.authorization));
+  await Promise.all(reads);assert.deepEqual(blocked,[]);await auth.verifyAll();assert.deepEqual(pageErrors,[]);assert.ok(requests.every(r=>r.method==='POST'&&r.headers['content-type']==='application/json;charset=UTF-8'&&!r.headers['x-doctor-id']&&!r.headers.authorization));
   for(const r of requests.filter(r=>r.url.includes('/api/ra/cohort/'))){const method=r.url.split('/').at(-1);assert.deepEqual(Object.keys(r.body).sort(),method==='save'?['filters','name','note','requestId']:method==='open'?['cohortId']:['page','size']);}
   assert.ok(responses.every(r=>r.trace));owner.report.http.push(...responses.map(r=>({...r,port,via:r.via})));proof.browserLimit='Synthetic Principal and ordinary owned SQL only; no real authentication/T4/external acceptance.';
-  await writeFile(`${owner.dir}/browser-observation.json`,JSON.stringify({scenario:id,pid,identity,version:context.browser().version(),url:page.url(),requests,responses,proof,dom:await page.locator('main').innerText(),allowed,blocked,pageErrors},null,2)+'\n');
- }catch(error){owner.fail(error.message);throw error;}finally{await Promise.allSettled(reads);await writeFile(`${owner.dir}/network.json`,JSON.stringify({requests,responses,proof,allowed,blocked,pageErrors},null,2)+'\n');await page.close();}
+  await writeFile(`${owner.dir}/browser-observation.json`,JSON.stringify({authRequests:auth.requests,authenticationVerified:false,scenario:id,pid,identity,version:context.browser().version(),url:page.url(),requests,responses,proof,dom:await page.locator('main').innerText(),allowed,blocked,pageErrors},null,2)+'\n');
+ }catch(error){owner.fail(error.message);throw error;}finally{await Promise.allSettled(reads);await writeFile(`${owner.dir}/network.json`,JSON.stringify({authRequests:auth.requests,authenticationVerified:false,requests,responses,proof,allowed,blocked,pageErrors},null,2)+'\n');await page.close();}
 }
 
 // 独立p03库：仅变更本run普通合成源，重新open读取当前U/访视；不读过期旧页绕授权。
 export async function dynamicPrivateBrowser(context,port,identity,owner,probe,pid,id,fixture){
  const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],reads=[],allowed=[],blocked=[],pageErrors=[],steps=[];
+ // 此调用仅限已核 non-typed SQL fixture；真实404明确不等于认证通过。
+ const auth=await installUnavailableAuthBootstrapObserver(context,{origin});
  await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
- await context.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(owner.controller.signal.aborted||url.origin!==origin){blocked.push(request.url());return route.abort('blockedbyclient');}allowed.push(request.url());if(url.pathname.startsWith('/api/'))requests.push({url:request.url(),method:request.method(),headers:request.headers(),body:request.postDataJSON()});return route.continue();});
+ await context.route('**/*',async route=>{const request=route.request(),url=new URL(request.url());if(owner.controller.signal.aborted||url.origin!==origin){blocked.push(request.url());return route.abort('blockedbyclient');}allowed.push(request.url());if(await auth.handle(route))return;if(url.pathname.startsWith('/api/'))requests.push({url:request.url(),method:request.method(),headers:request.headers(),body:request.postDataJSON()});return route.continue();});
  const page=await context.newPage();owner.event('page-created',{pid,port});page.on('pageerror',error=>pageErrors.push(error.message));
- page.on('response',response=>{if(new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json()}))());});
- const perform=async(action,path)=>{const awaited=page.waitForResponse(r=>new URL(r.url()).pathname===path&&r.request().method()==='POST');await action();const response=await awaited;assert.equal(response.status(),200);return (await response.json()).data;};
+ page.on('response',response=>{if(!auth.isHandled(response.request())&&new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json()}))());});
+ const perform=async(action,path)=>{const awaited=page.waitForResponse(r=>new URL(r.url()).pathname===path&&r.request().method()==='POST');await action();await auth.verify(page);const response=await awaited;assert.equal(response.status(),200);return (await response.json()).data;};
  const navigate=query=>perform(()=>page.goto(origin+'/ai-cohort.html'+query),'/api/ra/ai/cohort');
  const counts=async(n,total)=>{await expect(page.locator('#cohort-n')).toHaveText(String(n));await expect(page.locator('#study-total')).toHaveText(String(total));await expect(page.locator('#cohort-state')).toHaveAttribute('data-state',n===0?'empty':'success');};
  const save=async name=>{await page.locator('#save-cohort').click();await page.locator('#private-name').fill(name);await page.locator('#private-note').fill('');const saved=await perform(()=>page.locator('#private-save').click(),'/api/ra/cohort/save');await expect(page.locator('#private-save-state')).toHaveAttribute('data-state','success');await expect(page.locator('#private-list-state')).toHaveAttribute('data-state','success');return saved.cohortId;};
@@ -109,9 +116,9 @@ export async function dynamicPrivateBrowser(context,port,identity,owner,probe,pi
   await navigate('?act=target&ids=11,14,9223372036854775807,999');await counts(1,35);const explicitId=await save('Explicit IDs'),submitted=requests.filter(r=>r.url.endsWith('/save')).at(-1).body.filters.ids;assert.deepEqual(submitted,['11','14',MAX,'999']);assert.ok(submitted.every(id=>typeof id==='string'));const restricted=await openAll(explicitId,1,35,[MAX],'explicit IDs intersect current U');assert.deepEqual(restricted.data.cohort.filters.ids,['11','14','999',MAX]);assert.equal(new URL(page.url()).searchParams.get('ids'),'11,14,999,'+MAX);
   await navigate('?act=target&ids=');await counts(0,35);const emptyId=await save('Explicit empty'),empty=await openAll(emptyId,0,35,[],'ids [] remains empty');assert.deepEqual(requests.filter(r=>r.url.endsWith('/save')).at(-1).body.filters.ids,[]);assert.deepEqual(empty.data.cohort.filters.ids,[]);assert.equal(new URL(page.url()).searchParams.get('ids'),'');await expect(page.locator('#no-result')).toBeVisible();
   const unlimited=await openAll(definitionId,34,35,allIds.filter(id=>!['11','13','14'].includes(id)),'omitted IDs remains unrestricted');assert.equal(unlimited.data.cohort.filters.ids,null);assert.equal(new URL(page.url()).searchParams.has('ids'),false);assert.equal(await definition(definitionId),originalDefinition);assert.equal(await retained(originalAnalysisId),originalRetained);
-  await Promise.all(reads);assert.deepEqual(blocked,[]);assert.deepEqual(pageErrors,[]);assert.ok(responses.every(r=>r.status===200&&r.trace&&r.json.success===true));assert.ok(requests.every(r=>r.method==='POST'&&!r.headers['x-doctor-id']&&!r.headers.authorization));
-  owner.report.http.push(...responses.map(r=>({...r,port,via:'page'})));await writeFile(`${owner.dir}/browser-observation.json`,JSON.stringify({scenario:id,pid,identity,version:context.browser().version(),url:page.url(),requests,responses,steps,definitionId,originalAnalysisId,definitionHash:filtersHash,oldPayloadHash:originalRetained.trim().split('\t')[1],dom:await page.locator('main').innerText(),allowed,blocked,pageErrors},null,2)+'\n');
- }catch(error){owner.fail(error.message);throw error;}finally{await Promise.allSettled(reads);await writeFile(`${owner.dir}/network.json`,JSON.stringify({requests,responses,steps,allowed,blocked,pageErrors},null,2)+'\n');await page.close();}
+  await Promise.all(reads);assert.deepEqual(blocked,[]);await auth.verifyAll();assert.deepEqual(pageErrors,[]);assert.ok(responses.every(r=>r.status===200&&r.trace&&r.json.success===true));assert.ok(requests.every(r=>r.method==='POST'&&!r.headers['x-doctor-id']&&!r.headers.authorization));
+  owner.report.http.push(...responses.map(r=>({...r,port,via:'page'})));await writeFile(`${owner.dir}/browser-observation.json`,JSON.stringify({authRequests:auth.requests,authenticationVerified:false,scenario:id,pid,identity,version:context.browser().version(),url:page.url(),requests,responses,steps,definitionId,originalAnalysisId,definitionHash:filtersHash,oldPayloadHash:originalRetained.trim().split('\t')[1],dom:await page.locator('main').innerText(),allowed,blocked,pageErrors},null,2)+'\n');
+ }catch(error){owner.fail(error.message);throw error;}finally{await Promise.allSettled(reads);await writeFile(`${owner.dir}/network.json`,JSON.stringify({authRequests:auth.requests,authenticationVerified:false,requests,responses,steps,allowed,blocked,pageErrors},null,2)+'\n');await page.close();}
 }
 
 
@@ -151,12 +158,14 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
   assert.equal(cohortId,result.json.data.cohortId);assert.equal(Number(version),result.json.data.version);assert.ok(firstTrace);
   return {count:1,cohortId,version:Number(version),firstTrace};
  };
+ // 此调用仅限已核 non-typed SQL fixture；真实404明确不等于认证通过。
+ const auth=await installUnavailableAuthBootstrapObserver(context,{origin});
  await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(owner.controller.signal.aborted||url.origin!==origin){blocked.push(request.url());await route.abort('blockedbyclient');return;}
   allowed.push(request.url());
-  if(!url.pathname.startsWith('/api/')){await route.continue();return;}
+  if(await auth.handle(route))return;if(!url.pathname.startsWith('/api/')){await route.continue();return;}
   const record={via:'ui',page:pages.indexOf(request.frame().page()),url:request.url(),method:request.method(),headers:request.headers(),body:request.postDataJSON()};uiRequests.push(record);
   if(!drop||url.pathname!==path(drop.action)||record.page!==drop.page){await route.continue();return;}
   const cut=drop;drop=null;
@@ -173,7 +182,7 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
  const page=async label=>{
   const result=await context.newPage();result.setDefaultTimeout(5000);pages.push(result);owner.event('page-created',{pid,port,label});
   result.on('pageerror',error=>pageErrors.push({label,error:error.message}));
-  result.on('response',response=>{if(new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>{
+  result.on('response',response=>{if(!auth.isHandled(response.request())&&new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>{
    try{uiResponses.push({via:'page',page:label,url:response.url(),body:response.request().postDataJSON(),status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json()});}
    catch(error){routeErrors.push('page-response:'+error.message);}
   })());});
@@ -182,7 +191,7 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
  const perform=async(target,action,url,status=200)=>{
   await active(target);
   const pending=target.waitForResponse(response=>new URL(response.url()).pathname===url&&response.request().method()==='POST',{timeout:5000});pending.catch(()=>{});
-  await action();const response=await pending;return {...await responseValue(response,status),body:response.request().postDataJSON()};
+  await action();await auth.verify(target);const response=await pending;return {...await responseValue(response,status),body:response.request().postDataJSON()};
  };
  const listPending=target=>{const pending=target.waitForResponse(response=>new URL(response.url()).pathname===path('list')&&response.request().method()==='POST',{timeout:5000});pending.catch(()=>{});return pending;};
  const listRendered=async(target,pending)=>{
@@ -213,13 +222,13 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
   await active(target);
   await target.locator(`#private-items [data-${action==='rename'?'edit':'delete'}-cohort="${cohortId}"]`).click();
   await expect(target.locator('#private-command-dialog')).toBeVisible();await expect(target.locator('#private-command-target')).toContainText('条件');
-  await expect(target.locator('#private-command-target')).toContainText('target');
+  await expect(target.locator('#private-command-target')).toContainText('已达标');
  };
  const confirm=async(target,action,status=200,retry=false)=>{
   const pending=status===200?listPending(target):null;
   const result=await perform(target,()=>target.locator(retry?'#private-command-retry':'#private-command-confirm').click(),path(action),status);
   if(pending){result.list=await listRendered(target,pending);await expect(target.locator('#private-command-dialog')).toBeHidden();await expect(target.locator('#private-command-state')).toHaveAttribute('data-state','success');}
-  else{await expect(target.locator('#private-command-state')).toHaveAttribute('data-state','error');await expect(target.locator('#private-command-state')).toContainText(result.json.code);await expect(target.locator('#private-command-state')).toContainText(result.trace);}
+  else{await expect(target.locator('#private-command-state')).toHaveAttribute('data-state','error');await expect(target.locator('#private-command-state')).toContainText(expectedError[result.json.code]);await expect(target.locator('#private-command-state')).not.toContainText(result.trace);}
   return result;
  };
  const armDrop=(target,action,cohortId,version)=>{
@@ -275,7 +284,7 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
   await edit(b,cohortId);await b.locator('#private-edit-note').fill('');await b.locator('#private-edit-note-mode').selectOption('value');const empty=await confirm(b,'rename');assert.equal(empty.body.note,'');assert.equal(Object.hasOwn(empty.body,'name'),false);assert.equal(empty.json.data.version,6);await checked(cohortId,initial,'Trial3','',6);assert.equal(listedItem(empty.list,cohortId).note,'');
   steps.push({label:'note-preserve-null-empty-SQL-and-list',preserved:initial.note,clear:cleared,empty});
   await edit(b,cohortId);await b.locator('#private-edit-name').fill('Lost metadata');const renameCommit=armDrop(b,'rename',cohortId,7);await b.locator('#private-command-confirm').click();const lostRename=await renameCommit;
-  await expect(b.locator('#private-command-state')).toHaveAttribute('data-state','error');await expect(b.locator('#private-command-state')).toContainText('NETWORK_ERROR');await expect(b.locator('#private-command-state')).toContainText('不能确定是否已提交');await expect(b.locator('#private-command-retry')).toBeVisible();
+  await expect(b.locator('#private-command-state')).toHaveAttribute('data-state','error');await expect(b.locator('#private-command-state')).toContainText('网络连接失败，请检查连接后重试');await expect(b.locator('#private-command-state')).toContainText('不能确定是否已提交');await expect(b.locator('#private-command-retry')).toBeVisible();
   await checked(cohortId,initial,'Lost metadata','',7);
   // B页暂不重试：让A页真实删除后再用B页的原命令接收历史rename回执。
   await protocol('rename-same-key-omitted-note-versus-null','rename',{...lostRename.body,note:null},409,'IDEMPOTENCY_CONFLICT');await checked(cohortId,initial,'Lost metadata','',7);
@@ -285,7 +294,7 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
   const retainedSql=`SELECT HEX(payload),payload_sha256 FROM ra_synthetic_test.ra_ai_analysis_run WHERE id='${analysisId}' AND owner_doctor_id=101`,retained=await owner.mysqlQuery(retainedSql),beforeDeleteAnalyses=await analysisCount();
   await edit(a,cohortId,'delete');await expect(a.locator('#private-command-target')).toContainText('Lost metadata');const deletesBeforeCancel=requestsFor('delete').length;await a.locator('#private-command-cancel').click();await expect(a.locator('#private-command-dialog')).toBeHidden();assert.equal(requestsFor('delete').length,deletesBeforeCancel);await checked(cohortId,initial,'Lost metadata','',7);
   await edit(a,cohortId,'delete');const deleteCommit=armDrop(a,'delete',cohortId,8);await a.locator('#private-command-confirm').click();const lostDelete=await deleteCommit;
-  await expect(a.locator('#private-command-state')).toHaveAttribute('data-state','error');await expect(a.locator('#private-command-state')).toContainText('NETWORK_ERROR');await expect(a.locator('#private-command-retry')).toBeVisible();
+  await expect(a.locator('#private-command-state')).toHaveAttribute('data-state','error');await expect(a.locator('#private-command-state')).toContainText('网络连接失败，请检查连接后重试');await expect(a.locator('#private-command-retry')).toBeVisible();
   assert.deepEqual(Object.keys(lostDelete.body).sort(),['cohortId','requestId','version']);assert.equal(lostDelete.body.version,7);immutable(lostDelete.persisted,initial);
   const deleteReplay=await confirm(a,'delete',200,true);assert.deepEqual(deleteReplay.body,lostDelete.body);assert.equal(deleteReplay.json.data.version,8);assert.notEqual(deleteReplay.trace,lostDelete.trace);assert.deepEqual(deleteReplay.json.data,{...lostDelete.json.data,meta:{traceId:deleteReplay.trace}});assert.equal((await receipt('delete',deleteReplay.body,deleteReplay)).firstTrace,lostDelete.trace);
   await noTarget(a,cohortId);await checked(cohortId,initial,'Lost metadata','',8,true);await expect(a.locator('#results')).toHaveAttribute('data-analysis-id',analysisId);await expect(a.locator('#cohort-n')).toHaveText('37');await expect(a.locator('#private-open-meta')).toContainText('已删除');assert.equal(await owner.mysqlQuery(retainedSql),retained);assert.equal(await analysisCount(),beforeDeleteAnalyses);
@@ -319,13 +328,13 @@ export async function commandsPrivateBrowser(context,port,identity,owner,probe,p
    else if(action==='delete'){assert.deepEqual(keys,['cohortId','requestId','version']);assert.ok(Number.isSafeInteger(request.body.version)&&request.body.version>0);}
    else{assert.equal(action,'rename');assert.ok(Object.hasOwn(request.body,'name')||Object.hasOwn(request.body,'note'));assert.deepEqual(keys,['cohortId','requestId','version',...(Object.hasOwn(request.body,'name')?['name']:[]),...(Object.hasOwn(request.body,'note')?['note']:[])].sort());assert.ok(Number.isSafeInteger(request.body.version)&&request.body.version>0);assert.equal(Object.hasOwn(request.body,'filters'),false);}
   }
-  await Promise.all(reads);assert.deepEqual(blocked,[]);assert.deepEqual(pageErrors,[]);assert.deepEqual(routeErrors,[]);assert.ok(uiResponses.every(response=>response.trace));
+  await Promise.all(reads);assert.deepEqual(blocked,[]);await auth.verifyAll();assert.deepEqual(pageErrors,[]);assert.deepEqual(routeErrors,[]);assert.ok(uiResponses.every(response=>response.trace));
   proof.definition={cohortId,otherId,newId,initial,deletedVersion:8};proof.retainedAnalysisId=analysisId;proof.elapsedMs=Date.now()-started;proof.uiCounts={save:3,rename:11,delete:4,open:2};proof.tabSelection='normal page.bringToFront before corresponding UI interaction';proof.viewports=pages.map(target=>target.viewportSize());
   owner.report.http.push(...uiResponses.map(response=>({...response,port,via:response.via})),...protocolStimuli.map(response=>({...response,port,via:'protocol-adversary'})));
-  await writeFile(`${owner.dir}/browser-observation.json`,JSON.stringify({scenario:id,pid,identity,version:context.browser().version(),urls:pages.map(target=>target.url()),ui:{requests:uiRequests,responses:uiResponses},protocolStimuli,steps,proof,dom:await a.locator('main').innerText(),allowed,blocked,pageErrors,routeErrors},null,2)+'\n');
+  await writeFile(`${owner.dir}/browser-observation.json`,JSON.stringify({authRequests:auth.requests,authenticationVerified:false,scenario:id,pid,identity,version:context.browser().version(),urls:pages.map(target=>target.url()),ui:{requests:uiRequests,responses:uiResponses},protocolStimuli,steps,proof,dom:await a.locator('main').innerText(),allowed,blocked,pageErrors,routeErrors},null,2)+'\n');
  }catch(error){owner.fail(error.message);throw error;}
  finally{
-  await Promise.allSettled(reads);await writeFile(`${owner.dir}/network.json`,JSON.stringify({ui:{requests:uiRequests,responses:uiResponses},protocolStimuli,steps,proof,elapsedMs:Date.now()-started,allowed,blocked,pageErrors,routeErrors},null,2)+'\n');
+  await Promise.allSettled(reads);await writeFile(`${owner.dir}/network.json`,JSON.stringify({authRequests:auth.requests,authenticationVerified:false,ui:{requests:uiRequests,responses:uiResponses},protocolStimuli,steps,proof,elapsedMs:Date.now()-started,allowed,blocked,pageErrors,routeErrors},null,2)+'\n');
   await Promise.allSettled(pages.map(target=>target.close()));
  }
 }

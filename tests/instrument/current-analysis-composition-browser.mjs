@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
 
 // 同一真实页面 journey，由 pure 同源手写 HTTP 与 integration 当前 backend 消费。
-export async function currentAnalysisJourney(page,origin,{planChat=async()=>{}}={}){
+export async function currentAnalysisJourney(page,origin,{planChat=async()=>{},verifyDocument=async()=>{}}={}){
  const originalFilters={studyCode:'RA',sex:'F',age:null,sero:null,tx:null,at:'now',act:null,cm:null,data:null,ids:['1','3','6']};let lastCohortFilters=null;
  const wait=path=>page.waitForResponse(r=>new URL(r.url()).pathname===path&&r.request().method()==='POST');
- const read=async(action,path)=>{const pending=wait('/api/ra/'+path);await action();const r=await pending;assert.equal(r.status(),200);if(path==='ai/cohort')lastCohortFilters=r.request().postDataJSON().filters;return (await r.json()).data;};
+ const read=async(action,path)=>{const pending=wait('/api/ra/'+path);await action();await verifyDocument(page);const r=await pending;assert.equal(r.status(),200);if(path==='ai/cohort')lastCohortFilters=r.request().postDataJSON().filters;return (await r.json()).data;};
  const analyzed=async(action,expectedState='success')=>{const d=await read(action,'ai/cohort');await expect(page.locator('#cohort-state')).toHaveAttribute('data-state',expectedState);return d;};
  let d=await read(()=>page.goto(origin+'/ai-analysis.html'),'ai/overview');assert.equal(d.studyTotal,6);assert.equal(d.targetRate.value,.4);assert.equal(d.targetRate.meta.denominator,5);assert.equal(d.targetRate.meta.unknownN,1);await expect(page.locator('#overview')).toContainText('40%');await expect(page.locator('#overview a')).toHaveCount(5);
  await page.locator('#ask-input').fill('女性');d=await analyzed(()=>page.locator('#ask-form button[type="submit"]').click());assert.equal(d.n,3);assert.equal(d.stats.targetRate,.5);await expect(page).not.toHaveURL(/\bq=/);await expect(page.locator('#f-sex')).toHaveValue('F');

@@ -10,6 +10,7 @@ function page(hash='',referrer='',length=1){
  const nodes=new Map(),events=new Map(),pending=[],timers=new Map();let seq=0,user={name:'合成医生',id:'101'};
  const node=s=>{if(!nodes.has(s))nodes.set(s,{innerHTML:'',textContent:'',value:'',dataset:{},href:'',hidden:false,disabled:false,checked:false,events:{},addEventListener(k,fn){this.events[k]=fn;},focus(){}});return nodes.get(s);};
  const location=new URL('http://fixture.invalid/ai-chat.html'+hash),context=vm.createContext({window:{addEventListener(k,fn){events.set(k,fn);}},document:{querySelector:node,referrer},URL,URLSearchParams,AbortController,Response,structuredClone,location,history:{length},currentUser:()=>user,fetch(url,options){const peer=deferred();pending.push({url,options,peer});return peer.promise;},setTimeout(fn,ms){const id=++seq;timers.set(id,{fn,ms});return id;},clearTimeout(id){timers.delete(id);}});
+ vm.runInContext(source('js/shared/user-display.js'),context);
  for(const file of ['ai-cohort-conditions.js','ai-chat-entry.js','ai-cohort-api.js','ai-chat.js'])vm.runInContext(source('js/pages/'+file),context);
  return {context,node,pending,timers,events,event:(k,e={})=>events.get(k)?.(e),ask:q=>context.window.RAChatPage.ask(q),async answer(i,d){pending[i].peer.resolve(response(d));await flush();}};
 }
@@ -18,7 +19,8 @@ function searchClient(data,apiBase){
  const context=vm.createContext(env);vm.runInContext(source('js/pages/ai-cohort-api.js'),context);return {api:context.window.RACohortAPI,requests};
 }
 test('chat:patient-contract' ,async()=>{
- const context=vm.createContext({window:{},URLSearchParams});for(const file of ['ai-cohort-conditions.js','ai-chat-entry.js'])vm.runInContext(source('js/pages/'+file),context);const entry=context.window.RACohortChatEntry;
+ const context=vm.createContext({window:{},URLSearchParams});vm.runInContext(source('js/shared/user-display.js'),context);
+ for(const file of ['ai-cohort-conditions.js','ai-chat-entry.js'])vm.runInContext(source('js/pages/'+file),context);const entry=context.window.RACohortChatEntry;
  for(const patientId of ['9007199254740992','9007199254740993','9223372036854775807'])for(const visitId of [null,'9223372036854775807']){const scope={kind:'PATIENT',patientId,visitId};assert.deepEqual(JSON.parse(JSON.stringify(entry.decode('',entry.encode(scope)))),scope);}
  for(const visitId of ['9007199254741003',null]){const d=patientChatFixture('9007199254740993',visitId),c=client(d);const r=await c.api.chat({scope:{kind:'PATIENT',patientId:'9007199254740993',visitId},question:'真实记录？'});assert.equal(r.data.scope.n,1);assert.equal(c.requests[0].options.credentials,'same-origin');}
 

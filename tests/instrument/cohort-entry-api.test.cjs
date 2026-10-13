@@ -18,6 +18,7 @@ function pageClock(search="") {
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/common.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-api.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-conditions.js'),'utf8'),context);
+  vm.runInContext(readFileSync(resolve(__dirname,'../../js/shared/user-display.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort.js'),'utf8'),context);
   return {get,timers,pending,listeners,context};
 }

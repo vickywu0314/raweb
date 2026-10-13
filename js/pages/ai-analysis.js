@@ -1,6 +1,7 @@
 /* 首页只读研究库概览；条件编码由 cohort 协议入口拥有。 */
 "use strict";
 shell('ai');
+const display=window.RAUserDisplay;
 document.querySelectorAll('.study-meta').forEach(node=>{node.textContent='RA 研究库 · 当前人数见下方概览';});
 const overviewNode=$('#overview'),overviewState=$('#overview-state'),overviewSource=$('#overview-source');
 const toQuestion=q=>{
@@ -26,7 +27,7 @@ function finishSearch(flight,cause){
 function cancelSearch(cause='replaced'){if(searchFlight)finishSearch(searchFlight,cause);clearSearch();}
 function publishSearch(data){
   searchPageNumber=data.page;searchTotal=data.total;searchList.hidden=data.items.length===0;
-  searchList.innerHTML=data.items.map(item=>`<article class="patient-search-row"><div><strong>${escapeHTML(item.name??'姓名未提供')}</strong><span>研究号：${escapeHTML(item.studyNo??'未提供')}</span><small>患者 ID：${escapeHTML(item.patientId)}</small></div><a class="button" href="${escapeHTML('patient-visits.html?id='+encodeURIComponent(item.patientId)+'&from=ai-analysis')}">查看患者档案</a></article>`).join('');
+  searchList.innerHTML=data.items.map(item=>`<article class="patient-search-row"><div><strong>${escapeHTML(item.name??'姓名未提供')}</strong><span>研究号：${escapeHTML(item.studyNo??'未提供')}</span><small>患者编号：${escapeHTML(item.patientId)}</small></div><a class="button" href="${escapeHTML('patient-visits.html?id='+encodeURIComponent(item.patientId)+'&from=ai-analysis')}">查看患者档案</a></article>`).join('');
   searchPage.textContent=`第 ${data.page} 页 · 共 ${data.total} 人`;$('#patient-search-prev').disabled=data.page<=1;$('#patient-search-next').disabled=data.page*data.size>=data.total;
   searchStatus(data.items.length?'success':'empty',data.items.length?'当前本人 RA 患者':'没有符合条件的患者');
 }
@@ -35,10 +36,10 @@ async function loadSearch(page){
   cancelSearch();searchStatus('loading','正在查询本人 RA 患者…');const flight={controller:new AbortController(),cause:null,timer:null};searchFlight=flight;
   flight.timer=setTimeout(()=>{
     if(!finishSearch(flight,'timeout'))return;
-    clearSearch();searchStatus('error','REQUEST_TIMEOUT：患者搜索超时，请重新搜索');
+    clearSearch();searchStatus('error','患者搜索超时，请重新搜索');
   },30000);
   try{const result=await window.RACohortAPI.patientSearch({keyword:searchKeyword,page,size:20},{signal:flight.controller.signal});if(!finishSearch(flight,'success'))return;publishSearch(result.data);}
-  catch(error){if(!finishSearch(flight,'error'))return;clearSearch();searchStatus('error',`${error.code||'SERVICE_UNAVAILABLE'}：${error.message||'患者搜索暂不可用'}${error.traceId?' · Trace '+error.traceId:''}`);}
+  catch(error){if(!finishSearch(flight,'error'))return;clearSearch();searchStatus('error',display.error(error,'患者搜索暂不可用'));}
 }
 $('#patient-search-form').addEventListener('submit',event=>{event.preventDefault();searchKeyword=$('#picker').value;loadSearch(1);});
 $('#picker').addEventListener('input',()=>{cancelSearch();searchKeyword=null;searchStatus('idle','关键词已改变，请提交搜索');});
@@ -58,7 +59,7 @@ function publishOverview(d){
     ['资料待补全',String(d.missingN),'人','按当前资料完整性政策',{data:'missing'}]
   ];
   overviewNode.innerHTML=cards.map(([label,value,unit,note,filters])=>`<a class="stat-tile" href="ai-cohort.html${window.RACohortConditions.encode(filters)}"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}<small>${escapeHTML(unit)}</small></strong><em>${escapeHTML(note)}</em></a>`).join('');
-  overviewSource.textContent=`本人 RA · 当前 now · 源日期 ${d.meta.asOfDate} · 读取 ${d.meta.readCompletedAt} · 开发口径：${Object.entries(d.meta.policyVersions).map(([key,value])=>key+'='+value).join('；')}`;
+  overviewSource.textContent=`本人 RA · 当前记录 · 源日期 ${d.meta.asOfDate} · 读取 ${d.meta.readCompletedAt} · 统计口径仍待医学核验`;
   overviewStatus('success',d.studyTotal===0?'当前研究库为空':'当前研究库概览');
 }
 let overviewFlight=null,overviewPageActive=true;
@@ -76,14 +77,14 @@ async function loadOverview(){
   const flight={controller:new AbortController(),cause:null,timer:null};overviewFlight=flight;
   flight.timer=setTimeout(()=>{
     if(!finishOverview(flight,'timeout'))return;
-    clearOverview();overviewStatus('error','REQUEST_TIMEOUT：读取超时，请重新读取');
+    clearOverview();overviewStatus('error','读取超时，请重新读取');
   },30000);
   try{
     const result=await window.RACohortAPI.overview({signal:flight.controller.signal});
     if(!finishOverview(flight,'success'))return;publishOverview(result.data);
   }catch(error){
     if(!finishOverview(flight,'error'))return;
-    clearOverview();overviewStatus('error',`${error.code||'SERVICE_UNAVAILABLE'}：${error.message||'概览暂不可用'}${error.traceId?' · Trace '+error.traceId:''}`);
+    clearOverview();overviewStatus('error',display.error(error,'概览暂不可用'));
   }
 }
 function revokeOverview(cause){

@@ -1,3 +1,4 @@
+import {installUnavailableAuthBootstrapObserver} from '../fixtures/auth-bootstrap-observer.cjs';
 import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -48,6 +49,8 @@ function receipt(data,state){
 async function harness(context,port,identity,owner,pid,id,fixture){
  assert.equal(identity,'synthetic');assert.equal(fixture.scenario,id==='cohort:browser-feature-gates'?'p07-composition':'p07-composition-time');
  const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],blocked=[],errors=[],downloads=[],observations=[],proof={};
+ // 此调用仅限已核 non-typed SQL fixture；真实404明确不等于认证通过。
+ const auth=await installUnavailableAuthBootstrapObserver(context,{origin});
  await context.addInitScript(()=>{
   sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0}));
   // 畸形wire仍由原公开RACohortAPI消费者发出真实浏览器fetch；只替换一次网络边界body。
@@ -61,7 +64,7 @@ async function harness(context,port,identity,owner,pid,id,fixture){
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(url.origin!==origin||owner.controller.signal.aborted){blocked.push(request.url());return route.abort('blockedbyclient');}
-  if(url.pathname.startsWith('/api/')){
+  if(await auth.handle(route))return;if(url.pathname.startsWith('/api/')){
    const rawBody=request.postData();let body=null;try{body=JSON.parse(rawBody);}catch{}
    requests.push({path:url.pathname,url:request.url(),method:request.method(),rawBody,body,headers:request.headers(),via:'real-browser'});
   }
@@ -71,7 +74,7 @@ async function harness(context,port,identity,owner,pid,id,fixture){
  page.on('pageerror',error=>errors.push(error.message));page.on('download',download=>downloads.push(download.suggestedFilename()));
  const perform=async(action,path,stage)=>{
   await page.bringToFront();const pending=page.waitForResponse(response=>new URL(response.url()).pathname===path&&response.request().method()==='POST');pending.catch(()=>{});
-  const consumer=await action(),response=await pending,headers=response.headers(),trace=headers['x-trace-id'];assert.match(trace,UUID);
+  const consumer=await action();await auth.verify(page);const response=await pending,headers=response.headers(),trace=headers['x-trace-id'];assert.match(trace,UUID);
   const result={stage,path,status:response.status(),trace,headers,body:response.request().postData(),consumer:consumer??null};
   if(headers['content-type']?.toLowerCase().includes('application/json'))result.json=await response.json();
   else{assert.equal(headers['content-type']?.split(';')[0].toLowerCase(),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');result.playwrightBodyBytes=(await response.body()).length;if(result.consumer?.kind==='xlsx')result.fileBytes=result.consumer.fileBytes;}
@@ -102,13 +105,13 @@ async function harness(context,port,identity,owner,pid,id,fixture){
   assert.ok(!fixture.events.some(event=>event.type==='parse-peer-planned'),'组合gateway保持关闭，不存在真实AI外发peer');
  };
  const finish=async()=>{
-  assert.deepEqual(blocked,[]);assert.deepEqual(errors,[]);
+  assert.deepEqual(blocked,[]);await auth.verifyAll();assert.deepEqual(errors,[]);
   for(const request of requests){assert.equal(request.method,'POST');assert.equal(request.headers.authorization,undefined);assert.equal(request.headers['x-doctor-id'],undefined);assert.equal(request.body?.doctorId,undefined);}
   owner.report.http.push(...responses.map(result=>({...result,port,via:'real-browser'})));
  };
  const close=async()=>{
-  const observation={scenario:id,pid,identity,version:context.browser().version(),url:page.url(),requests,responses,observations,proof,downloads,blocked,errors,dom:await page.locator('main').innerText().catch(()=>null)};
-  await writeFile(owner.dir+'/browser-observation.json',JSON.stringify(observation,null,2)+'\n');await writeFile(owner.dir+'/network.json',JSON.stringify({scenario:id,requests,responses,proof,blocked,errors},null,2)+'\n');await page.close();
+  const observation={authRequests:auth.requests,authenticationVerified:false,scenario:id,pid,identity,version:context.browser().version(),url:page.url(),requests,responses,observations,proof,downloads,blocked,errors,dom:await page.locator('main').innerText().catch(()=>null)};
+  await writeFile(owner.dir+'/browser-observation.json',JSON.stringify(observation,null,2)+'\n');await writeFile(owner.dir+'/network.json',JSON.stringify({authRequests:auth.requests,authenticationVerified:false,scenario:id,requests,responses,proof,blocked,errors},null,2)+'\n');await page.close();
  };
  return {page,requests,responses,downloads,observations,proof,perform,invoke,control,snapshot,sameRows,rebuild,noEffects,finish,close};
 }
@@ -143,7 +146,7 @@ export async function featureGatesBrowser(context,port,identity,owner,probe,pid,
   const decision=await perform(()=>page.locator('#export-confirm').click(),'/api/ra/export/xlsx','initial-need-apply');rejected(decision,409,'NEED_APPLY');assert.equal(decision.json.data.referenceId,original.analysisId);assert.equal(decision.json.data.today,'2026-10-07');assert.equal(decision.json.data.freeStart,'2026-04-01');
   await page.locator('#application-open').click();await page.locator('#application-start').fill('2026-01-01');await page.locator('#application-end').fill('2026-10-07');await page.locator('#application-purpose').selectOption('RESEARCH');await page.locator('#application-reason').fill('ordinary-application-canary');
   const sent=receipt(success(await perform(()=>page.locator('#application-submit').click(),'/api/ra/export/applyAnalysis','initial-sent-application')),'SENT'),sentBody=JSON.parse(h.responses.at(-1).body);
-  await expect(page.locator('#application-receipt')).toContainText('SENT');await control('SMTP_UNKNOWN');
+  await expect(page.locator('#application-receipt')).toContainText('通知已提交');await control('SMTP_UNKNOWN');
   const unknownBody={...sentBody,requestId:randomUUID()},unknown=receipt(success(await invoke(command('applyAnalysis','export/applyAnalysis',unknownBody),'initial-unknown-application')),'UNKNOWN');assert.notEqual(unknown.applicationId,sent.applicationId);
   await control('SMTP_ASSERT');
   const notificationRows=async()=>(await owner.mysqlQuery(`SELECT r.request_id,CAST(r.application_id AS CHAR),r.mail_state,r.attempt_id,r.attempt_no,a.mail_sent,a.status,a.mail_to,r.mail_from,r.created_at_ms,r.attempt_started_at_ms,r.decided_at_ms,r.request_sha256,HEX(r.verified_summary) FROM ra_synthetic_test.ra_ai_export_request r JOIN ra_synthetic_test.export_application a ON a.id=r.application_id WHERE r.request_id IN ('${sentBody.requestId}','${unknownBody.requestId}') ORDER BY r.application_id`)).trim();

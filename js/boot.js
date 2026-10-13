@@ -1,5 +1,5 @@
 "use strict";
-window.addEventListener('error',()=>{const n=document.getElementById('app-load-status');if(n){n.hidden=false;n.textContent='交互加载异常，请确认 css、js、img 目录与页面文件一起保存。'}});
+window.addEventListener('error',()=>{const n=document.getElementById('app-load-status');if(n){n.hidden=false;n.textContent='页面暂时无法正常显示，请刷新重试；如仍有问题，请联系管理员。'}});
 
 // ===== 登录状态：后端会话（/api/ra/auth/login）+ 浏览器里存一份用户信息用于显示 =====
 // 勾选「记住我」存 localStorage（30 天有效），否则存 sessionStorage（关闭浏览器即退出）。

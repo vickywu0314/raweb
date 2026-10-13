@@ -1,3 +1,4 @@
+import {installUnavailableAuthBootstrapObserver} from '../fixtures/auth-bootstrap-observer.cjs';
 import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
 import {writeFile} from 'node:fs/promises';
@@ -14,17 +15,19 @@ const keys=(value,expected)=>assert.deepEqual(Object.keys(value).sort(),expected
 export async function entryBrowser(context,port,identity,owner,probe,pid,id,fixture){
  const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],reads=[],allowed=[],blocked=[],pageErrors=[],observations=[];
  let sqlOracle=null;
+ // 此调用仅限已核 non-typed SQL fixture；真实404明确不等于认证通过。
+ const auth=await installUnavailableAuthBootstrapObserver(context,{origin});
  await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
  await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());
   if(owner.controller.signal.aborted||url.origin!==origin){blocked.push(request.url());return route.abort('blockedbyclient');}
   allowed.push(request.url());
-  if(url.pathname.startsWith('/api/'))requests.push({url:request.url(),path:url.pathname,method:request.method(),headers:request.headers(),body:request.postDataJSON()});
+  if(await auth.handle(route))return;if(url.pathname.startsWith('/api/'))requests.push({url:request.url(),path:url.pathname,method:request.method(),headers:request.headers(),body:request.postDataJSON()});
   return route.continue();
  });
  const page=await context.newPage();await page.bringToFront();owner.event('page-created',{pid,port});
  page.on('pageerror',error=>pageErrors.push(error.message));
- page.on('response',response=>{if(new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({url:response.url(),status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json()}))());});
+ page.on('response',response=>{if(!auth.isHandled(response.request())&&new URL(response.url()).pathname.startsWith('/api/'))reads.push((async()=>responses.push({url:response.url(),status:response.status(),trace:response.headers()['x-trace-id'],json:await response.json()}))());});
  const wire=path=>requests.filter(request=>request.path===`/api/ra/ai/${path}`);
  const count=async table=>Number((await owner.mysqlQuery(`SELECT COUNT(*) FROM ra_synthetic_test.${table}`)).trim());
  const counts=async()=>({analysis:await count('ra_ai_analysis_run'),audit:await count('ra_ai_parse_audit')});
@@ -54,7 +57,7 @@ export async function entryBrowser(context,port,identity,owner,probe,pid,id,fixt
  async function similar(indexPatientId,expectedStatus,http=200){
   const before=await counts(),start=requests.length,waitEntry=waitResponse('resolveEntry');
   const waitCohort=expectedStatus==='PARTIAL_BASIS'?waitResponse('cohort'):null;
-  await page.goto(`${origin}/ai-cohort.html?preset=similar&id=${indexPatientId}`);
+  await page.goto(`${origin}/ai-cohort.html?preset=similar&id=${indexPatientId}`);await auth.verify(page);
   const result=await envelope(await waitEntry,http,http===200?'200':'RESOURCE_NOT_FOUND');
   assert.deepEqual(wire('resolveEntry').at(-1).body,{source:'SIMILAR',indexPatientId});
   if(http===200){
@@ -67,18 +70,18 @@ export async function entryBrowser(context,port,identity,owner,probe,pid,id,fixt
    if(expectedStatus==='PARTIAL_BASIS'){
     assert.deepEqual(data.filters,FEMALE_FILTERS);assert.deepEqual(data.missingBasis,['age','sero']);assert.equal(data.canApply,true);
     await analyzed(await waitCohort,FEMALE_IDS,`similar-${indexPatientId}`,before,FEMALE_FILTERS);
-    await expect(page.locator('#entry-state')).toHaveAttribute('data-state','success');await expect(page.locator('#entry-state')).toContainText('PARTIAL_BASIS');
-    await expect(page.locator('#entry-state')).toContainText('age, sero');await expect(page.locator('#parse-apply')).toBeHidden();
+    await expect(page.locator('#entry-state')).toHaveAttribute('data-state','success');await expect(page.locator('#entry-state')).toContainText('部分依据缺失');
+    await expect(page.locator('#entry-state')).toContainText('缺少依据：年龄、血清学');await expect(page.locator('#parse-apply')).toBeHidden();
     assert.deepEqual(requests.slice(start).map(request=>request.path),['/api/ra/ai/resolveEntry','/api/ra/ai/cohort']);
     assert.equal((await counts()).audit,before.audit);
     const url=new URL(page.url());assert.equal(url.searchParams.get('sex'),'F');assert.equal(url.searchParams.has('preset'),false);assert.equal(url.searchParams.has('id'),false);
    }else{
     assert.deepEqual(data.missingBasis,['sex','age','sero']);assert.equal(data.canApply,false);assert.equal(data.filters,null);
-    await expect(page.locator('#entry-state')).toHaveAttribute('data-state','empty');await expect(page.locator('#entry-state')).toContainText('NO_BASIS');
+    await expect(page.locator('#entry-state')).toHaveAttribute('data-state','empty');await expect(page.locator('#entry-state')).toContainText('缺少筛选依据');
    }
   }else{
-   await expect(page.locator('#entry-state')).toHaveAttribute('data-state','error');await expect(page.locator('#entry-state')).toContainText('HTTP 404');
-   await expect(page.locator('#entry-state')).toContainText('RESOURCE_NOT_FOUND');await expect(page.locator('#entry-state')).toContainText(result.trace);
+   await expect(page.locator('#entry-state')).toHaveAttribute('data-state','error');await expect(page.locator('#entry-state')).toContainText('所需记录不存在或当前账号无法访问');
+   await expect(page.locator('#entry-state')).toContainText('所需记录不存在或当前账号无法访问');await expect(page.locator('#entry-state')).not.toContainText(result.trace);
   }
   if(!waitCohort){
    assert.deepEqual(await counts(),before);assert.deepEqual(requests.slice(start).map(request=>request.path),['/api/ra/ai/resolveEntry']);
@@ -97,7 +100,7 @@ export async function entryBrowser(context,port,identity,owner,probe,pid,id,fixt
   await similar('11','PARTIAL_BASIS');await similar('22','NO_BASIS');
   for(const indexPatientId of ['23','24','999999'])await similar(indexPatientId,'RESOURCE_NOT_FOUND',404);
   const before=await counts(),start=requests.length,parseWait=waitResponse('parse'),applyWait=waitResponse('applyParse'),cohortWait=waitResponse('cohort');
-  await page.goto(`${origin}/ai-cohort.html?q=${encodeURIComponent('女性')}&sex=M&tx=TNFi`);
+  await page.goto(`${origin}/ai-cohort.html?q=${encodeURIComponent('女性')}&sex=M&tx=TNFi`);await auth.verify(page);
   const parsed=await envelope(await parseWait),applied=await envelope(await applyWait);
   const p=parsed.json.data,a=applied.json.data;assert.match(p.questionRef,UUID);
   keys(p,['questionRef','candidateFilters','parseStatus','applyMode','engine','matched','unrecognized','rejectedFields','warnings','notice','fallbackReason','meta']);
@@ -114,16 +117,16 @@ export async function entryBrowser(context,port,identity,owner,probe,pid,id,fixt
   observations.push({stage:'question-audit',questionRef:p.questionRef,parseTrace:parsed.trace,applyTrace:applied.trace,audit});
   await expect(page.locator('#f-sex')).toHaveValue('F');await expect(page.locator('#f-tx')).toHaveValue('');assert.equal(new URL(page.url()).searchParams.has('q'),false);
   for(const [query,expectedIds] of [['?ids=',[]],[`?ids=${LONG}`,[LONG]]]){
-   const before=await counts(),start=requests.length,wait=waitResponse('cohort');await page.goto(`${origin}/ai-cohort.html${query}`);
+   const before=await counts(),start=requests.length,wait=waitResponse('cohort');await page.goto(`${origin}/ai-cohort.html${query}`);await auth.verify(page);
    await analyzed(await wait,expectedIds,expectedIds.length?'ids-long':'ids-empty',before);
    assert.deepEqual(wire('cohort').at(-1).body.filters.ids,expectedIds);assert.deepEqual(requests.slice(start).map(request=>request.path),['/api/ra/ai/cohort']);assert.equal((await counts()).audit,2);
   }
   assert.deepEqual(await counts(),{analysis:5,audit:2});assert.equal(wire('resolveEntry').length,5);assert.equal(wire('parse').length,1);assert.equal(wire('applyParse').length,1);assert.equal(wire('cohort').length,4);assert.equal(requests.length,11);
   for(const request of requests){assert.equal(request.method,'POST');assert.equal(request.headers.authorization,undefined);assert.equal(request.headers['x-doctor-id'],undefined);assert.equal(request.body.doctorId,undefined);}
-  assert.ok(!fixture.events.some(event=>event.type==='parse-peer-planned'));assert.deepEqual(blocked,[]);assert.deepEqual(pageErrors,[]);
+  assert.ok(!fixture.events.some(event=>event.type==='parse-peer-planned'));assert.deepEqual(blocked,[]);await auth.verifyAll();assert.deepEqual(pageErrors,[]);
  }finally{
   await Promise.allSettled(reads);
-  const observation={scenario:id,version:owner.report.browser.at(-1)?.version,url:page.url(),sqlOracle,requests,responses,observations,allowed,blocked,pageErrors,dom:await page.locator('main').innerText().catch(()=>null)};
+  const observation={authRequests:auth.requests,authenticationVerified:false,scenario:id,version:owner.report.browser.at(-1)?.version,url:page.url(),sqlOracle,requests,responses,observations,allowed,blocked,pageErrors,dom:await page.locator('main').innerText().catch(()=>null)};
   for(const name of ['network.json','browser-observation.json'])await writeFile(`${owner.dir}/${name}`,JSON.stringify(observation,null,2)+'\n');
  }
 }

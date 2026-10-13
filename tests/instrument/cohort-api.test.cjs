@@ -26,6 +26,7 @@ function pageClock() {
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/common.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-api.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-conditions.js'),'utf8'),context);
+  vm.runInContext(readFileSync(resolve(__dirname,'../../js/shared/user-display.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort.js'),'utf8'),context);
   return {get,timers,pending,listeners,context};
 }
@@ -101,8 +102,8 @@ test('cohort:api-contract', async () => {
   projectionClock.pending[0].resolve(new Response(JSON.stringify({success:true,code:'200',data:projection}),{status:200,headers:{'Content-Type':'application/json','X-Trace-Id':'projection-trace'}}));await new Promise(setImmediate);
   assert.equal(projectionClock.get('#cohort-state').dataset.state,'success','响应必须已解析并进入真实renderer');
   const domText=node=>[node.textContent,...node.children.map(domText)].join(' '),projected=domText(projectionClock.get('#patient-rows'));
-  assert.match(projected,/evidenceId：synthetic:e1/);assert.match(projected,/observedAt：2026-10-06/);assert.match(projected,/fmState：FALSE/);assert.match(projected,/fmSource：synthetic-fm-v1/);assert.ok(!projected.includes('private-config-canary'));
-  assert.match(projectionClock.get('#fm-summary').textContent,/明确无FM/);
+  assert.match(projected,/来源依据：已记录，可按记录日期核对/);assert.match(projected,/记录日期：2026-10-06/);assert.match(projected,/纤维肌痛状态：否/);assert.match(projected,/纤维肌痛：使用已核定的来源依据/);assert.doesNotMatch(projected,/fmSource|synthetic-fm-v1/);assert.ok(!projected.includes('private-config-canary'));assert.doesNotMatch(projected,/synthetic:e1/);
+  assert.match(projectionClock.get('#fm-summary').textContent,/明确无FM/);assert.match(projected,/正在治疗 · 传统合成抗风湿药（csDMARD） · 线数 1/);
   projectionClock.listeners.pagehide();assert.equal(projectionClock.timers.size,0);
   const sourceClock=pageClock(),selectedDefinition=require('../fixtures/cohort-comparison.json').definition;
   sourceClock.context.selectComparison('b',{source:'SAVED',cohortId:selectedDefinition.cohortId,item:selectedDefinition});assert.ok(sourceClock.get('#compare-source-b').textContent.includes(selectedDefinition.cohortId),'显式SAVED来源摘要须标明选中的独立定义ID');assert.equal(sourceClock.pending.length,1,'选择来源不能暗open或计数');
@@ -110,13 +111,13 @@ test('cohort:api-contract', async () => {
   comparisonClock.context.selectComparison('a',{source:'FILTERS',filters:comparisonFixture.a.filters});comparisonClock.context.selectComparison('b',{source:'FILTERS',filters:comparisonFixture.b.filters});comparisonClock.get('#compare-exclude').checked=false;comparisonClock.context.startComparison();
   assert.equal(comparisonClock.pending.length,2);assert.equal(comparisonClock.pending[1].url,'/api/ra/ai/compare');assert.equal(comparisonClock.get('#compare-state').dataset.state,'loading');
   comparisonClock.pending[1].resolve(new Response('non-json',{status:200,headers:{'Content-Type':'text/html','X-Trace-Id':'compare-unknown'}}));await new Promise(setImmediate);
-  assert.equal(comparisonClock.get('#compare-state').dataset.state,'error');assert.match(comparisonClock.get('#compare-state').textContent,/INVALID_RESPONSE/);assert.ok(comparisonClock.get('#compare-state').textContent.includes('不能确定是否已提交'));assert.equal(comparisonClock.context.window.RACohortComparison.getResource(),null);assert.equal(comparisonClock.pending.length,2,'未知提交不能隐藏重发');assert.equal(comparisonClock.timers.size,1,'比较结束不能释放仍合法的独立分析等待');
+  assert.equal(comparisonClock.get('#compare-state').dataset.state,'error');assert.match(comparisonClock.get('#compare-state').textContent,/返回的数据不完整或无法识别/);assert.ok(comparisonClock.get('#compare-state').textContent.includes('不能确定是否已提交'));assert.equal(comparisonClock.context.window.RACohortComparison.getResource(),null);assert.equal(comparisonClock.pending.length,2,'未知提交不能隐藏重发');assert.equal(comparisonClock.timers.size,1,'比较结束不能释放仍合法的独立分析等待');
   const clock = pageClock();
   assert.equal(clock.pending.length,1);assert.equal(clock.get('#cohort-state').dataset.state,'loading');assert.equal(clock.get('#f-sex').disabled,false);
   const timer = [...clock.timers.values()][0];assert.equal(timer.ms,30000);
   timer.callback();
   assert.equal(clock.pending[0].signal.aborted,true);assert.equal(clock.get('#cohort-state').dataset.state,'error');assert.equal(clock.get('#f-sex').disabled,false);assert.equal(clock.timers.size,0);assert.equal(clock.pending.length,1);
-  assert.match(clock.get('#error-message').textContent,/REQUEST_TIMEOUT/);
+  assert.match(clock.get('#error-message').textContent,/等待超时，请重试/);
   clock.pending[0].resolve(new Response(JSON.stringify({success:true,code:'200',data:{n:12,studyTotal:20,patients:{items:[{patientId:'9',name:'迟到'}]}}}),{headers:{'Content-Type':'application/json'}}));await new Promise(setImmediate);
   assert.equal(clock.get('#cohort-n').textContent,'—');assert.equal(clock.get('#patient-rows').children.length,0);assert.equal(clock.get('#cohort-state').dataset.state,'error');
   clock.context.analyze();assert.equal(clock.pending.length,2);clock.listeners.pagehide();

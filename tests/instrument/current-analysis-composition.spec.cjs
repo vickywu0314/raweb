@@ -1,12 +1,13 @@
+const {installAuthBootstrap}=require('../fixtures/auth-bootstrap.cjs');
 const {test,expect}=require('@playwright/test');
 const {writeFile}=require('node:fs/promises');
 const f=require('./current-analysis-fixture.cjs');
 test('cohort:current-composition',async({page,context,browser})=>{
  test.setTimeout(90000);
  const origin=process.env.RA_STATIC_URL,requests=[],blocked=[],errors=[];let serial=1,saved=null;
- page.on('pageerror',error=>errors.push(error.message));await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
+ const auth=await installAuthBootstrap(context);page.on('pageerror',error=>errors.push(error.message));
  await context.route('**/*',async route=>{
-  const req=route.request(),url=new URL(req.url());if(url.origin!==origin){blocked.push(req.url());return route.abort('blockedbyclient');}if(!url.pathname.startsWith('/api/'))return route.continue();
+  const req=route.request(),url=new URL(req.url());if(url.origin!==origin){blocked.push(req.url());return route.abort('blockedbyclient');}if(await auth.handle(route))return;if(!url.pathname.startsWith('/api/'))return route.continue();
   const body=req.postDataJSON(),path=url.pathname;requests.push({path,body,method:req.method(),headers:req.headers()});let data;
   const kind=x=>Array.isArray(x.ids)&&x.ids.length===0?'EMPTY':x.age==='35-45'?'SIMILAR':x.sex==='F'?'F':x.sex==='M'?'M':'ALL';
   switch(path){
@@ -28,6 +29,6 @@ test('cohort:current-composition',async({page,context,browser})=>{
   }
   return route.fulfill({status:200,contentType:'application/json',headers:{'X-Trace-Id':f.TRACE},body:JSON.stringify({success:true,code:'200',message:'成功',data})});
  });
- try{const {currentAnalysisJourney}=await import('./current-analysis-composition-browser.mjs');await currentAnalysisJourney(page,origin);expect(errors).toEqual([]);expect(blocked).toEqual([]);expect(requests.every(r=>r.method==='POST'&&!r.headers.authorization&&!r.headers['x-doctor-id']&&!r.body.doctorId)).toBe(true);expect(requests.filter(r=>r.path==='/api/ra/ai/parse').map(r=>r.body.question)).toEqual(['女性','女性且吸烟']);}
- finally{const evidence={scenario:'cohort:current-composition',version:browser.version(),requests,blocked,errors,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(process.env.RA_RUN_DIR+'/'+name,JSON.stringify(evidence,null,2)+'\n');}
+ try{const {currentAnalysisJourney}=await import('./current-analysis-composition-browser.mjs');await currentAnalysisJourney(page,origin,{verifyDocument:p=>auth.verify(p,{expected:new URL(p.url()).pathname==='/ai-chat.html'?0:1})});expect(errors).toEqual([]);expect(blocked).toEqual([]);expect(requests.every(r=>r.method==='POST'&&!r.headers.authorization&&!r.headers['x-doctor-id']&&!r.body.doctorId)).toBe(true);expect(requests.filter(r=>r.path==='/api/ra/ai/parse').map(r=>r.body.question)).toEqual(['女性','女性且吸烟']);}
+ finally{const evidence={authRequests:auth.requests,scenario:'cohort:current-composition',version:browser.version(),requests,blocked,errors,dom:await page.locator('main').innerText().catch(()=>null)};for(const name of ['network.json','browser-observation.json'])await writeFile(process.env.RA_RUN_DIR+'/'+name,JSON.stringify(evidence,null,2)+'\n');}
 });

@@ -1,3 +1,4 @@
+import {installUnavailableAuthBootstrapObserver} from '../fixtures/auth-bootstrap-observer.cjs';
 import assert from 'node:assert/strict';
 import {expect} from '@playwright/test';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -16,8 +17,10 @@ export function literalStatistics(data,key='U') {
 }
 export async function statisticsBrowser(context,port,identity,owner,probe,pid) {
   const origin=`http://127.0.0.1:${port}`,requests=[],responses=[],reads=[],allowed=[],blocked=[],pageErrors=[];
-  await context.route('**/*',async route=>{const request=route.request();if(owner.controller.signal.aborted||new URL(request.url()).origin!==origin){blocked.push(request.url());return route.abort('blockedbyclient');}allowed.push(request.url());if(new URL(request.url()).pathname.startsWith('/api/'))requests.push({url:request.url(),method:request.method(),body:request.postDataJSON()});await route.continue();});
-  await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
+  await context.route('**/*',async route=>{const request=route.request();if(owner.controller.signal.aborted||new URL(request.url()).origin!==origin){blocked.push(request.url());return route.abort('blockedbyclient');}allowed.push(request.url());if(await auth.handle(route))return;if(new URL(request.url()).pathname.startsWith('/api/'))requests.push({url:request.url(),method:request.method(),body:request.postDataJSON()});await route.continue();});
+  // 此调用仅限已核 non-typed SQL fixture；真实404明确不等于认证通过。
+ const auth=await installUnavailableAuthBootstrapObserver(context,{origin});
+ await context.addInitScript(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'合成页面用户',role:'研究者',expires:0})));
   owner.controller.signal.throwIfAborted();const page=await context.newPage();owner.controller.signal.throwIfAborted();owner.event('page-created',{pid,port});page.on('pageerror',e=>pageErrors.push(e.message));
   page.on('response',r=>{if(new URL(r.url()).pathname==='/api/ra/ai/cohort')reads.push((async()=>responses.push({status:r.status(),trace:r.headers()['x-trace-id'],json:await r.json()}))());});
   let dom;
@@ -26,20 +29,20 @@ export async function statisticsBrowser(context,port,identity,owner,probe,pid) {
     for(const [id,value] of [['age-median',key==='U'?'50':key==='F'?'55':'—'],['duration-median',key==='EMPTY'?'—':'3'],['target-rate',key==='U'?'40%':key==='F'?'50%':'0%'],['complete-rate',key==='U'?'67%':key==='F'?'33%':'0%']])await expect(page.locator('#'+id)).toHaveText(value);
     assert.deepEqual(await page.locator('#patient-rows [data-patient-id]').evaluateAll(ns=>ns.map(n=>n.dataset.patientId)),expected.patients.items.map(p=>p.patientId));
     if(key==='EMPTY'){await expect(page.locator('#clinical-panels')).toBeHidden();await expect(page.locator('#no-result')).toBeVisible();for(const selector of ['#activity-base','#activity-current','#tx-groups','#line-groups','#fm-rows'])await expect(page.locator(selector+' > *')).toHaveCount(0);return;}
-    await expect(page.locator('#clinical-panels')).toBeVisible();await expect(page.locator('#study-target')).toHaveText('研究库基准 40% · OK · 2/5 · 未知 1');
+    await expect(page.locator('#clinical-panels')).toBeVisible();await expect(page.locator('#study-target')).toHaveText('研究库基准 40% · 可评估 · 2/5 · 未知 1');
     for(const side of ['base','current'])assert.deepEqual(await page.locator('#activity-'+side+' .statistics-bucket').evaluateAll(ns=>ns.map(n=>Number(n.dataset.count))),expected.activity[side].map(r=>r.count));
     assert.deepEqual(await page.locator('#tx-groups .statistics-bucket').evaluateAll(ns=>ns.map(n=>[n.dataset.tx,n.dataset.display])),expected.byTx.groups.map(r=>[r.tx,r.displayText]));
     assert.deepEqual(await page.locator('#line-groups .statistics-bucket').evaluateAll(ns=>ns.map(n=>[Number(n.dataset.count),n.dataset.display])),expected.lines.groups.map(r=>[r.count,r.displayText]));
-    await expect(page.locator('#fm-summary')).toContainText('明确无FM 0');await expect(page.locator('#fm-rows tr')).toHaveCount(0);await expect(page.locator('#fm-note')).toContainText('GROUP_SIZE_LT_3');await expect(page.locator('#analysis-policy')).toContainText('dev-stats-v04');
+    await expect(page.locator('#fm-summary')).toContainText('明确无FM 0');await expect(page.locator('#fm-rows tr')).toHaveCount(0);await expect(page.locator('#fm-note')).toContainText('每组样本少于3人');await expect(page.locator('#analysis-policy')).not.toContainText('dev-stats-v04');
   };
   try {
-    const response=await page.goto(origin+'/ai-cohort.html');assert.equal(response.status(),200);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await checkDom('U');
+    const response=await page.goto(origin+'/ai-cohort.html');await auth.verify(page);assert.equal(response.status(),200);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await checkDom('U');
     await page.locator('#f-sex').selectOption('F');await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await checkDom('F');
-    await page.goto(origin+'/ai-cohort.html?ids=');await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','empty');await checkDom('EMPTY');
+    await page.goto(origin+'/ai-cohort.html?ids=');await auth.verify(page);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','empty');await checkDom('EMPTY');
     await Promise.all(reads);assert.equal(responses.length,3);for(const [index,key] of ['U','F','EMPTY'].entries()){assert.equal(responses[index].status,200);assert.ok(responses[index].trace);literalStatistics(responses[index].json.data,key);}
-    assert.equal(requests.length,3);assert.equal(requests[1].body.filters.sex,'F');assert.deepEqual(requests[2].body.filters.ids,[]);assert.ok(requests.every(r=>r.method==='POST'));assert.deepEqual(blocked,[]);assert.deepEqual(pageErrors,[]);
-    owner.report.http.push(...responses.map(r=>({...r,port,via:'page'})));dom=await page.locator('main').innerText();await writeFile(owner.dir+'/browser-observation.json',JSON.stringify({scenario:'cohort:browser-statistics',pid,version:context.browser().version(),identity,requests,responses,allowed,blocked,pageErrors,dom},null,2)+'\n');
+    assert.equal(requests.length,3);assert.equal(requests[1].body.filters.sex,'F');assert.deepEqual(requests[2].body.filters.ids,[]);assert.ok(requests.every(r=>r.method==='POST'));assert.deepEqual(blocked,[]);await auth.verifyAll();assert.deepEqual(pageErrors,[]);
+    owner.report.http.push(...responses.map(r=>({...r,port,via:'page'})));dom=await page.locator('main').innerText();await writeFile(owner.dir+'/browser-observation.json',JSON.stringify({authRequests:auth.requests,authenticationVerified:false,scenario:'cohort:browser-statistics',pid,version:context.browser().version(),identity,requests,responses,allowed,blocked,pageErrors,dom},null,2)+'\n');
   }catch(e){owner.fail(e.message);throw e;}finally{
-    const errors=[];try{await writeFile(owner.dir+'/network.json',JSON.stringify({requests,responses,allowed,blocked,pageErrors},null,2)+'\n');}catch(e){errors.push(e.message);}try{await page.close();}catch(e){errors.push(e.message);}if(errors.length){owner.report.cleanupErrors=(owner.report.cleanupErrors||[]).concat(errors);owner.report.exit=1;if(!owner.controller.signal.aborted)throw new Error('browser-case-cleanup-failed:'+errors[0]);}
+    const errors=[];try{await writeFile(owner.dir+'/network.json',JSON.stringify({authRequests:auth.requests,authenticationVerified:false,requests,responses,allowed,blocked,pageErrors},null,2)+'\n');}catch(e){errors.push(e.message);}try{await page.close();}catch(e){errors.push(e.message);}if(errors.length){owner.report.cleanupErrors=(owner.report.cleanupErrors||[]).concat(errors);owner.report.exit=1;if(!owner.controller.signal.aborted)throw new Error('browser-case-cleanup-failed:'+errors[0]);}
   }
 }

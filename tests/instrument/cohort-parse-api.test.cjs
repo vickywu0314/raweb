@@ -24,6 +24,7 @@ function pageClock(initialSearch='') {
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/common.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-api.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort-conditions.js'),'utf8'),context);
+  vm.runInContext(readFileSync(resolve(__dirname,'../../js/shared/user-display.js'),'utf8'),context);
   vm.runInContext(readFileSync(resolve(__dirname,'../../js/pages/ai-cohort.js'),'utf8'),context);
   return {get,timers,pending,listeners,context};
 }
@@ -64,7 +65,7 @@ async function txCompletionOrders(){
 test('cohort:parse-api-contract',async()=>{
  await txCompletionOrders();
  const clock=pageClock();clock.get('#question').value='女性且吸烟';clock.get('#question-form').events.submit({preventDefault(){}});assert.equal(clock.pending.filter(r=>r.url.endsWith('/ai/parse')).length,1,'真实form必须消费parse，不能停留开发中');
- const invalid={...PARTIAL,candidateFilters:{ids:['1']}};clock.pending.at(-1).resolve(new Response(JSON.stringify({success:true,code:'200',data:invalid}),{headers:{'Content-Type':'application/json','X-Trace-Id':'trace-p05'}}));for(let i=0;i<10;i++)await Promise.resolve();assert.equal(clock.get('#parse-state').dataset.state,'error','非法候选必须拒绝，不能显示成功');assert.match(clock.get('#parse-state').textContent,/INVALID_RESPONSE/);
+ const invalid={...PARTIAL,candidateFilters:{ids:['1']}};clock.pending.at(-1).resolve(new Response(JSON.stringify({success:true,code:'200',data:invalid}),{headers:{'Content-Type':'application/json','X-Trace-Id':'trace-p05'}}));for(let i=0;i<10;i++)await Promise.resolve();assert.equal(clock.get('#parse-state').dataset.state,'error','非法候选必须拒绝，不能显示成功');assert.match(clock.get('#parse-state').textContent,/返回的数据不完整或无法识别/);
  const late=pageClock(),emit=question=>{late.get('#question').value=question;late.get('#question-form').events.submit({preventDefault(){}});return late.pending.at(-1);},a=emit('女性且吸烟'),b=emit('女性');
  const respond=data=>new Response(JSON.stringify({success:true,code:'200',data}),{headers:{'Content-Type':'application/json','X-Trace-Id':'trace-p05'}});b.resolve(respond(require('../fixtures/cohort-parse.json').OK));for(let i=0;i<10;i++)await Promise.resolve();const apply=late.pending.filter(r=>r.url.endsWith('/ai/applyParse')).at(-1);assert.ok(apply,'OK候选由明确form消费apply');assert.equal(late.pending.filter(r=>r.url.endsWith('/ai/cohort')).length,1,'apply成功前仍只有旧cohort');apply.resolve(new Response(JSON.stringify({success:true,code:'200',data:{...require('../fixtures/cohort-parse.json').APPLIED_OK,filters:{...require('../fixtures/cohort-parse.json').APPLIED_OK.filters,ids:null}}}),{headers:{'Content-Type':'application/json','X-Trace-Id':'trace-p05-apply'}}));for(let i=0;i<10;i++)await Promise.resolve();assert.equal(late.pending.filter(r=>r.url.endsWith('/ai/cohort')).length,2,'服务端完整filters后才新cohort');const fresh=late.get('#parse-details').textContent;a.resolve(respond(PARTIAL));for(let i=0;i<10;i++)await Promise.resolve();assert.equal(late.get('#parse-details').textContent,fresh,'A真实JSON迟到不能覆盖B');
  for(const terminal of ['cancel','timeout','edit','condition','compare']){
