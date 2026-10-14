@@ -186,7 +186,7 @@ form.addEventListener('submit', async e => {
     const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b });
     toastNext(r.action === 'linked' ? `已加入 RA 研究库，研究编号 ${r.studyNo || '—'}` : `建档成功，研究编号 ${r.studyNo}`);
     if (ocrDraftUsed && ocrHasVisit(ocrDraftUsed)) {   // OCR：接着录基线访视
-      ocrSaveDraft({ ...ocrDraftUsed, patientId: r.patientId });
+      ocrSaveDraft({ ...ocrDraftUsed, patientId: String(r.patientId) });
       location.href = `visit-create.html?id=${encodeURIComponent(r.patientId)}&ocr=1`; return;
     }
     if (ocrDraftUsed) ocrClearDraft();
