@@ -183,7 +183,7 @@ form.addEventListener('submit', async e => {
   if (EDIT_ID) return saveEdit(b);
   const btn = $('#save'); btn.disabled = true; btn.textContent = '保存中…';
   try {
-    const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b });
+    const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b, ocrFileId: ocrDraftUsed ? ocrDraftUsed.fileId : null });
     toastNext(r.action === 'linked' ? `已加入 RA 研究库，研究编号 ${r.studyNo || '—'}` : `建档成功，研究编号 ${r.studyNo}`);
     if (ocrDraftUsed && ocrHasVisit(ocrDraftUsed)) {   // OCR：接着录基线访视
       ocrSaveDraft({ ...ocrDraftUsed, patientId: String(r.patientId) });

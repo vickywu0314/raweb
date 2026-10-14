@@ -157,6 +157,19 @@ function openDeleteDialog(){
 }
 
 
+// 这次随访用 OCR 识别录入时上传的病历原图（POST /api/ra/ocr/visitImages）；没有就不显示
+let ocrImagesGen=0;
+function clearOcrImages(){ocrImagesGen++;const box=$('#ocr-images');box.hidden=true;box.innerHTML='';}
+async function loadOcrImages(){
+ const gen=++ocrImagesGen,box=$('#ocr-images');
+ try{
+  const list=await apiPost('/api/ra/ocr/visitImages',{doctorId:currentDoctorId(),patientId,visitId})||[];
+  if(gen!==ocrImagesGen||!list.length)return;
+  box.innerHTML=`<h2>OCR 识别原图 <small>录入这次随访时识别的病历 / 检验报告图片，点开查看原图</small></h2><div class="ocr-thumbs">${list.map(r=>`<a href="${API_BASE+r.url}" target="_blank" rel="noopener" title="上传于 ${escapeHTML(r.uploadTime||'')}"><img src="${API_BASE+r.url}" alt="OCR 原图" loading="lazy"><span>${escapeHTML(r.uploadTime||'')}</span></a>`).join('')}</div>`;
+  box.hidden=false;
+ }catch(e){/* 查不到原图不影响访视详情 */}
+}
+
 function renderError(msg){
  $('#visit-hero').innerHTML=`<p class="pv-load-error">访视详情加载失败：${escapeHTML(msg)}。请返回随访记录重新选择，或稍后重试。</p>`;
  $('#visit-sections').innerHTML='';$('#audit').hidden=true;
@@ -168,6 +181,7 @@ const detailOwner=RAPatientDetail.owner({
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic)disposeBasic();if(disposeNav)disposeNav();disposeBasic=disposeNav=null;
   if(disposeAudit){disposeAudit();disposeAudit=null;}
+  clearOcrImages();
   p=null;v=null;document.title='访视详情 · 患者数据研究平台';
   $('#visit-hero').setAttribute('data-state',state);renderError(message);
   const auditPanel=$('#audit');auditPanel.open=false;auditPanel.querySelector('.audit-list').innerHTML='';auditPanel.querySelector('.audit-count').textContent='';
@@ -176,7 +190,7 @@ const detailOwner=RAPatientDetail.owner({
   document.querySelectorAll('.from-insight').forEach(n=>n.remove());
  },
  publish(data){
-  p=data.patient;v=data.related;$('#visit-hero').setAttribute('data-state','success');renderHero();disposeNav=renderSections(v);disposeAudit=bindAuditPanel($('#audit'),patientId,visitId).dispose;$('#audit').hidden=false;
+  p=data.patient;v=data.related;$('#visit-hero').setAttribute('data-state','success');renderHero();disposeNav=renderSections(v);disposeAudit=bindAuditPanel($('#audit'),patientId,visitId).dispose;$('#audit').hidden=false;loadOcrImages();
   if(queryParam('from')==='insight'){const back=document.createElement('a');back.className='from-insight';back.href=`patient-insight.html?id=${encodeURIComponent(p.patientId)}`;back.textContent='← 返回病程分析';const main=document.getElementById('main');main.insertBefore(back,main.querySelector('.breadcrumb')?.nextSibling||main.firstChild);}
   return ()=>{if(disposeBasic)disposeBasic();if(disposeNav)disposeNav();if(disposeAudit)disposeAudit();disposeBasic=disposeNav=disposeAudit=null;};
  }

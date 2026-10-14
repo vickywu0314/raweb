@@ -180,3 +180,42 @@ select.ocr-filled,
     grid-template-columns:max-content minmax(0,1fr);
   }
 }
+/* 访视详情：OCR 识别原图 */
+.ocr-images {
+  margin:18px 0;
+  padding:18px 20px;
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  background:var(--surface);
+}
+.ocr-images h2 {
+  margin:0 0 12px;
+  font-size:var(--fs-lg);
+}
+.ocr-images h2 small {
+  margin-left:8px;
+  color:var(--muted);
+  font-size:var(--fs-sm);
+  font-weight:400;
+}
+.ocr-thumbs {
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+}
+.ocr-thumbs a {
+  display:grid;
+  gap:4px;
+  width:140px;
+  color:var(--muted);
+  font-size:var(--fs-xs);
+  text-decoration:none;
+}
+.ocr-thumbs img {
+  width:140px;
+  height:180px;
+  object-fit:cover;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:#f6f8fb;
+}

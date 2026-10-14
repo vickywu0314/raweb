@@ -33,7 +33,7 @@ $('#create-form').addEventListener('submit', async e => {
   const modules = vfCollect($('#edit-sections'));
   const btn = $('#save-create'); btn.disabled = true; btn.textContent = '保存中…'; showError(''); saving = true;
   try {
-    const r = await apiPostJson('/api/ra/visit/createVisit', { doctorId: currentDoctorId(), patientId, visitDate: d, modules });
+    const r = await apiPostJson('/api/ra/visit/createVisit', { doctorId: currentDoctorId(), patientId, visitDate: d, modules, ocrFileId: ocrUsed ? ocrFile : null });
     if (!r || !RAPatientDetail.canonical(r.visitId) || !RAPatientDetail.canonical(r.patientId) || r.patientId !== patientId) throw new Error('保存响应的患者或随访 ID 无效，请刷新确认结果');
     dirty = false;
     if (ocrUsed) ocrClearDraft();
@@ -45,13 +45,13 @@ $('#create-form').addEventListener('submit', async e => {
   }
 });
 // OCR 识别结果填表：随访日期、辅助检查各项；填上的字段高亮，医生核对后保存
-let ocrUsed = false;
+let ocrUsed = false, ocrFile = null;   // 保存时把 OCR 原图关联到这次随访
 function applyOcr(d) {
   if(!form)return;
   const box = $('#edit-sections'), labels = [];
   if (d.visitDate && d.visitDate <= ymd(TODAY)) { const i = $('#visit-date'); i.value = d.visitDate; i.dispatchEvent(new Event('change')); i.classList.add('ocr-filled'); }
   Object.entries(d.fzjc || {}).forEach(([k, v]) => { if (vfSetValue(box, 'fzjc', k, v)) labels.push(k); });
-  ocrUsed = true; dirty = true;
+  ocrUsed = true; ocrFile = d.fileId || null; dirty = true;
   $('.ocr-banner')?.remove();
   ocrBanner($('#create-form'), `已用 OCR 识别结果预填${d.visitDate ? `随访日期 ${escapeHTML(d.visitDate)}、` : ''}辅助检查 ${labels.length} 项（蓝框标出），<b>请对照原图核对后保存</b>。<a href="${API_BASE + d.url}" target="_blank" rel="noopener">查看原图</a>`);
   const first = box.querySelector('.ocr-filled'); if (first) { first.closest('details')?.setAttribute('open', ''); }
@@ -63,7 +63,7 @@ const detailOwner=RAPatientDetail.owner({
  clear(state,message){
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic){disposeBasic();disposeBasic=null;}
-  form=null;VF.form=null;VF.defs={};ocrUsed=false;dirty=false;document.title='新增随访 · 患者数据研究平台';
+  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrFile=null;dirty=false;document.title='新增随访 · 患者数据研究平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-create').disabled=true;$('#visit-title').textContent='新增随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');$('#ocr-import').disabled=true;showError(message);
