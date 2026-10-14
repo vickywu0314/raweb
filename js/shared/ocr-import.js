@@ -95,7 +95,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     const it = result.items[+tr.dataset.i], f = tr.querySelector('.ocr-field').value, o = (result.fieldOptions || []).find(x => x.field === f);
     const tip = tr.querySelector('.ocr-match');
     let t = '', warn = false;
-    if (!f) t = it.field ? '' : '没对上，需要的话请选择';
+    if (!f) t = it.field ? '' : '系统表单里没有这一项，不填入；如果其实是某一项，请在下拉里选';
     else if (f !== (it.field || '')) t = '手动对应（保存后记住）';
     else t = it.matchedBy === 'learned' ? '按之前的对应' : '自动对应';
     if (f && o && o.unit && it.unit && f === it.field && it.unitWarning) { t += ` · ${it.unitWarning}`; warn = true; }
