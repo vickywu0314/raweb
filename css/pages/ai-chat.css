@@ -97,6 +97,17 @@
   overflow:hidden;
 }
 
+.chat-main > #chat-state {
+  margin:0;
+  padding:16px 20px 0;
+}
+
+.chat-side .button {
+  min-height:34px;
+  padding:5px 10px;
+  font-size:var(--fs-sm);
+}
+
 .chat-log {
   flex:1;
   overflow:auto;
@@ -209,6 +220,6 @@
     height:70vh;
   }
 }
-.chat-fact{border-top:1px solid #e4e8ef;padding:12px 0}.chat-fact h3{font-size:16px;margin:0 0 8px}.msg-ev{overflow-wrap:anywhere}.chat-side .side-note{line-height:1.7}#chat-state[data-state="error"],#chat-state[data-state="invalid"],#chat-state[data-state="timeout"]{color:#9c3024}#chat-cancel{white-space:nowrap}.sidebar nav{display:grid;gap:12px;padding:24px}.question{font-weight:600;white-space:pre-wrap}
+.chat-fact{border-top:1px solid #e4e8ef;padding:12px 0}.chat-fact h3{font-size:16px;margin:0 0 8px}.msg-ev{overflow-wrap:anywhere}.chat-side .side-note{line-height:1.7}#chat-state[data-state="error"],#chat-state[data-state="invalid"],#chat-state[data-state="timeout"]{color:#9c3024}#chat-cancel{white-space:nowrap}.question{font-weight:600;white-space:pre-wrap}
 
 #patient-picker{margin:16px 0}#patient-search{display:grid;gap:8px}#patient-keyword{min-width:0;width:100%;box-sizing:border-box}#patient-results{display:grid;gap:8px}#patient-results button{text-align:left;overflow-wrap:anywhere}.patient-pages,#patient-focus{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chat-fact table{display:block;overflow-x:auto}.chat-fact h4{font-size:14px}.chat-fact td{overflow-wrap:anywhere}

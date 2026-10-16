@@ -6,25 +6,49 @@ function client(data){const requests=[],context=vm.createContext({window:{},URLS
 
 function deferred(){let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b});return {promise,resolve,reject};}
 async function flush(){for(let i=0;i<20;i++)await Promise.resolve();}
+const noStalePatientScore=html=>assert.doesNotMatch(html,/<td>4\.11<\/td>/,'旧患者指标不可发布到新范围');
 function page(hash='',referrer='',length=1){
- const nodes=new Map(),events=new Map(),pending=[],timers=new Map();let seq=0,user={name:'合成医生',id:'101'};
+ const nodes=new Map(),events=new Map(),pending=[],timers=new Map(),reads=[];let seq=0,user={name:'合成医生',id:'101'};
  const node=s=>{if(!nodes.has(s))nodes.set(s,{innerHTML:'',textContent:'',value:'',dataset:{},href:'',hidden:false,disabled:false,checked:false,events:{},addEventListener(k,fn){this.events[k]=fn;},focus(){}});return nodes.get(s);};
  const location=new URL('http://fixture.invalid/ai-chat.html'+hash),context=vm.createContext({window:{addEventListener(k,fn){events.set(k,fn);}},document:{querySelector:node,referrer},URL,URLSearchParams,AbortController,Response,structuredClone,location,history:{length},currentUser:()=>user,fetch(url,options){const peer=deferred();pending.push({url,options,peer});return peer.promise;},setTimeout(fn,ms){const id=++seq;timers.set(id,{fn,ms});return id;},clearTimeout(id){timers.delete(id);}});
  vm.runInContext(source('js/shared/user-display.js'),context);
  for(const file of ['ai-cohort-conditions.js','ai-chat-entry.js','ai-cohort-api.js','ai-chat.js'])vm.runInContext(source('js/pages/'+file),context);
- return {context,node,pending,timers,events,event:(k,e={})=>events.get(k)?.(e),ask:q=>context.window.RAChatPage.ask(q),async answer(i,d){pending[i].peer.resolve(response(d));await flush();}};
+ return {context,node,pending,timers,events,reads,event:(k,e={})=>events.get(k)?.(e),ask:q=>context.window.RAChatPage.ask(q),async answer(i,d){
+  const wire=response(d),json=wire.json.bind(wire);wire.json=async()=>{const envelope=await json();reads.push({data:envelope.data,before:structuredClone(envelope.data)});return envelope;};pending[i].peer.resolve(wire);await flush();
+ }};
 }
 function searchClient(data,apiBase){
  const requests=[],env={window:{},fetch:async(url,options)=>{requests.push({url,options});return response(data);}};if(apiBase!==undefined)env.API_BASE=apiBase;
  const context=vm.createContext(env);vm.runInContext(source('js/pages/ai-cohort-api.js'),context);return {api:context.window.RACohortAPI,requests};
 }
 test('chat:patient-contract' ,async()=>{
+ const loadingWithTimestamp='<article class="msg ai"><p class="msg-ev">本轮问题 · 2026-10-16T02:20:04.116Z</p><p class="question">新范围问题</p><p>正在读取本轮数据…</p></article>';
+ assert.doesNotThrow(()=>noStalePatientScore(loadingWithTimestamp),'仅问题卡时间戳不能被判作旧患者指标');
  const context=vm.createContext({window:{},URLSearchParams});vm.runInContext(source('js/shared/user-display.js'),context);
  for(const file of ['ai-cohort-conditions.js','ai-chat-entry.js'])vm.runInContext(source('js/pages/'+file),context);const entry=context.window.RACohortChatEntry;
  for(const patientId of ['9007199254740992','9007199254740993','9223372036854775807'])for(const visitId of [null,'9223372036854775807']){const scope={kind:'PATIENT',patientId,visitId};assert.deepEqual(JSON.parse(JSON.stringify(entry.decode('',entry.encode(scope)))),scope);}
  for(const visitId of ['9007199254741003',null]){const d=patientChatFixture('9007199254740993',visitId),c=client(d);const r=await c.api.chat({scope:{kind:'PATIENT',patientId:'9007199254740993',visitId},question:'真实记录？'});assert.equal(r.data.scope.n,1);assert.equal(c.requests[0].options.credentials,'same-origin');}
 
- const h=page('#kind=PATIENT&patientId=9007199254740993&visitId=9007199254741003');assert.equal(h.pending.length,0);assert.equal(h.node('#scope-patient').checked,true);assert.match(h.node('#scope-patient-note').textContent,/本次/);h.ask('本次记录');await flush();assert.equal(h.pending.length,1);await h.answer(0,patientChatFixture());assert.equal(h.node('#chat-state').dataset.state,'success');assert.match(h.node('#chat-log').innerHTML,/4.11/);assert.match(h.node('#chat-log').innerHTML,/甲氨蝶呤/);
+ const h=page('#kind=PATIENT&patientId=9007199254740993&visitId=9007199254741003');assert.equal(h.pending.length,0);assert.equal(h.node('#scope-patient').checked,true);assert.match(h.node('#scope-patient-note').textContent,/本次/);h.ask('本次记录');await flush();assert.equal(h.pending.length,1);await h.answer(0,patientChatFixture());assert.equal(h.node('#chat-state').dataset.state,'success');assert.match(h.node('#chat-log').innerHTML,/<td>4\.11<\/td>/);assert.match(h.node('#chat-log').innerHTML,/甲氨蝶呤/);
+ const actualOldFactHtml=h.node('#chat-log').innerHTML;
+ assert.throws(()=>noStalePatientScore(loadingWithTimestamp+actualOldFactHtml),error=>error.code==='ERR_ASSERTION','同一个隔离oracle必须拒绝实际renderer输出的旧指标事实');
+
+ const clinicalPage=page('#kind=PATIENT&patientId=9007199254740993');clinicalPage.ask('患者临床资料');await flush();await clinicalPage.answer(0,patientChatFixture('9007199254740993',null));assert.equal(clinicalPage.node('#chat-state').dataset.state,'success');assert.match(clinicalPage.node('#chat-log').innerHTML,/<td>纤维肌痛<\/td><td>无FM（未记录，统计按未知） \/ /);
+
+ assert.equal(clinicalPage.reads[0].data.facts[1].data.fm,'UNKNOWN');assert.deepEqual(clinicalPage.reads[0].data,clinicalPage.reads[0].before);
+ const configured=(missingReason,observations)=>({source:'CONFIGURED_FM_EVIDENCE',sourceField:'ra.ai.fm-evidence.json',quality:['SOURCE_UNVERIFIED'],missingReason,observations});
+ for(const [raw,provenance,expected] of [
+  ['UNKNOWN',configured('NO_EFFECTIVE_FM_EVIDENCE',[]),'无FM（未记录，统计按未知）'],
+  ['UNKNOWN',configured('EXPLICIT_UNKNOWN',[{evidenceId:'synthetic:unknown',observedAt:'2026-10-06',fmState:'UNKNOWN'}]),'未知'],
+  ['TRUE',configured(null,[{evidenceId:'synthetic:true',observedAt:'2026-10-06',fmState:'TRUE'}]),'有FM'],
+  ['FALSE',configured(null,[{evidenceId:'synthetic:false',observedAt:'2026-10-06',fmState:'FALSE'}]),'无FM（明确记录）'],
+  ['UNKNOWN',{source:'UNRECOGNIZED_FM_SOURCE',sourceField:'patient_comorbidity.disease_code/since_year',quality:[],missingReason:'NO_POSITIVE_ASSOCIATION',observations:[]},'未知'],
+  ['UNKNOWN',{source:'LEGACY_POSITIVE_ASSOCIATION',sourceField:'patient_comorbidity.disease_code/since_year',quality:['LEGACY_UNVERIFIED'],missingReason:'NO_POSITIVE_ASSOCIATION',observations:[{sourceRowId:'9007199254741010',sinceYear:2020}]},'未知']
+ ]){
+  const data=patientChatFixture('9007199254740993',null);data.meta.policyVersions.fmSource='synthetic-fm-v1';data.facts[1].data.fm=raw;data.facts[1].data.clinicalProvenance.fm=provenance;
+  const guarded=await client(data).api.chat({scope:{kind:'PATIENT',patientId:'9007199254740993',visitId:null},question:'临床记录'});assert.equal(guarded.data.facts[1].data.fm,raw);assert.deepEqual(guarded.data.facts[1].data.clinicalProvenance.fm,provenance);
+  const current=page('#kind=PATIENT&patientId=9007199254740993');current.ask('患者临床资料');await flush();await current.answer(0,data);assert.equal(current.node('#chat-state').dataset.state,'success');assert.ok(current.node('#chat-log').innerHTML.includes('<td>纤维肌痛</td><td>'+expected+' / '),expected);assert.match(current.node('#chat-log').innerHTML,/<td>强直性脊柱炎<\/td><td>未知 \/ /);assert.deepEqual(current.reads[0].data,current.reads[0].before);assert.equal(current.reads[0].data.facts[1].data.fm,raw);
+ }
 
  assert.match(source('ai-chat.html'),/id="patient-search"/);const picker=page();picker.node('#scope-patient').events.change();picker.node('#patient-keyword').value='患者原词%';picker.node('#patient-search').events.submit({preventDefault(){}});await flush();assert.equal(picker.pending.length,1,'有效输入的无API_BASE聊天环境必须实际fetch，不能在URL求值前失败');assert.equal(picker.pending[0].url,'/api/ra/ai/patientSearch');assert.deepEqual(JSON.parse(picker.pending[0].options.body),{keyword:'患者原词%',page:1,size:20});await picker.answer(0,{items:[{patientId:'9007199254740993',name:'合成候选患者',studyNo:'RA-LITERAL'}],total:21,page:1,size:20});assert.match(picker.node('#patient-results').innerHTML,/合成候选患者/);picker.node('#patient-results').events.click({target:{closest:()=>({dataset:{patientId:'9007199254740993'}})}});picker.ask('新患者记录');await flush();assert.equal(JSON.parse(picker.pending[1].options.body).scope.patientId,'9007199254740993');assert.equal(JSON.parse(picker.pending[1].options.body).scope.visitId,null);assert.deepEqual(JSON.parse(picker.pending[1].options.body).previousQuestions,[]);
 
@@ -34,7 +58,7 @@ test('chat:patient-contract' ,async()=>{
   const old=page('#kind=PATIENT&patientId=9007199254740993&visitId=9007199254741003');old.ask('旧患者本次');await flush();assert.equal(old.pending.length,1,'旧请求已经started');
   if(transition==='course')old.node('#patient-course').events.click();else {old.node('#patient-keyword').value='新';old.node('#patient-search').events.submit({preventDefault(){}});await flush();await old.answer(1,{items:[{patientId:'9007199254740992',name:'新合成患者',studyNo:null}],total:1,page:1,size:20});old.node('#patient-results').events.click({target:{closest:()=>({dataset:{patientId:'9007199254740992'}})}});}
   old.ask('新范围问题');await flush();const current=transition==='course'?1:2,request=JSON.parse(old.pending[current].options.body);assert.equal(request.scope.visitId,null);assert.deepEqual(request.previousQuestions,[]);assert.equal(old.node('#chat-state').dataset.state,'loading');assert.equal(old.timers.size,1,'新timer已存在');
-  if(late==='success')await old.answer(0,patientChatFixture());else {old.pending[0].peer.reject(Error('旧患者错误'));await flush();}assert.equal(old.node('#chat-state').dataset.state,'loading','旧患者/focus回答污染新owner');assert.doesNotMatch(old.node('#chat-log').innerHTML,/4.11/);assert.equal(old.timers.size,1,'旧回调不得清新timer');await old.answer(current,patientChatFixture(request.scope.patientId,null));assert.equal(old.node('#chat-state').dataset.state,'success');assert.equal(old.timers.size,0);if(transition==='course'){old.node('#patient-visit').events.click();old.ask('原本次');await flush();assert.equal(JSON.parse(old.pending.at(-1).options.body).scope.visitId,'9007199254741003');}
+  if(late==='success')await old.answer(0,patientChatFixture());else {old.pending[0].peer.reject(Error('旧患者错误'));await flush();}assert.equal(old.node('#chat-state').dataset.state,'loading','旧患者/focus回答污染新owner');noStalePatientScore(old.node('#chat-log').innerHTML);assert.equal(old.timers.size,1,'旧回调不得清新timer');await old.answer(current,patientChatFixture(request.scope.patientId,null));assert.equal(old.node('#chat-state').dataset.state,'success');assert.equal(old.timers.size,0);if(transition==='course'){old.node('#patient-visit').events.click();old.ask('原本次');await flush();assert.equal(JSON.parse(old.pending.at(-1).options.body).scope.visitId,'9007199254741003');}
  }
  const searches=page();searches.node('#scope-patient').events.change();for(const term of ['旧关键词','新关键词']){searches.node('#patient-keyword').value=term;searches.node('#patient-search').events.submit({preventDefault(){}});await flush();}assert.equal(searches.pending.length,2);await searches.answer(1,{items:[{patientId:'9007199254740993',name:'新列表',studyNo:null}],total:21,page:1,size:20});await searches.answer(0,{items:[{patientId:'9007199254740992',name:'旧列表',studyNo:null}],total:1,page:1,size:20});assert.match(searches.node('#patient-results').innerHTML,/新列表/);assert.doesNotMatch(searches.node('#patient-results').innerHTML,/旧列表/);searches.node('#patient-next').events.click();await flush();assert.deepEqual(JSON.parse(searches.pending[2].options.body),{keyword:'新关键词',page:2,size:20});searches.event('storage',{key:null});await searches.answer(2,{items:[{patientId:'1',name:'迟到第二页',studyNo:null}],total:21,page:2,size:20});assert.equal(searches.node('#patient-results').innerHTML,'');assert.equal(searches.timers.size,0);
  const ending=page('#kind=PATIENT&patientId=1');ending.ask('pending');await flush();assert.equal(ending.pending.length,1);[...ending.timers.values()][0].fn();assert.equal(ending.node('#chat-state').dataset.state,'timeout');assert.equal(ending.pending[0].options.signal.aborted,true);await ending.answer(0,patientChatFixture('1',null));assert.equal(ending.node('#chat-state').dataset.state,'timeout');

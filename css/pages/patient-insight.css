@@ -92,26 +92,72 @@
 .journey:before {
   content:"";
   position:absolute;
-  left:84px;
+  left:76px;
   top:12px;
   bottom:18px;
   width:1px;
   background:#dbe5f0;
 }
 
-.journey article {
+.insight-record {
   display:grid;
-  grid-template-columns:66px 18px 1fr;
-  gap:10px;
+  grid-template-columns:66px minmax(0,1fr);
+  gap:20px;
   position:relative;
   padding:0 0 19px;
 }
 
-.journey time {
+.insight-record time {
   font-size:var(--fs-xs);
   color:#8090a3;
   padding-top:2px;
   text-align:right;
+}
+
+.journey .insight-record::before {
+  content:"";
+  position:absolute;
+  left:72px;
+  top:5px;
+  width:9px;
+  height:9px;
+  border:2px solid #7ea9de;
+  border-radius:50%;
+  background:#fff;
+}
+
+.journey-content {
+  min-width:0;
+}
+
+.journey-content > strong {
+  display:block;
+  margin-bottom:8px;
+  overflow-wrap:anywhere;
+}
+
+.insight-table-wrap {
+  max-width:100%;
+  overflow-x:auto;
+}
+
+.insight-table-wrap table {
+  width:100%;
+  min-width:480px;
+  border-collapse:collapse;
+  font-size:var(--fs-sm);
+}
+
+.insight-table-wrap th,
+.insight-table-wrap td {
+  padding:8px 10px;
+  border:1px solid #e3e9f1;
+  text-align:left;
+  vertical-align:top;
+}
+
+.insight-table-wrap th {
+  background:#f7f9fc;
 }
 
 .journey i {
@@ -321,10 +367,14 @@
     flex-direction:column;
   }
   .journey:before {
-    left:70px;
+    left:62px;
   }
-  .journey article {
-    grid-template-columns:52px 18px 1fr;
+  .insight-record {
+    grid-template-columns:52px minmax(0,1fr);
+    gap:18px;
+  }
+  .journey .insight-record::before {
+    left:58px;
   }
 }
 

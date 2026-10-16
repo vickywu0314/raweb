@@ -248,7 +248,7 @@ function appendPatients(items,meta) {
     const activity={remission:'缓解',low:'低',moderate:'中',high:'高'};
     row.append(textNode('div',`DAS28-CRP 活动 ${activity[patient.activity]??'未知'}`,'patient-activity'+(Object.hasOwn(activity,patient.activity)?' activity-'+patient.activity:'')));
     row.append(textNode('div',crpText('评估',patient.crpAt)+'；'+crpText('当前',patient.crpCurrent),'patient-crp'));
-    row.append(textNode('div',`FM ${ui.code(c.fm,'未知')} · AS ${ui.code(c.as,'未知')}`,'patient-comorbidity'));
+    row.append(textNode('div',`FM ${ui.patientFm(c.fm,patient.clinicalProvenance.fm)} · AS ${ui.code(c.as,'未知')}`,'patient-comorbidity'));
     row.append(patientSources(patient,meta));$('#patient-rows').append(row);
   }
 }

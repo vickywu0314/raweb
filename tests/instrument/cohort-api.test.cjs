@@ -105,6 +105,27 @@ test('cohort:api-contract', async () => {
   assert.match(projected,/来源依据：已记录，可按记录日期核对/);assert.match(projected,/记录日期：2026-10-06/);assert.match(projected,/纤维肌痛状态：否/);assert.match(projected,/纤维肌痛：使用已核定的来源依据/);assert.doesNotMatch(projected,/fmSource|synthetic-fm-v1/);assert.ok(!projected.includes('private-config-canary'));assert.doesNotMatch(projected,/synthetic:e1/);
   assert.match(projectionClock.get('#fm-summary').textContent,/明确无FM/);assert.match(projected,/正在治疗 · 传统合成抗风湿药（csDMARD） · 线数 1/);
   projectionClock.listeners.pagehide();assert.equal(projectionClock.timers.size,0);
+  const missingFmClock=pageClock(),missingFm=structuredClone(require('../fixtures/cohort-p02.json').U);
+  missingFm.patients.items[0].clinical.fm='UNKNOWN';missingFm.patients.items[0].clinicalProvenance.fm={source:'LEGACY_POSITIVE_ASSOCIATION',sourceField:'patient_comorbidity.disease_code/since_year',quality:['LEGACY_UNVERIFIED'],missingReason:'NO_POSITIVE_ASSOCIATION',observations:[]};
+  missingFmClock.pending[0].resolve(new Response(JSON.stringify({success:true,code:'200',data:missingFm}),{headers:{'Content-Type':'application/json','X-Trace-Id':'fm-display-trace'}}));await new Promise(setImmediate);
+  assert.equal(missingFmClock.get('#cohort-state').dataset.state,'success');assert.equal(missingFmClock.get('#patient-rows').children[0].children.find(n=>n.className==='patient-comorbidity').textContent,'FM 无FM（未记录，统计按未知） · AS 未知');missingFmClock.listeners.pagehide();
+
+  const configuredFm=(missingReason,observations)=>({source:'CONFIGURED_FM_EVIDENCE',sourceField:'ra.ai.fm-evidence.json',quality:['SOURCE_UNVERIFIED'],missingReason,observations});
+  for(const [raw,provenance,expected] of [
+    ['UNKNOWN',missingFm.patients.items[0].clinicalProvenance.fm,'无FM（未记录，统计按未知）'],
+    ['UNKNOWN',configuredFm('NO_EFFECTIVE_FM_EVIDENCE',[]),'无FM（未记录，统计按未知）'],
+    ['UNKNOWN',configuredFm('EXPLICIT_UNKNOWN',[{evidenceId:'synthetic:unknown',observedAt:'2026-10-06',fmState:'UNKNOWN'}]),'未知'],
+    ['TRUE',configuredFm(null,[{evidenceId:'synthetic:true',observedAt:'2026-10-06',fmState:'TRUE'}]),'有FM'],
+    ['FALSE',configuredFm(null,[{evidenceId:'synthetic:false',observedAt:'2026-10-06',fmState:'FALSE'}]),'无FM（明确记录）'],
+    ['UNKNOWN',{...missingFm.patients.items[0].clinicalProvenance.fm,source:'UNRECOGNIZED_FM_SOURCE'},'未知'],
+    ['UNKNOWN',{...missingFm.patients.items[0].clinicalProvenance.fm,missingReason:'NO_EFFECTIVE_FM_EVIDENCE'},'未知'],
+    ['UNKNOWN',{...missingFm.patients.items[0].clinicalProvenance.fm,observations:[{sourceRowId:'9007199254741010',sinceYear:2020}]},'未知']
+  ]){
+    const clock=pageClock(),payload=structuredClone(require('../fixtures/cohort-p02.json').U);payload.patients.items[0].clinical.fm=raw;payload.patients.items[0].clinicalProvenance.fm=provenance;
+    const wire=new Response(JSON.stringify({success:true,code:'200',data:payload}),{headers:{'Content-Type':'application/json','X-Trace-Id':'fm-display-trace'}}),json=wire.json.bind(wire);let decoded,before;wire.json=async()=>{const envelope=await json();decoded=envelope.data;before=structuredClone(decoded);return envelope;};clock.pending[0].resolve(wire);await new Promise(setImmediate);
+    assert.equal(clock.get('#cohort-state').dataset.state,'success');assert.equal(clock.get('#patient-rows').children[0].children.find(n=>n.className==='patient-comorbidity').textContent,'FM '+expected+' · AS 未知');assert.equal(decoded.patients.items[0].clinical.fm,raw);assert.deepEqual(decoded,before,'真实API解析、guard及患者renderer不得改写源对象');assert.deepEqual(decoded.fm,{nFM:3,nOther:0,unknownN:3,status:'INSUFFICIENT_SAMPLE',reason:'GROUP_SIZE_LT_3',rows:[]});assert.equal(clock.get('#fm-summary').textContent,'FM 3 · 明确无FM 0 · 未知 3 · 样本不足 · 每组样本少于3人');clock.listeners.pagehide();
+  }
+
   const sourceClock=pageClock(),selectedDefinition=require('../fixtures/cohort-comparison.json').definition;
   sourceClock.context.selectComparison('b',{source:'SAVED',cohortId:selectedDefinition.cohortId,item:selectedDefinition});assert.ok(sourceClock.get('#compare-source-b').textContent.includes(selectedDefinition.cohortId),'显式SAVED来源摘要须标明选中的独立定义ID');assert.equal(sourceClock.pending.length,1,'选择来源不能暗open或计数');
   const comparisonClock=pageClock(),comparisonFixture=require('../fixtures/cohort-comparison.json').before;
