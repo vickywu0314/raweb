@@ -60,7 +60,7 @@ test('patient:record-pdf-owner-contract',async()=>{
    const params=new URLSearchParams(good.requests[1].options.body);
    assert.equal(params.get('patientId'),detail().patientId);assert.equal(params.get('visitId'),visit().visitId);
    await good.answer(1,visit());
-  }else assert.equal(good.requests.length,2,'this-visit export does not refetch');
+  }else {assert.equal(good.requests.length,3,'this-visit export does not refetch');assert.ok(good.requests[2].url.endsWith('/ocr/visitImages'),'additional request belongs to OCR images');}
   await work;assert.equal(good.downloads.length,1);assert.equal(good.constructions,1);
   assert.equal(good.toasts.length,1);assert.equal(good.button.disabled,false);
   assert.equal(good.button.textContent,page==='visit-detail'?'下载本次病历':'下载病历');
@@ -81,12 +81,12 @@ test('patient:record-pdf-owner-contract',async()=>{
  }
  // 刷新建立 B owner，迟到 A 不下载，也不清理 B 的按钮或结果。
  for(const page of ['patient-visits','visit-detail']){
-  const h=await pdfHarness(page);const old=h.start();const oldButton=h.button;
+  const h=await pdfHarness(page);const old=h.start();const oldButton=h.button;const at=h.requests.length;
   await h.event('pageshow',{persisted:true});
   const selector=page==='patient-visits'?'#download-all':'#download-one';
   // 真实 innerHTML 替换生成新的 button；fake DOM 显式丢弃已移除节点。
   h.nodes.delete(selector);
-  const at=page==='patient-visits'?1:2;await h.answer(at,{...detail(),name:'NEW-PATIENT'});
+  await h.answer(at,{...detail(),name:'NEW-PATIENT'});
   if(page==='visit-detail')await h.answer(at+1,visit());
   const current=h.node(selector);current.textContent='NEW-DOWNLOAD';
   const next=current.onclick({currentTarget:current});await h.ready();
