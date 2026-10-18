@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { requireMysql57 } from './mysql57-contract.mjs';
 import { readFile, mkdir, writeFile, realpath, stat } from 'node:fs/promises';
 import { resolve, extname, sep } from 'node:path';
 import http from 'node:http';
@@ -53,7 +54,7 @@ export class LoopbackOwner {
   async prepare() {
     const tools=resolve(this.repo,'../toolchains');
     this.javaEnv=await this.environment(process.env.RA_JAVA_ENV||`${tools}/env.sh`);
-    this.mysqlEnv=await this.environment(process.env.RA_MYSQL_ENV||`${tools}/mysql/env.sh`);
+    this.mysqlEnv=await this.environment(process.env.RA_MYSQL_ENV||`${tools}/mysql57/env.sh`);
     const source=resolve(this.repo,'raapi');this.classpathFile=`${this.dir}/java-test-classpath.txt`;
     await this.command('mvn',['-B','test-compile'],{cwd:source,env:this.javaEnv},'test-compile',120000);
     await this.command('mvn',['-B','org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath','-DincludeScope=test',`-Dmdep.outputFile=${this.classpathFile}`],{cwd:source,env:this.javaEnv},'build-classpath',120000);
@@ -77,7 +78,7 @@ export class LoopbackOwner {
     await this.bounded((async()=>{
       while(!this.db.ended){if(await portOpen(43306)){
         const recordedPid=Number((await readFile(pidFile,'utf8')).trim());if(recordedPid!==this.db.child.pid)throw new Error('mysql-child-identity-mismatch');
-        const version=(await this.mysqlQuery('SELECT VERSION()')).trim();this.report.toolchain.mysql=version;this.event('database-ready',{pid:this.db.child.pid,port:43306,version});return;
+        const [version,packet]=(await this.mysqlQuery('SELECT VERSION(),@@max_allowed_packet')).trim().split('\t');requireMysql57(version,packet);this.report.toolchain.mysql=version;this.event('database-ready',{pid:this.db.child.pid,port:43306,version});return;
       }await sleep(100);this.controller.signal.throwIfAborted();}throw new Error('mysqld-start-failed');
     })(),30000,'database-start');
   }
