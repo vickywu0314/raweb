@@ -11,9 +11,88 @@ const OCR_DRAFT_KEY = 'ra-ocr-draft';
 const OCR_BASIC_LABELS = { name: '姓名', gender: '性别', age: '年龄', cardNo: '身份证号', mobile: '手机号', nation: '民族', marry: '婚史', height: '身高 (cm)', weight: '体重 (kg)', happenDate: '发病时间', confirmDate: '确诊日期' };
 const OCR_MARRY = { 0: '未婚', 1: '已婚', 2: '离异', 3: '丧偶' };
 
-function ocrDraft() { try { return JSON.parse(sessionStorage.getItem(OCR_DRAFT_KEY)); } catch (e) { return null; } }
-function ocrSaveDraft(d) { try { sessionStorage.setItem(OCR_DRAFT_KEY, JSON.stringify(d)); } catch (e) {} }
+const ocrDoctor = () => { const id = typeof currentUser === 'function' ? currentUser()?.doctorId : null; return id == null ? '' : String(id); };
+let ocrEpoch = 0, ocrSessionDoctor = ocrDoctor();
+function ocrToken() { return { doctorId: ocrDoctor(), epoch: ocrEpoch }; }
+function ocrTokenCurrent(t) { return !!t?.doctorId && t.doctorId === ocrDoctor() && t.epoch === ocrEpoch; }
+function ocrDraft() {
+  try { const d = JSON.parse(sessionStorage.getItem(OCR_DRAFT_KEY)); if (d && ocrDoctor() && d.doctorId === ocrDoctor()) return d; } catch (e) {}
+  ocrClearDraft(); return null;
+}
+function ocrSaveDraft(d) { if (!ocrDoctor()) return; try { sessionStorage.setItem(OCR_DRAFT_KEY, JSON.stringify({ ...d, doctorId: ocrDoctor() })); } catch (e) {} }
 function ocrClearDraft() { try { sessionStorage.removeItem(OCR_DRAFT_KEY); } catch (e) {} }
+// 消费已交付事件中的切换证据；冻结期间事件可能排队到当前身份已恢复后才送达。
+function ocrStorageIdentityChanged(e) {
+  if (e?.key !== 'ra-auth') return false;
+  const doctor = value => { try { const id = JSON.parse(value)?.doctorId; return id == null ? '' : String(id); } catch (err) { return ''; } };
+  return doctor(e.oldValue) !== doctor(e.newValue);
+}
+function ocrAuthChanged(force = false) {
+  const next = ocrDoctor(); if (!force && next === ocrSessionDoctor) return;
+  ocrSessionDoctor = next; ocrEpoch++; ocrClearDraft(); document.querySelector('#ocr-dialog')?.remove();
+}
+window.addEventListener('ra-auth-changed', () => ocrAuthChanged());
+window.addEventListener('storage', e => { if (e.key === 'ra-auth' || e.key === null) ocrAuthChanged(ocrStorageIdentityChanged(e)); });
+window.addEventListener('pagehide', () => { ocrEpoch++; document.querySelector('#ocr-dialog')?.remove(); });
+function ocrSourceFiles(d) { return [...new Set([...(d?.fileIds || []), ...(d?.sources || []).map(x => x.fileId), d?.fileId].filter(Boolean))]; }
+function ocrMergeDraft(old, next) {
+  const sources = new Map();
+  for (const d of [old, next]) if (d) { for (const fileId of ocrSourceFiles(d)) sources.set(fileId, { fileId, url: `/api/ra/files/ocr/${fileId}` }); }
+  return { ...old, ...next, basic: { ...(next?.basic || {}), ...(old?.basic || {}) }, fzjc: { ...(next?.fzjc || {}), ...(old?.fzjc || {}) }, sources: [...sources.values()], fileIds: [...sources.keys()] };
+}
+function ocrSourceLinks(d) { return (d?.sources?.length ? d.sources : d?.fileId ? [{ fileId: d.fileId, url: d.url }] : []).map((x, i) => `<a href="${escapeHTML(API_BASE + x.url)}" target="_blank" rel="noopener">原图 ${i + 1}</a>`).join(' · '); }
+function ocrKnownRejection(e) { return ['400','401','403','409'].includes(String(e?.code || e?.status)); }
+function ocrLinkState(link, files) {
+  if (!files.length) return { status: 'NOT_REQUESTED', linkedFileIds: [], pendingFileIds: [], retryableFileIds: [], retryable: false };
+  const linked = link?.linkedFileIds, pending = link?.pendingFileIds;
+  if (!Array.isArray(linked) || !Array.isArray(pending) || linked.length + pending.length !== files.length || new Set([...linked, ...pending]).size !== files.length || [...linked, ...pending].some(x => !files.includes(x))) {
+    return { status: 'PENDING', linkedFileIds: [], pendingFileIds: [...files], retryableFileIds: [...files], retryable: true, message: '病历已保存，原图关联状态尚未确认，请重试关联，勿重复创建病历' };
+  }
+  // 新协议按文件选择；旧响应仅有boolean时维持原兼容含义。
+  const proposed = link?.retryableFileIds;
+  const retryable = Array.isArray(proposed) ? (new Set(proposed).size === proposed.length && proposed.every(x => pending.includes(x)) ? [...proposed] : []) : link?.retryable === false ? [] : [...pending];
+  return { ...link, status: pending.length ? 'PENDING' : 'LINKED', retryableFileIds: retryable, retryable: retryable.length > 0 };
+}
+function ocrMergeLinkState(old, next, requested, files) {
+  const selected = new Set(requested), linked = new Set([...old.linkedFileIds, ...next.linkedFileIds]);
+  const pending = new Set([...old.pendingFileIds.filter(x => !selected.has(x)), ...next.pendingFileIds]);
+  const retryable = new Set([...old.retryableFileIds.filter(x => !selected.has(x)), ...next.retryableFileIds]);
+  return ocrLinkState({ linkedFileIds: files.filter(x => linked.has(x)), pendingFileIds: files.filter(x => pending.has(x)), retryableFileIds: files.filter(x => retryable.has(x)) }, files);
+}
+function ocrRecoverySummary(state) {
+  const ready = state.retryableFileIds.length, blocked = state.pendingFileIds.length - ready;
+  return `${ready ? `${ready} 张原图可重试关联。` : ''}${blocked ? `${blocked} 张原图需人工核对权限或已有归属，不能自动改绑。` : ''}请勿重复创建病历。`;
+}
+// 只对已获得可信病历ID的结果补关联；此函数从不调用create。
+function ocrRecoverSaved(anchor, saved, draft, onComplete) {
+  const token = ocrToken(), files = ocrSourceFiles(draft), initial = ocrLinkState(saved.ocrLink, files);
+  if (initial.status !== 'PENDING') { onComplete(); return; }
+  let state = initial, busy = false;
+  const retain = () => ocrSaveDraft({ ...draft, patientId: saved.patientId, saved: { patientId: saved.patientId, visitId: saved.visitId || null, ocrLink: state } });
+  retain();
+  const banner = ocrBanner(anchor, '<b>病历已保存，原图尚未全部关联。请勿重复创建病历。</b><p class="ocr-recovery-message"></p><ul class="ocr-recovery-sources"></ul><button type="button" class="button" id="ocr-retry-link">重试可恢复原图</button>');
+  const message = banner.querySelector('.ocr-recovery-message'), list = banner.querySelector('.ocr-recovery-sources'), retry = banner.querySelector('#ocr-retry-link');
+  const render = () => {
+    message.textContent = `${state.message || ''}${ocrRecoverySummary(state)}`; retry.disabled = busy || !state.retryableFileIds.length;
+    list.innerHTML = files.map((file, i) => `<li><a href="${escapeHTML(API_BASE + '/api/ra/files/ocr/' + file)}" target="_blank" rel="noopener">原图 ${i + 1}</a>：${state.linkedFileIds.includes(file) ? '已关联' : state.retryableFileIds.includes(file) ? '可重试' : '需人工核对'}</li>`).join('');
+  };
+  render();
+  retry.onclick = async () => {
+    if (busy || !state.retryableFileIds.length || !ocrTokenCurrent(token)) return;
+    busy = true; render(); const requested = [...state.retryableFileIds];
+    try {
+      const response = await apiPostJson('/api/ra/ocr/linkImages', { patientId: saved.patientId, visitId: saved.visitId || null, ocrFileIds: requested });
+      if (!ocrTokenCurrent(token)) return;
+      const next = ocrLinkState(response, requested);
+      state = ocrMergeLinkState(state, next, requested, files);
+      retain(); if (!state.pendingFileIds.length) { banner.remove(); onComplete(); return; }
+    } catch (e) {
+      if (!ocrTokenCurrent(token)) return;
+      if (ocrKnownRejection(e)) state = ocrLinkState({ ...state, retryableFileIds: state.retryableFileIds.filter(x => !requested.includes(x)) }, files);
+      state = { ...state, message: `病历已保存，关联尚未完成：${apiErrorMessage(e)}。` }; retain();
+    } finally { if (ocrTokenCurrent(token)) { busy = false; render(); } }
+  };
+}
 const ocrHasVisit = d => !!d && (!!d.visitDate || Object.keys(d.fzjc || {}).length > 0);
 
 // 系统字段的取值：定性字段（ANA 等）取阳性 / 阴性，其余取开头的数字（含 <、>）
@@ -36,6 +115,7 @@ async function ocrUpload(file) {
 }
 
 function openOcrImport(opts = {}) {
+  const owner = ocrToken(); if (!ocrTokenCurrent(owner)) return;
   const mode = opts.mode === 'visit' ? 'visit' : 'patient';
   document.querySelector('#ocr-dialog')?.remove();
   const dlg = document.createElement('dialog'); dlg.id = 'ocr-dialog'; dlg.className = 'ocr-dialog';
@@ -61,10 +141,12 @@ function openOcrImport(opts = {}) {
     try {
       status('正在上传图片…');
       const up = await ocrUpload(file);
+      if (!ocrTokenCurrent(owner)) return;
       status('正在识别，约需 5～15 秒…');
-      result = await apiPost('/api/ra/ocr/recognize', { fileId: up.fileId });
+      const recognized = await apiPost('/api/ra/ocr/recognize', { fileId: up.fileId });
+      if (!ocrTokenCurrent(owner)) return; result = recognized;
       status(''); render();
-    } catch (e) { status(`${escapeHTML(apiErrorMessage(e))}`, true); }
+    } catch (e) { if (ocrTokenCurrent(owner)) status(`${escapeHTML(apiErrorMessage(e))}`, true); }
     finally { busy = false; $d('#ocr-drop').classList.remove('busy'); input.value = ''; }
   }
   input.addEventListener('change', () => run(input.files[0]));
@@ -95,7 +177,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     const it = result.items[+tr.dataset.i], f = tr.querySelector('.ocr-field').value, o = (result.fieldOptions || []).find(x => x.field === f);
     const tip = tr.querySelector('.ocr-match');
     let t = '', warn = false;
-    if (!f) t = it.field ? '' : '系统表单里没有这一项，不填入；如果其实是某一项，请在下拉里选';
+    if (!f) { t = it.mappingWarning || (it.field ? '' : '系统表单里没有这一项，不填入；如果其实是某一项，请在下拉里选'); warn = !!it.needsConfirmation; }
     else if (f !== (it.field || '')) t = '手动对应（保存后记住）';
     else t = it.matchedBy === 'learned' ? '按之前的对应' : '自动对应';
     if (f && o && o.unit && it.unit && f === it.field && it.unitWarning) { t += ` · ${it.unitWarning}`; warn = true; }
@@ -122,7 +204,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
   });
 
   $d('#ocr-apply').onclick = async () => {
-    if (!result) return;
+    if (!result || !ocrTokenCurrent(owner)) return;
     const fzjc = {}, mappings = [];
     $d('#ocr-result').querySelectorAll('tbody tr').forEach(tr => {
       const it = result.items[+tr.dataset.i], f = tr.querySelector('.ocr-field').value, v = tr.querySelector('.ocr-val').value.trim();
@@ -131,11 +213,12 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     });
     const btn = $d('#ocr-apply'); btn.disabled = true;
     if (mappings.length) {
-      try { await apiPostJson('/api/ra/ocr/saveAliases', { doctorId: currentDoctorId(), mappings }); }
+      try { await apiPostJson('/api/ra/ocr/saveAliases', { mappings }); }
       catch (e) { toastNext(`对应关系没有记住：${apiErrorMessage(e)}`); }
     }
+    if (!ocrTokenCurrent(owner)) return;
     const draft = { mode, patientId: opts.patientId || null, basic: result.basic || {}, visitDate: result.visitDate || null, fzjc, fileId: result.fileId, url: result.url, at: Date.now() };
-    ocrSaveDraft(draft);
+    if (!opts.onApply) ocrSaveDraft(draft);
     dlg.close();
     if (opts.onApply) opts.onApply(draft);
     else if (mode === 'patient') location.href = 'patient-create.html?ocr=1';

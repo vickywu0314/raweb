@@ -25,36 +25,69 @@ $('#visit-date').addEventListener('change', e => {
   lastDate = e.target.value; dirty = true;
 });
 
+let createSaved = null, createUnknown = false;
+function finishVisitSave(r) {
+  ocrClearDraft(); toastNext(`已保存本次随访（填写了 ${r.filledCount || 0} 个模块）`);
+  location.replace(withFrom(`visit-detail.html?id=${pid}&visit=${encodeURIComponent(r.visitId)}`));
+}
+function showSavedVisit(r, draft) {
+  createSaved = r; dirty = false; saving = false;
+  const btn = $('#save-create'); btn.disabled = true; btn.textContent = '本次随访已保存';
+  const link = ocrLinkState(r.ocrLink, ocrSourceFiles(draft));
+  if (link.status === 'PENDING') {
+    showError('本次随访已保存，原图尚未全部关联，请在下方重试关联，勿重复新增随访。');
+    ocrRecoverSaved($('#create-form'), { ...r, ocrLink: link }, draft, () => finishVisitSave(r));
+  } else finishVisitSave(r);
+}
 $('#create-form').addEventListener('submit', async e => {
-  e.preventDefault(); if (!form) return;
+  e.preventDefault(); if (!form || saving || createSaved || createUnknown) return;
   const d = $('#visit-date').value;
   if (!d) { showError('请填写随访日期'); return; }
   if (d > ymd(TODAY)) { showError('随访日期不能晚于今天'); return; }
-  const modules = vfCollect($('#edit-sections'));
+  const modules = vfCollect($('#edit-sections')), token = ocrToken(), openedForm = form;
+  if (!ocrTokenCurrent(token)) return;
+  const files = ocrSourceFiles(ocrDraftUsed), keptDraft = { ...(ocrDraftUsed || {}), mode: 'visit', patientId, fileIds: files };
+  ocrSaveDraft({ ...keptDraft, createPending: true });
   const btn = $('#save-create'); btn.disabled = true; btn.textContent = '保存中…'; showError(''); saving = true;
   try {
-    const r = await apiPostJson('/api/ra/visit/createVisit', { doctorId: currentDoctorId(), patientId, visitDate: d, modules, ocrFileId: ocrUsed ? ocrFile : null });
-    if (!r || !RAPatientDetail.canonical(r.visitId) || !RAPatientDetail.canonical(r.patientId) || r.patientId !== patientId) throw new Error('保存响应的患者或随访 ID 无效，请刷新确认结果');
-    dirty = false;
-    if (ocrUsed) ocrClearDraft();
-    toastNext(`已保存本次随访（填写了 ${r.filledCount} 个模块）`);
-    location.replace(withFrom(`visit-detail.html?id=${pid}&visit=${encodeURIComponent(r.visitId)}`));
+    const r = await apiPostJson('/api/ra/visit/createVisit', { patientId, visitDate: d, modules, ocrFileIds: files });
+    if (!ocrTokenCurrent(token) || form !== openedForm) return;
+    if (!r || !RAPatientDetail.canonical(r.visitId) || !RAPatientDetail.canonical(r.patientId) || r.patientId !== patientId) throw new Error('保存响应的患者或随访 ID 无效');
+    showSavedVisit(r, keptDraft);
   } catch (ex) {
-    saving = false; btn.disabled = false; btn.textContent = '保存本次随访';
-    showError(`保存失败：${escapeHTML(ex.message)}`); window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (!ocrTokenCurrent(token) || form !== openedForm) return;
+    saving = false;
+    if (ocrKnownRejection(ex)) {
+      ocrSaveDraft(keptDraft); btn.disabled = false; btn.textContent = '保存本次随访'; showError(`保存失败：${escapeHTML(apiErrorMessage(ex))}`);
+    } else {
+      createUnknown = true; btn.disabled = true; btn.textContent = '请先核对保存结果';
+      showError('保存响应未确认，保存结果未知，请到随访记录核对，勿重复提交。原图草稿已保留；确认已有记录后再处理原图关联。');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 });
 // OCR 识别结果填表：随访日期、辅助检查各项；填上的字段高亮，医生核对后保存
-let ocrUsed = false, ocrFile = null;   // 保存时把 OCR 原图关联到这次随访
+let ocrUsed = false, ocrDraftUsed = null, ocrFilling = false;
+const ocrManualFields = new Set();
+for (const event of ['input','change']) $('#edit-sections').addEventListener(event, e => {
+  if (ocrFilling) return;
+  const el = e.target.closest?.('.vf-field');
+  if (el?.dataset.col === 'fzjc') ocrManualFields.add(el.dataset.key);
+});
 function applyOcr(d) {
-  if(!form)return;
-  const box = $('#edit-sections'), labels = [];
-  if (d.visitDate && d.visitDate <= ymd(TODAY)) { const i = $('#visit-date'); i.value = d.visitDate; i.dispatchEvent(new Event('change')); i.classList.add('ocr-filled'); }
-  Object.entries(d.fzjc || {}).forEach(([k, v]) => { if (vfSetValue(box, 'fzjc', k, v)) labels.push(k); });
-  ocrUsed = true; ocrFile = d.fileId || null; dirty = true;
+  if (!form || createSaved || createUnknown || saving) return;
+  const merged = ocrMergeDraft(ocrDraftUsed, d); if (ocrSourceFiles(merged).length > 20) { toast('每次最多保留20张原图，请先保存本次随访'); return; }
+  const box = $('#edit-sections'), labels = []; let preserved = 0, dateFilled = false;
+  if (!ocrUsed && !dirty && d.visitDate && d.visitDate <= ymd(TODAY)) { const i = $('#visit-date'); i.value = d.visitDate; i.dispatchEvent(new Event('change')); i.classList.add('ocr-filled'); dateFilled = true; }
+  Object.entries(d.fzjc || {}).forEach(([k, v]) => {
+    const existing = vfCurrent(box, 'fzjc', k), notChecked = vfFieldEl(box, 'fzjc', k)?.querySelector('.vf-wx')?.checked;
+    if (ocrManualFields.has(k) || notChecked || (existing != null && String(existing).trim() !== '')) { preserved++; return; }
+    ocrFilling = true; try { if (vfSetValue(box, 'fzjc', k, v)) labels.push(k); } finally { ocrFilling = false; }
+  });
+  ocrUsed = true; ocrDraftUsed = merged; dirty = true; ocrSaveDraft(ocrDraftUsed);
   $('.ocr-banner')?.remove();
-  ocrBanner($('#create-form'), `已用 OCR 识别结果预填${d.visitDate ? `随访日期 ${escapeHTML(d.visitDate)}、` : ''}辅助检查 ${labels.length} 项（蓝框标出），<b>请对照原图核对后保存</b>。<a href="${API_BASE + d.url}" target="_blank" rel="noopener">查看原图</a>`);
-  const first = box.querySelector('.ocr-filled'); if (first) { first.closest('details')?.setAttribute('open', ''); }
+  ocrBanner($('#create-form'), `本次填入${dateFilled ? '随访日期和' : ''} ${labels.length} 项空白辅助检查，保留 ${preserved} 项已有值。已保留 ${ocrSourceFiles(ocrDraftUsed).length} 张原图，<b>请核对后保存</b>。${ocrSourceLinks(ocrDraftUsed)}`);
+  const first = box.querySelector('.ocr-filled'); if (first) first.closest('details')?.setAttribute('open', '');
 }
 window.addEventListener('beforeunload', e => { if (dirty && !saving) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -63,7 +96,7 @@ const detailOwner=RAPatientDetail.owner({
  clear(state,message){
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic){disposeBasic();disposeBasic=null;}
-  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrFile=null;dirty=false;document.title='新增随访 · 患者数据研究平台';
+  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();dirty=false;saving=false;createSaved=null;createUnknown=false;document.title='新增随访 · 患者数据研究平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-create').disabled=true;$('#visit-title').textContent='新增随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');$('#ocr-import').disabled=true;showError(message);
@@ -80,7 +113,10 @@ const detailOwner=RAPatientDetail.owner({
   $('#visit-type').textContent=`${f.visitType}（时间最早的一次随访为基线访视）`;
   vfRender($('#edit-sections'),f,{baseline:f.visitNo===1,hint:'选填'});vfBind($('#edit-sections'),()=>dirty=true);
   $('#save-create').disabled=false;
-  const d=queryParam('ocr')&&ocrDraft();if(d&&(!d.patientId||d.patientId===patientId)&&ocrHasVisit(d))applyOcr(d);
+  const d=ocrDraft();
+  if(d&&d.patientId===patientId&&d.saved?.visitId){showSavedVisit({...d.saved,filledCount:0},d);}
+  else if(d&&d.patientId===patientId&&d.createPending){createUnknown=true;$('#save-create').disabled=true;showError('保存结果未知，请到随访记录核对，勿重复提交。');}
+  else if(queryParam('ocr')&&d&&(!d.patientId||d.patientId===patientId)&&ocrHasVisit(d))applyOcr(d);
   return disposeBasic;
  }
 });

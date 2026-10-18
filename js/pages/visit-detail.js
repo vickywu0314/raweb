@@ -163,11 +163,15 @@ function clearOcrImages(){ocrImagesGen++;const box=$('#ocr-images');box.hidden=t
 async function loadOcrImages(){
  const gen=++ocrImagesGen,box=$('#ocr-images');
  try{
-  const list=await apiPost('/api/ra/ocr/visitImages',{doctorId:currentDoctorId(),patientId,visitId})||[];
+  const list=await apiPost('/api/ra/ocr/visitImages',{patientId,visitId})||[];
   if(gen!==ocrImagesGen||!list.length)return;
   box.innerHTML=`<h2>OCR 识别原图 <small>录入这次随访时识别的病历 / 检验报告图片，点开查看原图</small></h2><div class="ocr-thumbs">${list.map(r=>`<a href="${API_BASE+r.url}" target="_blank" rel="noopener" title="上传于 ${escapeHTML(r.uploadTime||'')}"><img src="${API_BASE+r.url}" alt="OCR 原图" loading="lazy"><span>${escapeHTML(r.uploadTime||'')}</span></a>`).join('')}</div>`;
   box.hidden=false;
- }catch(e){/* 查不到原图不影响访视详情 */}
+ }catch(e){
+  if(gen!==ocrImagesGen)return;
+  box.hidden=false;box.innerHTML='<h2>OCR 识别原图</h2><p>原图暂时无法加载，请稍后重试。</p><button type="button" class="button" id="ocr-reload-images">重试加载原图</button>';
+  box.querySelector('#ocr-reload-images').onclick=()=>loadOcrImages();
+ }
 }
 
 function renderError(msg){

@@ -95,22 +95,74 @@ function prefill(b) {
 field('cardNo').addEventListener('change', checkCard);
 
 // ===== OCR 识别结果预填：只填识别出来的项，填上的蓝框标出，医生核对后保存 =====
-let ocrDraftUsed = null;
+const ocrManualBasics = new Set();
+for (const event of ['input','change']) form.addEventListener(event, e => { if (e.target?.name) ocrManualBasics.add(e.target.name); });
+let ocrDraftUsed = null, patientCreateSaved = null, patientCreateUnknown = false, patientCreating = false;
 function applyOcr(d) {
-  const b = d.basic || {}, filled = [];
+  if (patientCreateSaved || patientCreateUnknown || patientCreating || d.patientId) return;
+  const merged = ocrMergeDraft(ocrDraftUsed, d); if (ocrSourceFiles(merged).length > 20) { toast('每次最多保留20张原图，请先保存患者'); return; }
+  const b = d.basic || {}, filled = []; let preserved = 0;
   const mark = n => { const el = field(n); (el instanceof RadioNodeList ? form.querySelector(`[name=${n}]`).closest('.choice-row') : el).classList.add('ocr-filled'); filled.push(n); };
-  ['name','mobile','height','weight','confirmDate','happenDate'].forEach(n => { if (b[n] && field(n)) { field(n).value = b[n]; mark(n); } });
-  if (b.nation && [...field('nation').options].some(o => o.value === b.nation)) { field('nation').value = b.nation; mark('nation'); }
-  if (b.marry != null && b.marry !== '') { field('marry').value = String(b.marry); mark('marry'); }
-  if (b.gender) { const r = form.querySelector(`[name=gender][value="${b.gender}"]`); if (r) { r.checked = true; mark('gender'); } }
-  if (b.cardNo) { field('cardNo').value = b.cardNo; mark('cardNo'); checkCard(); }
-  ocrDraftUsed = d;
+  const empty = n => { const has = ocrManualBasics.has(n) || (field(n) && String(field(n).value || '').trim()); if (has) preserved++; return !has; };
+  ['name','mobile','height','weight','confirmDate','happenDate'].forEach(n => { if (b[n] && field(n) && empty(n)) { field(n).value = b[n]; mark(n); } });
+  if (b.nation && [...field('nation').options].some(o => o.value === b.nation) && empty('nation')) { field('nation').value = b.nation; mark('nation'); }
+  if (b.marry != null && b.marry !== '' && empty('marry')) { field('marry').value = String(b.marry); mark('marry'); }
+  if (b.gender) { const selected = form.querySelector('[name=gender]:checked'), r = form.querySelector(`[name=gender][value="${b.gender}"]`); if (selected || ocrManualBasics.has('gender')) preserved++; else if (r) { r.checked = true; mark('gender'); } }
+  if (b.cardNo && empty('cardNo')) { field('cardNo').value = b.cardNo; mark('cardNo'); checkCard(); }
+  ocrDraftUsed = merged; ocrSaveDraft(ocrDraftUsed);
   $('.ocr-banner')?.remove();
-  const lab = Object.keys(d.fzjc || {}).length;
-  ocrBanner(form, `已用 OCR 识别结果预填 ${filled.length} 项基本信息（蓝框标出），<b>请对照原图核对后保存</b>。${ocrHasVisit(d) ? `识别出${lab ? ` ${lab} 项检验结果` : '报告日期'}，建档后会接着打开「新增随访」预填基线访视。` : ''}${b.age && !b.cardNo ? `报告上的年龄：${escapeHTML(b.age)} 岁。` : ''}<a href="${API_BASE + d.url}" target="_blank" rel="noopener">查看原图</a>`);
+  const lab = Object.keys(ocrDraftUsed.fzjc || {}).length;
+  ocrBanner(form, `本次填入 ${filled.length} 项空白基本信息，保留 ${preserved} 项已有值。已保留 ${ocrSourceFiles(ocrDraftUsed).length} 张原图，<b>请核对后保存</b>。${ocrHasVisit(ocrDraftUsed) ? `建档后接着录入基线访视（${lab} 项检验结果）。` : ''}${ocrSourceLinks(ocrDraftUsed)}`);
   refresh();
 }
-if (!EDIT_ID && queryParam('ocr')) { const d = ocrDraft(); if (d && d.mode === 'patient') applyOcr(d); }
+function finishPatientSave(r, draft) {
+  toastNext(r.action === 'linked' ? `已加入 RA 研究库，研究编号 ${r.studyNo || '—'}` : `建档成功，研究编号 ${r.studyNo || '—'}`);
+  if (draft && ocrHasVisit(draft)) {
+    ocrSaveDraft({ ...draft, patientId: String(r.patientId), saved: null, createPending: false });
+    location.href = `visit-create.html?id=${encodeURIComponent(r.patientId)}&ocr=1`; return;
+  }
+  ocrClearDraft(); location.href = `patient-visits.html?id=${encodeURIComponent(r.patientId)}`;
+}
+function showSavedPatient(r, draft) {
+  patientCreateSaved = r; patientCreating = false;
+  $('#save').disabled = true; $('#save').textContent = '患者已保存';
+  const link = ocrLinkState(r.ocrLink, ocrSourceFiles(draft));
+  if (link.status === 'PENDING') {
+    formError('患者已保存，原图尚未全部关联，请重试关联，勿重复建档。');
+    ocrRecoverSaved(form, { ...r, ocrLink: link }, draft, () => finishPatientSave(r, draft));
+  } else finishPatientSave(r, draft);
+}
+if (!EDIT_ID) {
+  const d = ocrDraft();
+  if (d?.saved && !d.saved.visitId) showSavedPatient(d.saved, d);
+  else if (d?.mode === 'patient' && d.createPending) { patientCreateUnknown = true; $('#save').disabled = true; formError('保存结果未知，请到患者列表核对，勿重复提交。'); }
+  else if (d?.mode === 'patient' && d.patientId) { patientCreateSaved = { patientId: d.patientId }; $('#save').disabled = true; ocrBanner(form, `已为这份草稿建档，请继续 <a href="visit-create.html?id=${encodeURIComponent(d.patientId)}&ocr=1">录入基线访视</a>，勿重复建档。`); }
+  else if (queryParam('ocr') && d?.mode === 'patient') applyOcr(d);
+}
+
+const patientFormOwner = !EDIT_ID ? ocrToken() : null;
+let patientFormRevoked = false;
+function revokePatientOcrForm(force = false) {
+  if (EDIT_ID || (!force && patientFormOwner.doctorId === ocrDoctor())) return;
+  patientFormRevoked = true; ocrDraftUsed = null; patientCreating = false; patientCreateUnknown = true;
+  form.reset(); document.querySelectorAll('.ocr-banner').forEach(n => n.remove());
+  $('#save').disabled = true; formError('登录身份已变化，请刷新页面后重新录入。');
+}
+window.addEventListener('ra-auth-changed', () => revokePatientOcrForm());
+window.addEventListener('storage', e => { if (!EDIT_ID && (e.key === 'ra-auth' || e.key === null)) revokePatientOcrForm(ocrStorageIdentityChanged(e)); });
+window.addEventListener('pageshow', e => {
+  if (EDIT_ID || !e.persisted) return;
+  revokePatientOcrForm();
+  if (patientFormRevoked || patientFormOwner.doctorId !== ocrDoctor()) return;
+  const d = ocrDraft();
+  if (d?.mode === 'patient' && d.saved && !d.saved.visitId) {
+    document.querySelectorAll('.ocr-banner').forEach(n => n.remove());
+    showSavedPatient({ ...patientCreateSaved, ...d.saved }, d);
+  } else if ((patientCreating && !patientCreateSaved) || d?.createPending) {
+    patientCreating = false; patientCreateUnknown = true; $('#save').disabled = true;
+    formError('保存结果未知，请到患者列表核对，勿重复提交。');
+  }
+});
 
 // ===== 联动：BMI、血压提示、吸烟明细 =====
 function refresh() {
@@ -172,7 +224,7 @@ function formData() {
 }
 function formError(msg, el) { $('#form-error').textContent = msg || ''; if (el) el.focus(); }
 form.addEventListener('submit', async e => {
-  e.preventDefault(); formError('');
+  e.preventDefault(); if (!EDIT_ID && (patientCreating || patientCreateSaved || patientCreateUnknown)) return; formError('');
   const b = formData();
   if (!b.name) return formError('请填写患者姓名', field('name'));
   if (b.cardNo && !idInfo(b.cardNo)) return formError('身份证号格式不正确', field('cardNo'));
@@ -181,20 +233,24 @@ form.addEventListener('submit', async e => {
   const bad = [...form.querySelectorAll('input[type=number]')].find(i => !i.closest('[hidden]') && !i.checkValidity());
   if (bad) return formError(`「${bad.closest('.form-field, .comorbid-option').querySelector('span').textContent.trim()}」超出合理范围`, bad);
   if (EDIT_ID) return saveEdit(b);
-  const btn = $('#save'); btn.disabled = true; btn.textContent = '保存中…';
+  const btn = $('#save'), token = ocrToken(); if (!ocrTokenCurrent(token)) return;
+  const keptDraft = { ...(ocrDraftUsed || {}), mode: 'patient', fileIds: ocrSourceFiles(ocrDraftUsed) };
+  ocrSaveDraft({ ...keptDraft, createPending: true }); patientCreating = true; btn.disabled = true; btn.textContent = '保存中…';
   try {
-    const r = await apiPostJson('/api/ra/patient/createPatient', { doctorId: currentDoctorId(), transfer: false, basic: b, ocrFileId: ocrDraftUsed ? ocrDraftUsed.fileId : null });
-    toastNext(r.action === 'linked' ? `已加入 RA 研究库，研究编号 ${r.studyNo || '—'}` : `建档成功，研究编号 ${r.studyNo}`);
-    if (ocrDraftUsed && ocrHasVisit(ocrDraftUsed)) {   // OCR：接着录基线访视
-      ocrSaveDraft({ ...ocrDraftUsed, patientId: String(r.patientId) });
-      location.href = `visit-create.html?id=${encodeURIComponent(r.patientId)}&ocr=1`; return;
-    }
-    if (ocrDraftUsed) ocrClearDraft();
-    location.href = `patient-visits.html?id=${encodeURIComponent(r.patientId)}`;
+    const r = await apiPostJson('/api/ra/patient/createPatient', { transfer: false, basic: b, ocrFileIds: ocrSourceFiles(ocrDraftUsed) });
+    if (!ocrTokenCurrent(token)) return;
+    if (!r || typeof r.patientId !== 'string' || !/^[1-9]\d*$/.test(r.patientId)) throw new Error('保存响应的患者编号无效');
+    showSavedPatient(r, keptDraft);
   } catch (ex) {
-    formError(`保存失败：${ex.message}`);
-    btn.disabled = false; btn.textContent = '保存建档';
-    if (b.cardNo && /名下/.test(ex.message)) checkCard();   // 期间被别人建档或转入：重新查重
+    if (!ocrTokenCurrent(token)) return;
+    patientCreating = false;
+    if (ocrKnownRejection(ex)) {
+      ocrSaveDraft(keptDraft); formError(`保存失败：${apiErrorMessage(ex)}`); btn.disabled = false; btn.textContent = '保存建档';
+      if (b.cardNo && /名下/.test(ex.message)) checkCard();
+    } else {
+      patientCreateUnknown = true; btn.disabled = true; btn.textContent = '请先核对保存结果';
+      formError('保存结果未知，请到患者列表核对，勿重复提交。原图草稿已保留；确认已有患者后再处理原图关联。');
+    }
   }
 });
 
