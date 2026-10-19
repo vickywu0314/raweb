@@ -40,8 +40,18 @@ function diseaseNote(p){
  return `<span class="cell-note disease-note"><span title="${t}">RF ${escapeHTML(p.rf?p.rf.statusLabel:'未检测')} / CCP ${escapeHTML(p.ccp?p.ccp.statusLabel:'未检测')}</span> / ${das}</span>`;
 }
 function card(p){const id=p.patientId;return `<div class="patient-card selectable" data-id="${escapeHTML(id)}"><span class="check-col"><input class="patient-check" type="checkbox" value="${escapeHTML(id)}" aria-label="选择患者 ${escapeHTML(p.name)}" ${selected.has(id)?'checked':''}></span><a class="patient-card-link" href="patient-visits.html?id=${encodeURIComponent(id)}"><span class="patient-identity"><span class="record-icon">${icon('record')}</span><span class="patient-info"><span class="patient-name">${escapeHTML(p.name)}${p.incomplete?`<span title="${escapeHTML((p.missingItems||[]).join('、'))}">${badge('待补全','warning')}</span>`:''}</span><span class="patient-meta">${escapeHTML(p.sex||'性别未填')} · ${birthText(p)}</span><span class="patient-meta">ID号: ${escapeHTML(id)}</span></span></span><span class="patient-cell research-cell"><span class="cell-label">研究信息</span><span class="study-code">${escapeHTML(p.studyNo||'—')}</span><span class="cell-note">随访（不含基线） ${escapeHTML(p.followUpCount==null?'未提供':p.followUpCount)} 次 · ${cycleLabel(p.followCycle)}</span></span><span class="patient-cell disease-cell"><span class="cell-label">疾病资料</span><span>${p.subtype?badge(p.subtype,p.subtype==='血清阳性'?'warning':'neutral'):'<span class="missing-value">分型未提供</span>'}</span>${diseaseNote(p)}</span><span class="patient-cell history-cell"><span class="cell-label">其他病史</span>${comorbidCell(p)}</span><span class="patient-cell visit-cell"><span class="cell-label">最近随访</span><span class="last-visit">${icon('calendar')}${escapeHTML(p.lastVisitDate||'暂无访视')}</span><span class="cell-note">${p.visitCount?`累计 ${p.visitCount} 次访视`:'待完成基线访视'}</span></span><span class="patient-cell status-cell"><span class="cell-label">随访状态</span>${badge(p.followStatusLabel,STATUS_TONE[p.followStatus]||'')}${p.suspectedLostToFollowUp?badge('疑似失访','warning'):''}</span>${icon('chevron','chevron')}</a></div>`}
-function updateSelectionUI(){const n=selected.size;const b=$('#ai-analysis');b.disabled=!n;b.textContent=n?`AI智能分析（已选 ${n} 人）`:'AI智能分析';const all=$('#select-all');if(all){const checked=pageRows.filter(p=>selected.has(String(p.patientId))).length;all.checked=pageRows.length>0&&checked===pageRows.length;all.indeterminate=checked>0&&checked<pageRows.length}}
+function updateSelectionUI(){const n=selected.size;const b=$('#ai-analysis');b.disabled=false;b.title=n?'对勾选的患者做队列分析':'未勾选患者时进入 AI 智能分析首页；勾选患者后对这些患者做队列分析';b.textContent=n?`AI智能分析（已选 ${n} 人）`:'AI智能分析';const all=$('#select-all');if(all){const checked=pageRows.filter(p=>selected.has(String(p.patientId))).length;all.checked=pageRows.length>0&&checked===pageRows.length;all.indeterminate=checked>0&&checked<pageRows.length}}
 
+// 没查到时说明用了哪些条件（如「近期需随访」= 14 天内到期，常常就是 0 人）
+const STATUS_HINT={due:'近期需随访 = 下次应随访日期在今天起 14 天内',overdue:'随访逾期 = 下次应随访日期已过',none:'待首次随访 = 还没有录入基线访视',ongoing:'随访中 = 已有随访且未到期',lost:'已脱落 = 已标记脱落'};
+function emptyText(){
+  const conds=[];
+  if(state.q)conds.push(`关键字「${state.q}」`);
+  if(state.status)conds.push(`随访状态「${$('#visit-status').selectedOptions[0]?.textContent||state.status}」`);
+  if(state.data)conds.push(`「${$('#data-status').selectedOptions[0]?.textContent||state.data}」`);
+  if(!conds.length)return '暂无患者';
+  return `没有符合条件的患者：${conds.join(' + ')}。${STATUS_HINT[state.status]?STATUS_HINT[state.status]+'。':''}可修改条件或点「重置」查看全部`;
+}
 function render(d){
   const rows=d.items||[];
   // ID 已被 JSON number 舍入后不能恢复；整页验证后才发布链接和选择项。
@@ -80,6 +90,7 @@ async function load(){
     const pages=Math.max(1,Math.ceil(d.total/d.size));
     if(d.page>pages){state.page=pages;return load();}
     render(d);
+    if(!d.total)$('#empty').querySelector('h2').textContent=emptyText();
   }catch(e){if(seq===loadSeq){console.error(e);renderError(e.message)}}
 }
 
@@ -142,7 +153,7 @@ async function downloadVisitsCsv(start,end){
  if(!(res.headers.get('Content-Type')||'').includes('text/csv')){const r=await res.json();throw new Error(r.message||'导出失败')}
  const u=URL.createObjectURL(await res.blob()),a=document.createElement('a');a.href=u;a.download=`RA随访数据-${start}至${end}.csv`;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u)},1000);
 }
-$('#ai-analysis').onclick=()=>{if(selected.size)location.href=`ai-cohort.html?ids=${[...selected].map(encodeURIComponent).join(',')}`};
+$('#ai-analysis').onclick=()=>{location.href=selected.size?`ai-cohort.html?ids=${[...selected].map(encodeURIComponent).join(',')}`:'ai-analysis.html'};
 $('#search-form').addEventListener('submit',e=>{e.preventDefault();state.q=$('#query').value.trim();state.status=$('#visit-status').value;state.data=$('#data-status').value;state.page=1;load()});
 // 检索条件（关键字、随访状态、数据完整性）选好后，点「查询」才查询；选下拉不会触发查询
 $('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};$('#query').value='';$('#visit-status').value='';$('#data-status').value='missing';load()});
