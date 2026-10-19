@@ -219,6 +219,21 @@
   outline:none;
 }
 
+/* 浏览器自动填充（记住的用户名 / 密码）默认给输入框加浅蓝底色，这里去掉，和输入框底色一致 */
+.login-input input:-webkit-autofill,
+.login-input input:-webkit-autofill:hover,
+.login-input input:-webkit-autofill:focus {
+  -webkit-box-shadow:0 0 0 1000px #f8fafd inset;
+  box-shadow:0 0 0 1000px #f8fafd inset;
+  -webkit-text-fill-color:var(--ink);
+  caret-color:var(--ink);
+  transition:background-color 9999s ease-out 0s;
+}
+.login-input:focus-within input:-webkit-autofill {
+  -webkit-box-shadow:0 0 0 1000px #fff inset;
+  box-shadow:0 0 0 1000px #fff inset;
+}
+
 .pw-toggle {
   display:grid;
   place-items:center;
