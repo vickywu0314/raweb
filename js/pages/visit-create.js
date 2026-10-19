@@ -46,6 +46,11 @@ $('#create-form').addEventListener('submit', async e => {
   if (d > ymd(TODAY)) { showError('随访日期不能晚于今天'); return; }
   const modules = vfCollect($('#edit-sections')), token = ocrToken(), openedForm = form;
   if (!ocrTokenCurrent(token)) return;
+  if (ocrUncertain.size) {
+    const names = [...ocrUncertain.keys()].map(k => VF.defs.fzjc?.[k]?.label || k).join('、');
+    const ok = await confirmDialog(`还有 ${ocrUncertain.size} 项标黄的 OCR 不确定值没有改动过：${names}。\n请确认这些值与原图一致后再保存。`, { title: '核对 OCR 识别结果', okText: '已核对，继续保存' });
+    if (!ok || form !== openedForm || !ocrTokenCurrent(token)) { const first = $('#edit-sections .ocr-uncertain'); if (first) { first.closest('details')?.setAttribute('open', ''); first.scrollIntoView({ block: 'center' }); } return; }
+  }
   preparing=true;
   try { await vfPrepareSubmission($('#edit-sections'),modules); }
   catch(error){if(form===openedForm&&ocrTokenCurrent(token)){showError(escapeHTML(error.message));vfFocusInvalid(error);}return;}
@@ -75,10 +80,23 @@ $('#create-form').addEventListener('submit', async e => {
 // OCR 识别结果填表：随访日期、辅助检查各项；填上的字段高亮，医生核对后保存
 let ocrUsed = false, ocrDraftUsed = null, ocrFilling = false;
 const ocrManualFields = new Set();
+// OCR 不确定值（原结果不是完整数值，已按原图取值）：字段标黄并显示原文；医生改过这一项就算核对过，去掉标黄
+const ocrUncertain = new Map();
+function ocrMarkUncertain(key, raw) {
+  const el = vfFieldEl($('#edit-sections'), 'fzjc', key); if (!el) return;
+  ocrUncertain.set(key, raw); el.classList.add('ocr-uncertain');
+  el.querySelector('.ocr-uncertain-hint')?.remove();
+  el.insertAdjacentHTML('beforeend', `<small class="ocr-uncertain-hint">OCR 不确定：原文「${escapeHTML(raw)}」，请对照原图核对</small>`);
+}
+function ocrUnmarkUncertain(key) {
+  ocrUncertain.delete(key);
+  const el = vfFieldEl($('#edit-sections'), 'fzjc', key); if (!el) return;
+  el.classList.remove('ocr-uncertain'); el.querySelector('.ocr-uncertain-hint')?.remove();
+}
 for (const event of ['input','change']) $('#edit-sections').addEventListener(event, e => {
   if (ocrFilling) return;
   const el = e.target.closest?.('.vf-field');
-  if (el?.dataset.col === 'fzjc') ocrManualFields.add(el.dataset.key);
+  if (el?.dataset.col === 'fzjc') { ocrManualFields.add(el.dataset.key); if (ocrUncertain.has(el.dataset.key)) ocrUnmarkUncertain(el.dataset.key); }
 });
 function applyOcr(d) {
   if (!form || createSaved || createUnknown || saving) return;
@@ -88,11 +106,11 @@ function applyOcr(d) {
   Object.entries(d.fzjc || {}).forEach(([k, v]) => {
     const existing = vfCurrent(box, 'fzjc', k), notChecked = vfFieldEl(box, 'fzjc', k)?.querySelector('.vf-wx')?.checked;
     if (ocrManualFields.has(k) || notChecked || (existing != null && String(existing).trim() !== '')) { preserved++; return; }
-    ocrFilling = true; try { if (vfSetValue(box, 'fzjc', k, v)) labels.push(k); } finally { ocrFilling = false; }
+    ocrFilling = true; try { if (vfSetValue(box, 'fzjc', k, v)) { labels.push(k); if (d.uncertain?.[k] != null) ocrMarkUncertain(k, d.uncertain[k]); } } finally { ocrFilling = false; }
   });
   ocrUsed = true; ocrDraftUsed = merged; dirty = true; ocrSaveDraft(ocrDraftUsed);
   $('.ocr-banner')?.remove();
-  ocrBanner($('#create-form'), `本次填入${dateFilled ? '随访日期和' : ''} ${labels.length} 项空白辅助检查，保留 ${preserved} 项已有值。已保留 ${ocrSourceFiles(ocrDraftUsed).length} 张原图，<b>请核对后保存</b>。${ocrSourceLinks(ocrDraftUsed)}`);
+  ocrBanner($('#create-form'), `本次填入${dateFilled ? '随访日期和' : ''} ${labels.length} 项空白辅助检查${ocrUncertain.size ? `（其中 <b class="ocr-uncertain-count">${ocrUncertain.size} 项标黄</b>：原结果不是完整数值，已按原图取值，请重点核对）` : ''}，保留 ${preserved} 项已有值。已保留 ${ocrSourceFiles(ocrDraftUsed).length} 张原图，<b>请核对后保存</b>。${ocrSourceLinks(ocrDraftUsed)}`);
   const first = box.querySelector('.ocr-filled'); if (first) first.closest('details')?.setAttribute('open', '');
 }
 window.addEventListener('beforeunload', e => { if (dirty && !saving) { e.preventDefault(); e.returnValue = ''; } });
@@ -103,7 +121,7 @@ const detailOwner=RAPatientDetail.owner({
   vfCancelConfirmations();
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic){disposeBasic();disposeBasic=null;}
-  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();dirty=false;saving=false;preparing=false;createSaved=null;createUnknown=false;document.title='新增随访 · 患者数据研究平台';
+  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();ocrUncertain.clear();dirty=false;saving=false;preparing=false;createSaved=null;createUnknown=false;document.title='新增随访 · 患者数据研究平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-create').disabled=true;$('#visit-title').textContent='新增随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');$('#ocr-import').disabled=true;showError(message);

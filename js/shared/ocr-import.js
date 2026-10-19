@@ -38,7 +38,9 @@ function ocrSourceFiles(d) { return [...new Set([...(d?.fileIds || []), ...(d?.s
 function ocrMergeDraft(old, next) {
   const sources = new Map();
   for (const d of [old, next]) if (d) { for (const fileId of ocrSourceFiles(d)) sources.set(fileId, { fileId, url: `/api/ra/files/ocr/${fileId}` }); }
-  return { ...old, ...next, basic: { ...(next?.basic || {}), ...(old?.basic || {}) }, fzjc: { ...(next?.fzjc || {}), ...(old?.fzjc || {}) }, sources: [...sources.values()], fileIds: [...sources.keys()] };
+  const fzjc = { ...(next?.fzjc || {}), ...(old?.fzjc || {}) }, uncertain = {};
+  for (const k of Object.keys(fzjc)) { const from = old?.fzjc && k in old.fzjc ? old : next; if (from?.uncertain?.[k] != null) uncertain[k] = from.uncertain[k]; }
+  return { ...old, ...next, basic: { ...(next?.basic || {}), ...(old?.basic || {}) }, fzjc, uncertain, sources: [...sources.values()], fileIds: [...sources.keys()] };
 }
 function ocrSourceLinks(d) { return (d?.sources?.length ? d.sources : d?.fileId ? [{ fileId: d.fileId, url: d.url }] : []).map((x, i) => `<a href="${escapeHTML(API_BASE + x.url)}" target="_blank" rel="noopener">原图 ${i + 1}</a>`).join(' · '); }
 function ocrKnownRejection(e) { return ['400','401','403','409'].includes(String(e?.code || e?.status)); }
@@ -104,6 +106,21 @@ function ocrValue(opt, raw) {
   return m && Number.isFinite(Number(numeric.replace(/^(?:<=|>=|<|>|≤|≥|＜|＞|=)\s*/,''))) ? (numeric===s?s.replace(/\s/g,''):s) : '';
 }
 
+// 结果不是完整值、但能安全读出时的「待核对建议值」：去掉结尾的偏高 / 偏低标记（↑ ↓ H L *）和与报告 / 系统单位相同的单位，
+// 剩下是完整数值才建议；定性「阳性(1:320)」「阴性(-)」建议阳性 / 阴性。建议值只会标黄填入，提醒医生对照原图核对，不当作确定值。
+function ocrSuggest(opt, raw, unit) {
+  const s = String(raw ?? '').trim(); if (!opt || !s || ocrValue(opt, s)) return '';
+  if (opt.type === 'radioList') { const m = s.match(/^(阳性|阴性)\s*[（(][^()（）]*[)）]$/); return m ? m[1] : ''; }
+  const units = [unit, opt.unit].filter(Boolean).map(ocrUnitKey);
+  let t = s;
+  for (let i = 0; i < 3; i++) {
+    t = t.replace(/\s*(?:[↑↓▲▼*]+|(?<=[\d\s])[HhLl])$/, '').trim();
+    const m = t.match(/^(.*?\d)\s*([^\d\s][^\s]*)$/);
+    if (m && units.includes(ocrUnitKey(m[2]))) t = m[1].trim();
+  }
+  return t !== s ? ocrValue(opt, t) : '';
+}
+
 async function ocrUpload(file) {
   const body = new FormData(); body.append('file', file);
   let res;
@@ -161,7 +178,8 @@ function openOcrImport(opts = {}) {
     const r = result, opts = r.fieldOptions || [], b = r.basic || {};
     const basicRows = Object.keys(OCR_BASIC_LABELS).filter(k => b[k]).map(k => `<dt>${OCR_BASIC_LABELS[k]}</dt><dd>${escapeHTML(k === 'gender' ? (b[k] === '1' ? '男' : '女') : k === 'marry' ? OCR_MARRY[b[k]] || b[k] : b[k])}</dd>`).join('');
     const optHTML = sel => `<option value="">不填入</option>${opts.map(o => `<option value="${escapeHTML(o.field)}"${o.field === sel ? ' selected' : ''}>${escapeHTML(o.label)}${o.unit ? `（${escapeHTML(o.unit)}）` : ''}</option>`).join('')}`;
-    const rows = (r.items || []).map((it, i) => `<tr data-i="${i}"><td>${escapeHTML(it.name || '')}${it.abbr && it.abbr !== it.name ? `<small>${escapeHTML(it.abbr)}</small>` : ''}</td><td>${escapeHTML(it.result || '')}${it.unit ? ` <small>${escapeHTML(it.unit)}</small>` : ''}</td><td><select class="table-input ocr-field" aria-label="对应系统字段">${optHTML(it.field)}</select><small class="ocr-match"></small></td><td><input class="table-input ocr-val" value="${escapeHTML(it.field ? (it.value || '') : '')}" aria-label="填入值"></td></tr>`).join('');
+    const suggestOf = it => { const o = opts.find(x => x.field === it.field); return it.field && !it.value ? ocrSuggest(o, it.result, it.unit) : ''; };
+    const rows = (r.items || []).map((it, i) => `<tr data-i="${i}" data-sugg="${escapeHTML(suggestOf(it))}"><td>${escapeHTML(it.name || '')}${it.abbr && it.abbr !== it.name ? `<small>${escapeHTML(it.abbr)}</small>` : ''}</td><td>${escapeHTML(it.result || '')}${it.unit ? ` <small>${escapeHTML(it.unit)}</small>` : ''}</td><td><select class="table-input ocr-field" aria-label="对应系统字段">${optHTML(it.field)}</select><small class="ocr-match"></small></td><td><input class="table-input ocr-val" value="${escapeHTML(it.field ? (it.value || suggestOf(it)) : '')}" aria-label="填入值"></td></tr>`).join('');
     $d('#ocr-result').innerHTML = `<div class="ocr-grid"><a class="ocr-preview" href="${API_BASE + r.url}" target="_blank" rel="noopener" title="查看原图"><img src="${API_BASE + r.url}" alt="病历图片"></a><div>
 <h3>基本信息</h3>${basicRows ? `<dl class="ocr-basic">${basicRows}</dl>` : '<p class="muted">没有识别出基本信息</p>'}
 <h3>${mode === 'patient' ? '基线访视日期' : '随访日期'}</h3><p>${r.visitDate ? escapeHTML(r.visitDate) : '<span class="muted">没有识别出报告日期，按今天</span>'}</p></div></div>
@@ -182,7 +200,10 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     if (!f) { t = it.mappingWarning || (it.field ? '' : '系统表单里没有这一项，不填入；如果其实是某一项，请在下拉里选'); warn = !!it.needsConfirmation; }
     else if (f !== (it.field || '')) t = '手动对应（保存后记住）';
     else t = it.matchedBy === 'learned' ? '按之前的对应' : '自动对应';
-    if (f && o && String(it.result||'').trim() && !ocrValue(o,it.result)) { t += ' · 原结果格式需核对，请对照原图手动填写；未截取数字前缀'; warn = true; }
+    const sugg = tr.dataset.sugg || '', uncertain = !!f && !!sugg && tr.querySelector('.ocr-val').value.trim() === sugg;
+    tr.classList.toggle('ocr-uncertain', uncertain);
+    if (uncertain) { t += ` · 原结果「${it.result}」不是完整数值，已取「${sugg}」，标黄待核对`; warn = true; }
+    else if (f && o && String(it.result||'').trim() && !ocrValue(o,it.result) && !tr.querySelector('.ocr-val').value.trim()) { t += ' · 原结果格式需核对，请对照原图手动填写；未截取数字前缀'; warn = true; }
     if (f && o && o.unit && it.unit && f === it.field && it.unitWarning) { t += ` · ${it.unitWarning}`; warn = true; }
     else if (f && o && o.unit && it.unit && f !== it.field && ocrUnitKey(o.unit) !== ocrUnitKey(it.unit)) { t += ` · 报告单位 ${it.unit}，系统单位 ${o.unit}，请核对是否需要换算`; warn = true; }
     tip.textContent = t; tip.className = `ocr-match${warn ? ' warn' : ''}`;
@@ -201,18 +222,21 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     const tr = e.target.closest('tr'); if (!tr) return;
     if (e.target.classList.contains('ocr-field')) {
       const it = result.items[+tr.dataset.i], o = (result.fieldOptions || []).find(x => x.field === e.target.value);
-      tr.querySelector('.ocr-val').value = o ? ocrValue(o, it.result) : '';
+      const sugg = o ? ocrSuggest(o, it.result, it.unit) : '';
+      tr.dataset.sugg = sugg;
+      tr.querySelector('.ocr-val').value = o ? (ocrValue(o, it.result) || sugg) : '';
     }
     $d('#ocr-result').querySelectorAll('tbody tr').forEach(refreshRow); refreshDup();
   });
+  $d('#ocr-result').addEventListener('input', e => { const tr = e.target.closest('tr'); if (tr && e.target.classList.contains('ocr-val')) { refreshRow(tr); refreshDup(); } });
 
   $d('#ocr-apply').onclick = async () => {
     if (!result || !ocrTokenCurrent(owner)) return;
-    const fzjc = {}, mappings = [];
+    const fzjc = {}, uncertain = {}, mappings = [];
     $d('#ocr-result').querySelectorAll('tbody tr').forEach(tr => {
       const it = result.items[+tr.dataset.i], f = tr.querySelector('.ocr-field').value, v = tr.querySelector('.ocr-val').value.trim();
       if (f && f !== (it.field || '') && it.alias) mappings.push({ alias: it.alias, field: f, name: it.name });
-      if (f && v && !(f in fzjc)) fzjc[f] = v;
+      if (f && v && !(f in fzjc)) { fzjc[f] = v; if (tr.classList.contains('ocr-uncertain')) uncertain[f] = it.result; }
     });
     const btn = $d('#ocr-apply'); btn.disabled = true;
     if (mappings.length) {
@@ -220,7 +244,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
       catch (e) { toastNext(`对应关系没有记住：${apiErrorMessage(e)}`); }
     }
     if (!ocrTokenCurrent(owner)) return;
-    const draft = { mode, patientId: opts.patientId || null, basic: result.basic || {}, visitDate: result.visitDate || null, fzjc, fileId: result.fileId, url: result.url, at: Date.now() };
+    const draft = { mode, patientId: opts.patientId || null, basic: result.basic || {}, visitDate: result.visitDate || null, fzjc, uncertain, fileId: result.fileId, url: result.url, at: Date.now() };
     if (!opts.onApply) ocrSaveDraft(draft);
     dlg.close();
     if (opts.onApply) opts.onApply(draft);

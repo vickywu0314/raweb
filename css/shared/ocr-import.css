@@ -219,3 +219,30 @@ select.ocr-filled,
   border-radius:8px;
   background:#f6f8fb;
 }
+/* OCR 不确定值：原结果不是完整数值（如 35↑、5.2 mmol/L、阳性(1:320)），已按原图取值，标黄提醒核对 */
+.ocr-items tr.ocr-uncertain td {
+  background:#fff7e0;
+}
+.ocr-items tr.ocr-uncertain .ocr-val {
+  border-color:#e8b339;
+  background:#fffbea;
+}
+.vf-field.ocr-uncertain .vf-input,
+.vf-field.ocr-uncertain .vf-choices {
+  outline:2px solid #e8b339;
+  outline-offset:1px;
+  border-radius:6px;
+  background:#fff7e0;
+}
+.ocr-uncertain-hint {
+  display:block;
+  margin-top:4px;
+  color:#a86b00;
+  font-size:var(--fs-xs);
+}
+.ocr-uncertain-count {
+  padding:0 4px;
+  border-radius:4px;
+  background:#fff1c7;
+  color:#8a5a00;
+}
