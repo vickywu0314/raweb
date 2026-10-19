@@ -322,13 +322,18 @@ function toast(msg,ms){
 function toastNext(msg){try{sessionStorage.setItem('ra-toast-next',msg)}catch(e){}}
 document.addEventListener('DOMContentLoaded',()=>{try{const m=sessionStorage.getItem('ra-toast-next');if(m){sessionStorage.removeItem('ra-toast-next');toast(m)}}catch(e){}});
 window.alert=msg=>toast(String(msg));
-// confirmDialog(msg,{title,okText,cancelText,danger}) → Promise<boolean>
+// confirmDialog(msg,{title,okText,cancelText,danger,signal?}) → Promise<boolean>
 function confirmDialog(msg,opt={}){
   return new Promise(resolve=>{
+    if(opt.signal?.aborted){resolve(false);return;}
     const d=document.createElement('dialog');d.className='ra-confirm';
+    let settled=false;
+    const finish=result=>{if(settled)return;settled=true;opt.signal?.removeEventListener('abort',abort);d.removeEventListener?.('close',closed);d.remove();resolve(result);};
+    const closed=()=>finish(d.returnValue==='ok'&&!opt.signal?.aborted);
+    const abort=()=>{if(settled)return;d.close('cancel');finish(false);};
     d.innerHTML=`<form method="dialog"><h2>${escapeHTML(opt.title||'请确认')}</h2><p>${escapeHTML(msg).replace(/\n/g,'<br>')}</p><div class="ra-confirm-actions"><button class="button" value="cancel">${escapeHTML(opt.cancelText||'取消')}</button><button class="button ${opt.danger?'danger':'primary'}" value="ok">${escapeHTML(opt.okText||'确定')}</button></div></form>`;
     document.body.appendChild(d);
-    d.addEventListener('close',()=>{resolve(d.returnValue==='ok');d.remove()});
+    d.addEventListener('close',closed);opt.signal?.addEventListener('abort',abort,{once:true});
     d.showModal();d.querySelector('[value=ok]').focus();
   });
 }

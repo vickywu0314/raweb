@@ -10,7 +10,7 @@ shell('patients');
 const patientId = queryParam('id'), pid = encodeURIComponent(patientId || '');
 if (queryParam('visit')) location.replace(`visit-edit.html?id=${pid}&visit=${encodeURIComponent(queryParam('visit'))}`);
 const visitsUrl = withFrom(`patient-visits.html?id=${pid}`);
-let form = null, dirty = false, saving = false;
+let form = null, dirty = false, saving = false, preparing = false;
 document.querySelectorAll('.js-back-visits').forEach(a => bindBack(a, visitsUrl));
 $('#back-visits').textContent = '← 返回';
 $('#edit-profile').href = `patient-edit.html?id=${pid}`;
@@ -40,12 +40,18 @@ function showSavedVisit(r, draft) {
   } else finishVisitSave(r);
 }
 $('#create-form').addEventListener('submit', async e => {
-  e.preventDefault(); if (!form || saving || createSaved || createUnknown) return;
+  e.preventDefault(); if (!form || saving || preparing || createSaved || createUnknown) return;
   const d = $('#visit-date').value;
   if (!d) { showError('请填写随访日期'); return; }
   if (d > ymd(TODAY)) { showError('随访日期不能晚于今天'); return; }
   const modules = vfCollect($('#edit-sections')), token = ocrToken(), openedForm = form;
   if (!ocrTokenCurrent(token)) return;
+  preparing=true;
+  try { await vfPrepareSubmission($('#edit-sections'),modules); }
+  catch(error){if(form===openedForm&&ocrTokenCurrent(token)){showError(escapeHTML(error.message));vfFocusInvalid(error);}return;}
+  finally{if(form===openedForm)preparing=false;}
+  if(form!==openedForm||!ocrTokenCurrent(token))return;
+  if($('#visit-date').value!==d){showError('随访日期已变化，请重新核对后保存');return;}
   const files = ocrSourceFiles(ocrDraftUsed), keptDraft = { ...(ocrDraftUsed || {}), mode: 'visit', patientId, fileIds: files };
   ocrSaveDraft({ ...keptDraft, createPending: true });
   const btn = $('#save-create'); btn.disabled = true; btn.textContent = '保存中…'; showError(''); saving = true;
@@ -94,9 +100,10 @@ window.addEventListener('beforeunload', e => { if (dirty && !saving) { e.prevent
 let disposeBasic=null;
 const detailOwner=RAPatientDetail.owner({
  clear(state,message){
+  vfCancelConfirmations();
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic){disposeBasic();disposeBasic=null;}
-  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();dirty=false;saving=false;createSaved=null;createUnknown=false;document.title='新增随访 · 患者数据研究平台';
+  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();dirty=false;saving=false;preparing=false;createSaved=null;createUnknown=false;document.title='新增随访 · 患者数据研究平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-create').disabled=true;$('#visit-title').textContent='新增随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');$('#ocr-import').disabled=true;showError(message);

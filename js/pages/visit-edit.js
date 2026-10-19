@@ -8,7 +8,7 @@ shell('patients');
 const patientId=queryParam('id'), visitId=queryParam('visit');
 const detailUrl=withFrom(`visit-detail.html?id=${encodeURIComponent(patientId||'')}&visit=${encodeURIComponent(visitId||'')}`);
 const visitsUrl=withFrom(`patient-visits.html?id=${encodeURIComponent(patientId||'')}`);
-let form=null, p=null, dirty=false, saving=false;
+let form=null, p=null, dirty=false, saving=false, preparing=false;
 $('#crumb-visits').href=visitsUrl;$('#crumb-detail').href=detailUrl;$('#cancel-edit').href=detailUrl;bindBack($('#back-detail'),detailUrl);
 
 const val=x=>escapeHTML(x==null||x===''?'未提供':x);
@@ -37,13 +37,19 @@ $('#edit-form').addEventListener('change',()=>dirty=true);
 window.addEventListener('beforeunload',e=>{if(dirty&&!saving){e.preventDefault();e.returnValue=''}});
 
 $('#edit-form').addEventListener('submit',async e=>{
- e.preventDefault();if(!form)return;
+ e.preventDefault();if(!form||saving||preparing)return;
  const d=$('#visit-date').value;
  if(!d){showError('请填写随访日期');return}
  if(d>ymd(TODAY)){showError('随访日期不能晚于今天');return}
+ const openedForm=form,payload=collect();preparing=true;
+ try{await vfPrepareSubmission($('#edit-sections'),payload.modules);}
+ catch(error){if(form===openedForm){showError(escapeHTML(error.message));vfFocusInvalid(error);}return;}
+ finally{if(form===openedForm)preparing=false;}
+ if(form!==openedForm)return;
+ if($('#visit-date').value!==d){showError('随访日期已变化，请重新核对后保存');return;}
  const btn=$('#save-edit');btn.disabled=true;btn.textContent='保存中…';showError('');saving=true;
  try{
-  const r=await apiPostJson('/api/ra/visit/updateVisit',collect());
+  const r=await apiPostJson('/api/ra/visit/updateVisit',payload);
   dirty=false;
   if(!r.changedCount){toast('没有修改内容');btn.disabled=false;btn.textContent='保存修改';saving=false;return}
   toastNext(`已保存 ${r.changedCount} 项修改`);
@@ -57,7 +63,8 @@ $('#edit-form').addEventListener('submit',async e=>{
 
 const detailOwner=RAPatientDetail.owner({
  clear(state,message){
-  form=null;p=null;VF.form=null;VF.defs={};dirty=false;document.title='编辑随访 · 患者数据研究平台';
+  vfCancelConfirmations();
+  form=null;p=null;VF.form=null;VF.defs={};dirty=false;preparing=false;document.title='编辑随访 · 患者数据研究平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-edit').disabled=true;$('#visit-title').textContent='编辑随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');showError(message);

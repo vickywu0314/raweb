@@ -95,11 +95,13 @@ function ocrRecoverSaved(anchor, saved, draft, onComplete) {
 }
 const ocrHasVisit = d => !!d && (!!d.visitDate || Object.keys(d.fzjc || {}).length > 0);
 
-// 系统字段的取值：定性字段（ANA 等）取阳性 / 阴性，其余取开头的数字（含 <、>）
+// 只自动接受完整可用值；原始结果仍展示，绝不静默截去尾随文字或猜测单位。
 function ocrValue(opt, raw) {
   const s = String(raw ?? '').trim(); if (!opt || !s) return '';
-  if (opt.type === 'radioList') return /阳|^\+/.test(s) ? '阳性' : /阴|^-/.test(s) ? '阴性' : '';
-  const m = s.match(/^[<>≤≥＜＞]?=?\s*-?\d+(\.\d+)?/); return m ? m[0].replace(/\s/g, '') : '';
+  if (opt.type === 'radioList') return /^(?:阳性|\+{1,4})$/.test(s) ? '阳性' : /^(?:阴性|[-—])$/.test(s) ? '阴性' : s==='未做'?'未做':'';
+  const numeric=['lfsyz','kccpkt'].includes(opt.field)?s.replace(/(?:IU\/mL|U\/mL)$/,'').trim():s;
+  const m = numeric.match(/^(?:<=|>=|<|>|≤|≥|＜|＞|=)?\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/);
+  return m && Number.isFinite(Number(numeric.replace(/^(?:<=|>=|<|>|≤|≥|＜|＞|=)\s*/,''))) ? (numeric===s?s.replace(/\s/g,''):s) : '';
 }
 
 async function ocrUpload(file) {
@@ -180,6 +182,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
     if (!f) { t = it.mappingWarning || (it.field ? '' : '系统表单里没有这一项，不填入；如果其实是某一项，请在下拉里选'); warn = !!it.needsConfirmation; }
     else if (f !== (it.field || '')) t = '手动对应（保存后记住）';
     else t = it.matchedBy === 'learned' ? '按之前的对应' : '自动对应';
+    if (f && o && String(it.result||'').trim() && !ocrValue(o,it.result)) { t += ' · 原结果格式需核对，请对照原图手动填写；未截取数字前缀'; warn = true; }
     if (f && o && o.unit && it.unit && f === it.field && it.unitWarning) { t += ` · ${it.unitWarning}`; warn = true; }
     else if (f && o && o.unit && it.unit && f !== it.field && ocrUnitKey(o.unit) !== ocrUnitKey(it.unit)) { t += ` · 报告单位 ${it.unit}，系统单位 ${o.unit}，请核对是否需要换算`; warn = true; }
     tip.textContent = t; tip.className = `ocr-match${warn ? ' warn' : ''}`;

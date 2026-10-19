@@ -68,14 +68,14 @@ test('patient:legacy-detail-contract',async()=>{
   await answerGroup(good,page);assert.equal(stateNode(good,page).attributes['data-state'],'success');assert.equal(good.timers.size,0);assert.match(good.context.document.title,/CURRENT-PATIENT/);
   if(page!=='patient-visits'){
    const html=good.node(page==='visit-detail'?'#visit-sections':'#edit-sections').innerHTML;
-   assert.equal((html.match(page==='visit-detail'?/class="detail-section(?: is-empty)?"/g:/class="create-section"/g)||[]).length,page==='visit-create'?6:7);
+   assert.equal((html.match(page==='visit-detail'?/class="detail-section(?: is-empty)?"/g:/class="create-section"/g)||[]).length,6);
    for(const title of ['病史病情','辅助检查','病情评估','中医诊断','治疗方案','不良反应'])assert.ok(html.includes(title),'normal module remains visible: '+title);
    for(const value of ['12.50','稍有困难','风寒湿痹证','SYNTHETIC-DRUG','5 mg'])assert.ok(html.includes(value),'normal module content remains visible: '+value);
    assert.ok(html.includes('img/record.svg'),'same-origin clinical image remains visible');
    if(page==='visit-detail'){assert.match(html,/SYNTHETIC-HISTORY/);assert.match(html,/记录日期：2026-10-01/);}
    else {assert.match(html,/data-key="followDate"/);assert.match(html,/SYNTHETIC-PRESERVED/);assert.equal(good.eval('VF.form.modules.length'),page==='visit-create'?6:7);}
    if(page==='visit-create')assert.doesNotMatch(html,/不良事件|SYNTHETIC-ADVERSE-EVENT/);
-   else {assert.match(html,/不良事件/);assert.match(html,/SYNTHETIC-ADVERSE-EVENT/);}
+   else {assert.doesNotMatch(html,/<h2>不良事件<\/h2>/);assert.match(html,/历史附加记录/);assert.match(html,/SYNTHETIC-ADVERSE-EVENT/);}
   }
   good.eval("signIn({doctorId:101,name:'Same',role:'研究者'},false)");assert.equal(stateNode(good,page).attributes['data-state'],'success','same identity does not revoke');
   const pending=harness(page);await flush();assert.equal(pending.requests.length,1);await pending.advance(29999);assert.equal(stateNode(pending,page).attributes['data-state'],'loading');await pending.advance(1);assert.equal(stateNode(pending,page).attributes['data-state'],'timeout');assert.equal(pending.timers.size,0);assert.ok(pending.requests[0].options.signal.aborted);await pending.answer(0,{...detail(),name:'LATE-PENDING'});assert.equal(stateNode(pending,page).attributes['data-state'],'timeout');assert.doesNotMatch(pending.context.document.title,/LATE/);

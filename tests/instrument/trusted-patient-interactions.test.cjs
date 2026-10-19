@@ -22,7 +22,7 @@ checks.push(['trusted visit publishes only matching dual success',async()=>{
  assert.equal(h.requests.length,2);assert.equal(h.requests[0].url,'http://fixture.invalid/api/ra/ai/patientDetail');assert.equal(h.requests[1].url,'http://fixture.invalid/api/ra/ai/visitDetail');
  assert.deepEqual(JSON.parse(h.requests[1].options.body),{patientId:'9007199254740992',visitId:'9007199254741001'});
  await h.answer(1,visit());assert.doesNotMatch(h.node('#visit-sections').innerHTML,/SYNTHETIC-HISTORY/);
- await h.answer(0,detail());assert.equal(h.node('#visit-hero').attributes['data-state'],'success');assert.equal(h.node('#visit-chat-link').href,'ai-chat.html#kind=PATIENT&patientId=9007199254740992&visitId=9007199254741001');assert.match(h.node('#visit-sections').innerHTML,/SYNTHETIC-HISTORY/);assert.match(h.node('#visit-sections').innerHTML,/本次未记录/);assert.equal(h.timers.size,0);
+ await h.answer(0,detail());assert.equal(h.node('#visit-hero').attributes['data-state'],'success');assert.equal(h.node('#visit-chat-link').href,'ai-chat.html#kind=PATIENT&patientId=9007199254740992&visitId=9007199254741001');assert.match(h.node('#visit-sections').innerHTML,/SYNTHETIC-HISTORY/);assert.equal((h.node('#visit-sections').innerHTML.match(/<section /g)||[]).length,6);assert.doesNotMatch(h.node('#visit-sections').innerHTML,/历史附加记录|<h2>不良事件/);assert.equal(h.timers.size,0);
 }]);
 checks.push(['trusted image links reject executable and unknown protocols',async()=>{
  const h=harness('visit-detail','?id=9007199254740992&visit=9007199254741001&from=ai-cohort');await h.answer(0,detail());await h.answer(1,visit());

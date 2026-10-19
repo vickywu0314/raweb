@@ -50,12 +50,12 @@ test('patient:legacy-detail-states',async({page,context,browser})=>{
    await expect(page.locator('main')).toContainText('SYNTHETIC-ODD');
    if(p!=='patient-visits'){
     const box=page.locator(p==='visit-detail'?'#visit-sections':'#edit-sections');
-    await expect(box.locator(p==='visit-detail'?'.detail-section':'.create-section')).toHaveCount(p==='visit-create'?6:7);
-    await expect(box.locator('h2')).toHaveText(p==='visit-create'?['病史病情','辅助检查','病情评估','中医诊断','治疗方案','不良反应']:['病史病情','辅助检查','病情评估','中医诊断','治疗方案','不良反应','不良事件']);
+    await expect(box.locator(p==='visit-detail'?'.detail-section':'.create-section')).toHaveCount(6);
+    await expect(box.locator('h2')).toHaveText(['病史病情','辅助检查','病情评估','中医诊断','治疗方案','不良反应']);
     await expect(box.locator('img')).toHaveAttribute('src','img/record.svg');
     if(p==='visit-detail')for(const text of ['SYNTHETIC-HISTORY','记录日期：2026-10-01','12.50','mg/L','稍有困难','风寒湿痹证','SYNTHETIC-DRUG','5 mg','SYNTHETIC-ADVERSE-EVENT'])await expect(box).toContainText(text);
     else{
-     // 展开后检查实际控件值，不能只凭七个标题推定正文未丢。
+     // 展开后检查实际控件值，不能只凭六个标题推定正文未丢。
      await box.locator('details').evaluateAll(nodes=>nodes.forEach(n=>n.open=true));
      await expect(box.locator('[data-col="bsbq"][data-key="followDate"] input')).toHaveValue('2026-10-01');
      await expect(box.locator('[data-col="fzjc"][data-key="cfydb"] .vf-input')).toHaveValue('12.50');
@@ -65,7 +65,7 @@ test('patient:legacy-detail-states',async({page,context,browser})=>{
      await expect(box.locator('[data-table="xyList"] [data-key="drugName"]')).toHaveValue('SYNTHETIC-DRUG');
      await expect(box.locator('[data-table="xyList"] [data-key="dosis"]')).toHaveValue('5 mg');
      await expect(box).toContainText('SYNTHETIC-PRESERVED');
-     if(p==='visit-edit')await expect(box).toContainText('SYNTHETIC-ADVERSE-EVENT');
+     if(p==='visit-edit'){await expect(box).toContainText('SYNTHETIC-ADVERSE-EVENT');await expect(box).toContainText('历史附加记录');}
      else await expect(box).not.toContainText('不良事件');
     }
    }
@@ -83,7 +83,7 @@ test('patient:legacy-detail-states',async({page,context,browser})=>{
    await page.evaluate(()=>window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true})));await expect(state(p)).toHaveAttribute('data-state','error');await expect(page.locator('main')).not.toContainText('SYNTHETIC-ODD');await auditCleared(p);
    mode='pending';const count=requests.length;await page.goto(url(p));await expect(state(p)).toHaveAttribute('data-state','loading');await expect.poll(()=>requests.slice(count).some(r=>r.path==='/api/ra/patient/patientDetail')).toBeTruthy();
    await page.clock.runFor(30000);await expect(state(p)).toHaveAttribute('data-state','timeout');await expect(page.locator('main')).not.toContainText('SYNTHETIC-ODD');await auditCleared(p);
-   observations.push({page:p,groupValidated:true,normalModuleCount:p==='patient-visits'?null:p==='visit-create'?6:7,normalModuleContentChecked:p!=='patient-visits',errorTerminal:true,deadlineBeforeTeardown:true,refreshCleared:true});
+   observations.push({page:p,groupValidated:true,normalModuleCount:p==='patient-visits'?null:6,normalModuleContentChecked:p!=='patient-visits',errorTerminal:true,deadlineBeforeTeardown:true,refreshCleared:true});
   }
   for(const resultMode of ['save-number','save-mismatch','save-success']){
    mode=resultMode;await page.goto(url('visit-create'));await expect(state('visit-create')).toHaveAttribute('data-state','success');const before=requests.length;

@@ -29,9 +29,12 @@ function moduleBody(m,trusted=false){
  return html;
 }
 function renderSections(v,trusted=false){
- $('#visit-sections').innerHTML=v.modules.map((m,i)=>`<section class="detail-section${m.filled?'':' is-empty'}" id="section-${i}"><div class="detail-section-head"><span class="section-check">${m.filled?'✓':'–'}</span><h2>${escapeHTML(m.title)}</h2></div>${moduleBody(m,trusted)}</section>`).join('');
+ const legacy=v.modules.find(m=>m.column==='bblsj'||m.key==='adverseEvent'||(!m.column&&!m.key&&m.title==='不良事件'));
+ const modules=v.modules.filter(m=>m!==legacy).map(m=>(m.column==='blsj'||m.key==='adverse'||(!m.column&&!m.key&&m.title==='不良反应'))?{...m,legacyAdverse:legacy?.filled?legacy:null}:m);
+ $('#visit-sections').innerHTML=modules.map((m,i)=>{const filled=m.filled||!!m.legacyAdverse;return `<section class="detail-section${filled?'':' is-empty'}" id="section-${i}"><div class="detail-section-head"><span class="section-check">${filled?'✓':'–'}</span><h2>${escapeHTML(m.title)}</h2></div>${moduleBody(m,trusted)}${m.legacyAdverse?`<div class="legacy-adverse-record"><h3>历史附加记录 <small>只读 · 原样保留</small></h3>${moduleBody(m.legacyAdverse,trusted)}</div>`:''}</section>`}).join('');
+ document.querySelector('.detail-anchor').innerHTML=modules.map((m,i)=>`<a href="#section-${i}"><i>${m.filled||m.legacyAdverse?'✓':'–'}</i>${escapeHTML(m.title)}</a>`).join('');
  // 左侧导航：有内容 ✓，没内容 –
- [...document.querySelectorAll('.detail-anchor a')].forEach((a,i)=>{const m=v.modules[i];if(!m)return;a.classList.toggle('is-empty',!m.filled);const mark=a.querySelector('i');if(mark)mark.textContent=m.filled?'✓':'–'});
+ [...document.querySelectorAll('.detail-anchor a')].forEach((a,i)=>{const m=modules[i];if(!m)return;const filled=m.filled||!!m.legacyAdverse;a.classList.toggle('is-empty',!filled);const mark=a.querySelector('i');if(mark)mark.textContent=filled?'✓':'–'});
  return bindSectionNav();
 }
 

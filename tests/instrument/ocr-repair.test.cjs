@@ -92,3 +92,12 @@ test('ocr:patient-bfcache-recovery-contract',async()=>{
  const currentB=patientHarness();currentB.ctx.da={...draft(A,{}),mode:'patient',patientId:null,basic:{name:'OLD-A-SYNTHETIC'}};currentB.run('applyOcr(da)');currentB.ctx.currentUser=()=>({doctorId:'202'});await currentB.event('storage',{key:'ra-auth',oldValue:oldA,newValue:otherB});await currentB.event('pageshow',{persisted:true});await currentB.submit();assert.equal(currentB.node('field-name').value,'');assert.equal(currentB.run('ocrDraft()'),null);assert.equal(currentB.requests.length,0,'current B cannot save or restore old A form');
  const unknown=patientHarness();await unknown.submit();unknown.requests[0].reject(Error('unknown creation outcome'));await flush();await unknown.event('pagehide');await unknown.event('pageshow',{persisted:true});await unknown.submit();assert.equal(unknown.requests.length,1);assert.equal(unknown.requests.some(r=>r.url.endsWith('/linkImages')),false);
 });
+
+test('ocr:numeric-result-contract',()=>{
+ const h=dialogHarness();
+ for(const value of ['10000abc','4.2↑','12 mg/L','NaN','Infinity','1e309'])assert.equal(h.ctx.ocrValue({type:'text'},value),'','must not silently truncate '+value);
+ for(const value of ['<5','≤5','>5','≥5','4.2','1e2'])assert.equal(h.ctx.ocrValue({type:'text'},value),value);
+ assert.equal(h.ctx.ocrValue({type:'radioList'},'-1'),'','a numeric negative must not become a qualitative negative');
+ for(const [field,value] of [['lfsyz','30 IU/mL'],['kccpkt','>25 U/mL']])assert.equal(h.ctx.ocrValue({field,type:'text'},value),value);
+ assert.equal(h.ctx.ocrValue({field:'bxb',type:'text'},'30 IU/mL'),'');
+});
