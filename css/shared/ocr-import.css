@@ -246,3 +246,43 @@ select.ocr-filled,
   background:#fff1c7;
   color:#8a5a00;
 }
+/* 中药处方 */
+.ocr-rx {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px 16px;
+  padding:12px 14px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:#fbfcfe;
+}
+.ocr-rx .form-field {
+  display:grid;
+  gap:4px;
+}
+.ocr-rx .form-field > span {
+  color:var(--muted);
+  font-size:var(--fs-sm);
+}
+.ocr-rx .table-input {
+  width:100%;
+  min-height:34px;
+  padding:4px 8px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  background:#fff;
+  font:inherit;
+}
+.ocr-rx-use,
+.ocr-rx-herbs,
+.ocr-rx > p {
+  grid-column:1 / -1;
+}
+.edit-table tr.ocr-rx-row td {
+  background:#eef5ff;
+}
+.ocr-rx-use {
+  display:flex;
+  align-items:center;
+  gap:6px;
+}

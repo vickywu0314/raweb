@@ -98,6 +98,20 @@ for (const event of ['input','change']) $('#edit-sections').addEventListener(eve
   const el = e.target.closest?.('.vf-field');
   if (el?.dataset.col === 'fzjc') { ocrManualFields.add(el.dataset.key); if (ocrUncertain.has(el.dataset.key)) ocrUnmarkUncertain(el.dataset.key); }
 });
+// OCR 识别的中药处方：在「治疗方案 · 中药饮片」加一行（证型、方剂、草药），浅蓝底色提示核对；同一处方不重复加
+const ocrRxKeys = new Set();
+function ocrApplyRx(cy) {
+  if (!cy?.bccy?.length || !VF.form) return 0;
+  const key = JSON.stringify([cy.zz, cy.fj, cy.bccy]); if (ocrRxKeys.has(key)) return 0;
+  const g = $('#edit-sections').querySelector('.edit-table-group[data-col="zlfa"][data-table="cyList"]');
+  const t = VF.form.modules.find(x => x.column === 'zlfa')?.tables?.find(x => x.key === 'cyList');
+  if (!g || !t) return 0;
+  g.querySelector('tbody').insertAdjacentHTML('beforeend', vfRowHTML(t, { zz: cy.zz || '', fj: cy.fj || '', bccy: cy.bccy }));
+  const tr = g.querySelector('tbody tr:last-child'); tr.classList.add('ocr-rx-row'); tr.title = 'OCR 识别的处方，请对照原图核对证型、方剂和草药';
+  g.closest('details')?.setAttribute('open', '');
+  ocrRxKeys.add(key);
+  return cy.bccy.length;
+}
 function applyOcr(d) {
   if (!form || createSaved || createUnknown || saving) return;
   const merged = ocrMergeDraft(ocrDraftUsed, d); if (ocrSourceFiles(merged).length > 20) { toast('每次最多保留20张原图，请先保存本次随访'); return; }
@@ -108,9 +122,10 @@ function applyOcr(d) {
     if (ocrManualFields.has(k) || notChecked || (existing != null && String(existing).trim() !== '')) { preserved++; return; }
     ocrFilling = true; try { if (vfSetValue(box, 'fzjc', k, v)) { labels.push(k); if (d.uncertain?.[k] != null) ocrMarkUncertain(k, d.uncertain[k]); } } finally { ocrFilling = false; }
   });
+  const herbs = ocrApplyRx(d.cy);
   ocrUsed = true; ocrDraftUsed = merged; dirty = true; ocrSaveDraft(ocrDraftUsed);
   $('.ocr-banner')?.remove();
-  ocrBanner($('#create-form'), `本次填入${dateFilled ? '随访日期和' : ''} ${labels.length} 项空白辅助检查${ocrUncertain.size ? `（其中 <b class="ocr-uncertain-count">${ocrUncertain.size} 项标黄</b>：原结果不是完整数值，已按原图取值，请重点核对）` : ''}，保留 ${preserved} 项已有值。已保留 ${ocrSourceFiles(ocrDraftUsed).length} 张原图，<b>请核对后保存</b>。${ocrSourceLinks(ocrDraftUsed)}`);
+  ocrBanner($('#create-form'), `本次填入${dateFilled ? '随访日期和' : ''} ${labels.length} 项空白辅助检查${ocrUncertain.size ? `（其中 <b class="ocr-uncertain-count">${ocrUncertain.size} 项标黄</b>：原结果不是完整数值，已按原图取值，请重点核对）` : ''}，保留 ${preserved} 项已有值${herbs ? `；治疗方案 · 中药饮片新增 1 行（${herbs} 味药，浅蓝底色）` : ''}。已保留 ${ocrSourceFiles(ocrDraftUsed).length} 张原图，<b>请核对后保存</b>。${ocrSourceLinks(ocrDraftUsed)}`);
   const first = box.querySelector('.ocr-filled'); if (first) first.closest('details')?.setAttribute('open', '');
 }
 window.addEventListener('beforeunload', e => { if (dirty && !saving) { e.preventDefault(); e.returnValue = ''; } });
@@ -121,14 +136,14 @@ const detailOwner=RAPatientDetail.owner({
   vfCancelConfirmations();
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic){disposeBasic();disposeBasic=null;}
-  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();ocrUncertain.clear();dirty=false;saving=false;preparing=false;createSaved=null;createUnknown=false;document.title='新增随访 · 患者数据研究平台';
+  form=null;VF.form=null;VF.defs={};ocrUsed=false;ocrDraftUsed=null;ocrManualFields.clear();ocrUncertain.clear();ocrRxKeys.clear();dirty=false;saving=false;preparing=false;createSaved=null;createUnknown=false;document.title='新增随访 · 中国中医风湿病注册研究信息平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-create').disabled=true;$('#visit-title').textContent='新增随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');$('#ocr-import').disabled=true;showError(message);
  },
  publish(data){
   const p=data.patient,f=data.related;form=f;showError('');$('#visit-title').setAttribute('data-state','success');$('#ocr-import').disabled=false;
-  document.title=`${p.name} · 新增随访 · 患者数据研究平台`;
+  document.title=`${p.name} · 新增随访 · 中国中医风湿病注册研究信息平台`;
   $('#visit-title').textContent=`新增随访 · ${p.name}`;
   $('#visit-sub').textContent=`研究编号 ${p.studyNo||'—'} · ${f.visitNo===1?'基线访视':`第 ${f.visitNo-1} 次随访`} · 基本信息沿用患者档案，只录入本次随访内容`;
   $('#edit-profile').href=`patient-edit.html?id=${pid}`;

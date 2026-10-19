@@ -40,7 +40,7 @@ function ocrMergeDraft(old, next) {
   for (const d of [old, next]) if (d) { for (const fileId of ocrSourceFiles(d)) sources.set(fileId, { fileId, url: `/api/ra/files/ocr/${fileId}` }); }
   const fzjc = { ...(next?.fzjc || {}), ...(old?.fzjc || {}) }, uncertain = {};
   for (const k of Object.keys(fzjc)) { const from = old?.fzjc && k in old.fzjc ? old : next; if (from?.uncertain?.[k] != null) uncertain[k] = from.uncertain[k]; }
-  return { ...old, ...next, basic: { ...(next?.basic || {}), ...(old?.basic || {}) }, fzjc, uncertain, sources: [...sources.values()], fileIds: [...sources.keys()] };
+  return { ...old, ...next, cy: old?.cy || next?.cy || null, basic: { ...(next?.basic || {}), ...(old?.basic || {}) }, fzjc, uncertain, sources: [...sources.values()], fileIds: [...sources.keys()] };
 }
 function ocrSourceLinks(d) { return (d?.sources?.length ? d.sources : d?.fileId ? [{ fileId: d.fileId, url: d.url }] : []).map((x, i) => `<a href="${escapeHTML(API_BASE + x.url)}" target="_blank" rel="noopener">原图 ${i + 1}</a>`).join(' · '); }
 function ocrKnownRejection(e) { return ['400','401','403','409'].includes(String(e?.code || e?.status)); }
@@ -95,7 +95,7 @@ function ocrRecoverSaved(anchor, saved, draft, onComplete) {
     } finally { if (ocrTokenCurrent(token)) { busy = false; render(); } }
   };
 }
-const ocrHasVisit = d => !!d && (!!d.visitDate || Object.keys(d.fzjc || {}).length > 0);
+const ocrHasVisit = d => !!d && (!!d.visitDate || Object.keys(d.fzjc || {}).length > 0 || !!d.cy?.bccy?.length);
 
 // 只自动接受完整可用值；原始结果仍展示，绝不静默截去尾随文字或猜测单位。
 function ocrValue(opt, raw) {
@@ -186,11 +186,13 @@ function openOcrImport(opts = {}) {
 ${(r.warnings || []).length ? `<ul class="ocr-warnings">${r.warnings.map(w => `<li>${escapeHTML(w)}</li>`).join('')}</ul>` : ''}
 <h3>检验项目 <small>报告上的项目名称各家医院叫法不同：请核对每一项对应的系统字段，对不上的在下拉里选；改过的对应会记住，下次自动对上</small></h3>
 ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报告项目</th><th>结果</th><th>对应系统字段</th><th>填入值</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">没有识别出检验项目</p>'}
+${ocrRxHTML(r)}
 <details class="ocr-lines"><summary>识别出的原文（${(r.lines || []).length} 行）</summary><pre>${escapeHTML((r.lines || []).join('\n'))}</pre></details>`;
     $d('#ocr-result').hidden = false;
     $d('#ocr-result').querySelectorAll('tbody tr').forEach(refreshRow);
     refreshDup();
-    $d('#ocr-apply').disabled = !basicRows && !rows && !r.visitDate;
+    $d('#ocr-apply').disabled = !basicRows && !rows && !r.visitDate && !r.prescription;
+    ocrRxBind($d('#ocr-result'), r);
   }
   // 每一行：对应方式、单位提示
   function refreshRow(tr) {
@@ -232,7 +234,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
 
   $d('#ocr-apply').onclick = async () => {
     if (!result || !ocrTokenCurrent(owner)) return;
-    const fzjc = {}, uncertain = {}, mappings = [];
+    const fzjc = {}, uncertain = {}, mappings = [], cy = ocrRxCollect($d('#ocr-result'));
     $d('#ocr-result').querySelectorAll('tbody tr').forEach(tr => {
       const it = result.items[+tr.dataset.i], f = tr.querySelector('.ocr-field').value, v = tr.querySelector('.ocr-val').value.trim();
       if (f && f !== (it.field || '') && it.alias) mappings.push({ alias: it.alias, field: f, name: it.name });
@@ -244,7 +246,7 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
       catch (e) { toastNext(`对应关系没有记住：${apiErrorMessage(e)}`); }
     }
     if (!ocrTokenCurrent(owner)) return;
-    const draft = { mode, patientId: opts.patientId || null, basic: result.basic || {}, visitDate: result.visitDate || null, fzjc, uncertain, fileId: result.fileId, url: result.url, at: Date.now() };
+    const draft = { mode, patientId: opts.patientId || null, basic: result.basic || {}, visitDate: result.visitDate || null, fzjc, uncertain, cy, fileId: result.fileId, url: result.url, at: Date.now() };
     if (!opts.onApply) ocrSaveDraft(draft);
     dlg.close();
     if (opts.onApply) opts.onApply(draft);
@@ -254,6 +256,36 @@ ${rows ? `<div class="table-scroll"><table class="ocr-items"><thead><tr><th>报�
   dlg.showModal();
 }
 const ocrUnitKey = u => String(u || '').replace(/[\s^*]/g, '').replace(/×/g, 'x').replace(/[μµ]/g, 'u').replace('⁹', '9').replace('¹²', '12').toLowerCase().replace(/x/g, '');
+
+// ===== 中药处方 → 治疗方案 · 中药饮片（一行：证型、方剂、草药）=====
+// 证型 / 方剂只在处方上明确写了时由后端带出，没写的由医生选；草药「药名 + 剂量」每味一项，可直接改
+function ocrRxHTML(r) {
+  const p = r.prescription; if (!p || !(p.herbs || []).length) return '';
+  const tcm = r.tcmOptions || {}, syn = tcm.syndromes || [];
+  const fjOpts = zz => ((tcm.fangji || {})[zz] || []);
+  return `<h3>中药处方 <small>识别到 ${p.herbs.length} 味药，填入新增随访「治疗方案 · 中药饮片」；证型、方剂只在处方上写明时自动选，没写的请手动选</small></h3>
+<div class="ocr-rx">
+  <label class="ocr-rx-use"><input type="checkbox" id="ocr-rx-use" checked> 填入中药饮片</label>
+  <label class="form-field"><span>证型</span><select class="table-input" id="ocr-rx-zz"><option value="">请选择</option>${syn.map(z => `<option${z === p.zz ? ' selected' : ''}>${escapeHTML(z)}</option>`).join('')}</select></label>
+  <label class="form-field"><span>方剂</span><select class="table-input" id="ocr-rx-fj"><option value="">请选择</option>${fjOpts(p.zz).map(f => `<option${f === p.fj ? ' selected' : ''}>${escapeHTML(f)}</option>`).join('')}</select></label>
+  <label class="form-field ocr-rx-herbs"><span>草药（每味用「、」分隔）</span><textarea class="table-input" id="ocr-rx-herbs" rows="3">${escapeHTML(p.herbs.map(h => h.text).join('、'))}</textarea></label>
+  ${(p.notes || []).length ? `<p class="ocr-match warn">${p.notes.map(escapeHTML).join('；')}</p>` : ''}
+</div>`;
+}
+function ocrRxBind(box, r) {
+  const zz = box.querySelector('#ocr-rx-zz'); if (!zz) return;
+  zz.addEventListener('change', () => {
+    const list = ((r.tcmOptions || {}).fangji || {})[zz.value] || [], fj = box.querySelector('#ocr-rx-fj'), keep = fj.value;
+    fj.innerHTML = `<option value="">请选择</option>${list.map(f => `<option${f === keep ? ' selected' : ''}>${escapeHTML(f)}</option>`).join('')}`;
+  });
+}
+function ocrRxCollect(box) {
+  if (!box.querySelector('#ocr-rx-use')?.checked) return null;
+  const bccy = vfSplitHerbs(box.querySelector('#ocr-rx-herbs')?.value);
+  if (!bccy.length) return null;
+  return { zz: box.querySelector('#ocr-rx-zz').value || '', fj: box.querySelector('#ocr-rx-fj').value || '', bccy };
+}
+const vfSplitHerbs = s => String(s || '').split(/[、，,；;\n\s]+/).map(x => x.trim()).filter(Boolean);
 
 // 页面顶部的提示条：识别结果已预填，请核对
 function ocrBanner(anchor, html) {
