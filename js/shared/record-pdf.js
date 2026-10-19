@@ -23,7 +23,7 @@ function recordBlocks(p, v, isThisVisit) {
   const cms = (p.comorbidities || []).map(c => `${c.code} ${c.name || ''}${c.sinceYear ? `（${c.sinceYear} 年起）` : ''}`).join('、');
   const blocks = [
     { t: 'title', text: `${p.name} · 病历` },
-    { t: 'meta', text: `RA类风湿关节炎研究数据库 · 研究编号 ${pdfText(p.studyNo)} · ID号 ${p.patientId} · 导出时间 ${stamp}` },
+    { t: 'meta', text: `RA类风湿关节炎数据研究库 · 研究编号 ${pdfText(p.studyNo)} · ID号 ${p.patientId} · 导出时间 ${stamp}` },
     { t: 'h2', text: '患者基础信息' },
     { t: 'grid', rows: [
       ['姓名', p.name], ['性别', p.sex], ['出生年份 / 年龄', p.birthYear == null ? null : `${p.birthYear} 年 · ${p.age} 岁`],
