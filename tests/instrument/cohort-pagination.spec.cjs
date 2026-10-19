@@ -138,7 +138,7 @@ test('cohort:terminal-states',async ({page,context,browser})=>{
     await page.evaluate(()=>sessionStorage.setItem('ra-auth',JSON.stringify({name:'完成前身份变化',role:'研究者',expires:0})));await release(noEvent);await cleared('UNAUTHENTICATED');await expect(page.locator('#login-return')).toHaveAttribute('href','login.html?next=ai-cohort.html');
     for(const [status,code,state] of [[400,'CURSOR_INVALID','error'],[401,'UNAUTHENTICATED','error'],[404,'RESOURCE_NOT_FOUND','error'],[409,'SCOPE_CHANGED','scope-changed'],[410,'ANALYSIS_EXPIRED','expired']]){
       await fresh();pageError={status,body:{success:false,code,message:'资源失效，请显式重新分析',data:null}};const count=observed.requests.length;
-      await page.locator('#more').click();await cleared(code,state);expect(observed.requests.length).toBe(count+1);await expect(page.locator('#error-trace')).toHaveText('');
+      await page.locator('#more').click();await cleared(code,state);expect(observed.requests.length).toBe(count+1);await expect(page.locator('#error-trace span')).toHaveText('p01b-trace');await expect(page.locator('#error-trace button')).toHaveText('复制诊断编号');
       expect(await page.locator('#results').getAttribute('data-analysis-id')).toBe(null);await page.locator('#more').evaluate(button=>button.click());expect(observed.requests.length).toBe(count+1);
     }
     await expect(page.locator('#clinical-panels')).toBeHidden();expect(observed.pageErrors).toEqual([]);

@@ -54,7 +54,8 @@ function render(d){
   const start=(d.page-1)*d.size;
   $('#result-count').textContent=d.total?`显示第 ${start+1}–${start+pageRows.length} 条，共 ${d.total} 条`:'共 0 条匹配记录';
   const pages=Math.max(1,Math.ceil(d.total/d.size));
-  $('#pagination').innerHTML=Array.from({length:pages},(_,i)=>`<button data-page="${i+1}" class="${i+1===d.page?'active':''}">${i+1}</button>`).slice(Math.max(0,d.page-3),Math.max(5,d.page+2)).join('');
+  const firstPage=Math.max(1,d.page-2),lastPage=Math.min(pages,Math.max(5,d.page+2));
+  $('#pagination').innerHTML=Array.from({length:Math.max(0,lastPage-firstPage+1)},(_,offset)=>{const page=firstPage+offset;return `<button data-page="${page}" class="${page===d.page?'active':''}">${page}</button>`}).join('');
   updateSelectionUI();
 }
 function renderError(msg){

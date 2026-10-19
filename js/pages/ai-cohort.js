@@ -155,7 +155,22 @@ function showError(error) {
   state(resourceState,resourceState==='expired'?'分析结果已过期，请显式重新分析':resourceState==='scope-changed'?'授权范围已变化，请显式重新分析':error.status===404?'分析资源不存在，请显式重新分析':'分析失败，请确认条件后重新分析');
   $('#analysis-error').hidden = false;
   $('#error-message').textContent = ui.error(error);
-  $('#error-trace').textContent = '';
+  const traceBox=$('#error-trace');traceBox.textContent='';
+  // 只显示受限诊断标识，后端message和任意响应内容不得成为诊断正文。
+  if(typeof error.traceId==='string'&&/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(error.traceId)){
+    const trace=error.traceId,value=document.createElement('span'),copy=document.createElement('button');
+    value.textContent=trace;traceBox.textContent='诊断编号：';copy.type='button';copy.className='button compact';copy.textContent='复制诊断编号';
+    copy.addEventListener('click',async()=>{
+      if(copy.disabled)return;copy.disabled=true;
+      try{if(!window.navigator?.clipboard?.writeText)throw new Error('clipboard unavailable');await window.navigator.clipboard.writeText(trace);copy.textContent='已复制';}
+      catch{
+        const selection=window.getSelection?.();
+        if(selection&&document.createRange){const range=document.createRange();range.selectNodeContents(value);selection.removeAllRanges();selection.addRange(range);copy.textContent='请复制已选编号';}
+        else copy.textContent='请选中编号手动复制';
+      }finally{copy.disabled=false;}
+    });
+    traceBox.append(value,copy);
+  }
   if (error.status === 401) {
     $('#login-return').hidden = false;
     $('#login-return').href = 'login.html?next=' + encodeURIComponent('ai-cohort.html');
@@ -578,7 +593,7 @@ async function requestExport(selected){
   if([404,410].includes(error.status)||error.code==='SCOPE_CHANGED'){invalidate(error);return;}
   if(error.status===409&&error.code==='NEED_APPLY'&&validExportDecision(error.data,command)){
    exportSelection.decision=JSON.parse(JSON.stringify(error.data));exportSelection.explicitCommand=command;exportSelection.eligible=[...error.data.eligible];$('#application-open').hidden=false;$('#application-open').disabled=error.data.selectionMode!=='EXPLICIT';$('#export-decision').hidden=false;$('#export-decision').textContent=`直接导出日期范围：${error.data.freeStart} 至 ${error.data.today}\n可直接导出：${error.data.eligible.map(ui.label).join('、')||'无'}\n需申请的内容：\n`+error.data.blocked.map(b=>`${ui.label(b.field)}${b.side?' · '+b.side+'组':''} · ${ui.code(b.reason)} · 影响 ${b.affectedN} 人`).join('\n');$('#export-eligible').hidden=false;exportState('need-apply',`所选导出内容需要申请 · `);
-  }else exportState('error',`${ui.error(error.code==='NEED_APPLY'?{code:'INVALID_RESPONSE'}:error)} `);
+  }else exportState('error',`${ui.error(error.code==='NEED_APPLY'?{code:'INVALID_RESPONSE'}:error,undefined,'export')} `);
  }
 }
 const APPLICATION_REASONS={NOT_CONFIGURED:'通知尚未配置',INVALID_MAIL_CONFIG:'通知配置无效',RECIPIENT_CHANGED:'通知收件设置已变化',NOTIFICATION_BUSY:'通知正在处理中',PRE_DATA_REJECTED:'邮件服务在发送前拒绝',PRE_DATA_IO_FAILED:'邮件服务在发送前连接失败',DATA_OUTCOME_UNKNOWN:'正文发送结果未知',DEADLINE:'通知等待已到期',CALLER_INTERRUPTED:'通知等待已中断',SERVICE_STOPPED:'通知服务已结束',STATE_UPDATE_UNCONFIRMED:'通知状态提交尚未确认',IN_PROGRESS_OR_UNCERTAIN:'通知正在处理中或结果不确定'};

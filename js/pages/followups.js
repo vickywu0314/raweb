@@ -39,7 +39,8 @@ function syncPick(){const b=$('#add-followup'),p=picked&&plans.find(x=>String(x.
 function render(){saveListState('followups',state);markKpi();const list=rows(),pages=Math.max(1,Math.ceil(list.length/state.perPage));state.page=Math.min(state.page,pages);const start=(state.page-1)*state.perPage,pageRows=list.slice(start,start+state.perPage);
   $('#rows').innerHTML=pageRows.map(row).join('');$('#empty').hidden=!!list.length;
   $('#result-count').textContent=list.length?`显示第 ${start+1}–${Math.min(start+state.perPage,list.length)} 条，共 ${list.length} 条`:'共 0 条匹配记录';
-  $('#pagination').innerHTML=Array.from({length:pages},(_,i)=>`<button data-page="${i+1}" class="${i+1===state.page?'active':''}">${i+1}</button>`).slice(Math.max(0,state.page-3),Math.max(5,state.page+2)).join('');syncPick()}
+  const firstPage=Math.max(1,state.page-2),lastPage=Math.min(pages,Math.max(5,state.page+2));
+  $('#pagination').innerHTML=Array.from({length:Math.max(0,lastPage-firstPage+1)},(_,offset)=>{const page=firstPage+offset;return `<button data-page="${page}" class="${page===state.page?'active':''}">${page}</button>`}).join('');syncPick()}
 $('#rows').addEventListener('change',e=>{if(e.target.name!=='fu-pick')return;picked=e.target.value;$('#rows').querySelectorAll('.patient-card').forEach(c=>c.classList.toggle('is-picked',c.querySelector('input').checked));syncPick()});
 $('#add-followup').onclick=()=>{if(picked)location.href=`visit-create.html?id=${encodeURIComponent(picked)}&from=followups`};
 $('#search-form').addEventListener('submit',e=>{e.preventDefault();state.q=$('#query').value.trim().toLowerCase();state.status=$('#fu-status').value;state.plan=$('#fu-plan').value;state.page=1;render()});

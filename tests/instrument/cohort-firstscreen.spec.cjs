@@ -75,7 +75,7 @@ test('cohort:empty-errors',async ({page,context,browser})=>{
       expect(observed.requests.length).toBe(before+1);await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);await expect(page.locator('#cohort-n')).toHaveText('—');await expect(page.locator('#no-result')).toBeHidden();await expect(page.locator('#results')).toBeHidden();await expect(page.locator('#analysis-error')).toBeVisible();
       await expect(page.locator('#f-sex')).toHaveValue('F');await expect(page.locator('#f-sex')).toBeEnabled();
       await expect(page.locator('#error-message')).toContainText(failed.abort?'网络连接失败，请检查连接后重试':failed.contentType?'返回的数据不完整或无法识别，请重新读取':expectedError[failed.body.code]);
-      if(failed.trace)await expect(page.locator('#error-trace')).toHaveText('');
+      if(failed.trace){await expect(page.locator('#error-trace span')).toHaveText(failed.trace);await expect(page.locator('#error-trace button')).toHaveText('复制诊断编号');}else await expect(page.locator('#error-trace')).toHaveText('');
       if(failed.status===401){await expect(page.locator('#login-return')).toBeVisible();await expect(page.locator('#login-return')).toHaveAttribute('href','login.html?next=ai-cohort.html');await expect(page.locator('#error-message')).toHaveText('登录已失效，请重新登录');expect(await page.locator('#analysis-error img').count()).toBe(0);}else await expect(page.locator('#login-return')).toBeHidden();
     }
     expect(observed.pageErrors).toEqual([]);

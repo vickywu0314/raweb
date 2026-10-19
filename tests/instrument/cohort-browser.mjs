@@ -29,7 +29,7 @@ export async function cohortBrowserScenario(context,proxyPort,identity,owner,pro
       await page.locator('#reset').click();await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await expect(page.locator('#cohort-n')).toHaveText('5');await expect(page.locator('#study-total')).toHaveText('5');assert.deepEqual(await page.locator('#patient-rows [data-patient-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.patientId)),['5','3','1','7','6']);
     } else {
       await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','error');await expect(page.locator('#patient-rows .ai-row')).toHaveCount(0);await expect(page.locator('#cohort-n')).toHaveText('—');await expect(page.locator('#no-result')).toBeHidden();
-      await expect(page.locator('#error-message')).toContainText(id==='cohort:browser-unauthenticated'?'登录已失效，请重新登录':'服务暂不可用，请稍后重试');await expect(page.locator('#error-trace')).toHaveText('');
+      await expect(page.locator('#error-message')).toContainText(id==='cohort:browser-unauthenticated'?'登录已失效，请重新登录':'服务暂不可用，请稍后重试');await expect(page.locator('#error-trace span')).toHaveText(/^[0-9a-f]{8}-[0-9a-f-]{27}$/);await expect(page.locator('#error-trace button')).toHaveText('复制诊断编号');
       if(identity==='anonymous')await expect(page.locator('#login-return')).toBeVisible();
     }
     await Promise.all(reads);await auth.verifyAll();assert.deepEqual(pageErrors,[]);assert.deepEqual(blocked,[]);
