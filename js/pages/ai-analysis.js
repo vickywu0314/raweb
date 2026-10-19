@@ -11,7 +11,7 @@ const toQuestion=q=>{
   $('#ask-message').textContent='';location.href='ai-cohort.html?q='+encodeURIComponent(q);
 };
 $('#ask-form').addEventListener('submit',event=>{event.preventDefault();toQuestion($('#ask-input').value);});
-const questionExamples=['当前未达标的患者','合并纤维肌痛的患者','资料待补全的患者'];
+const questionExamples=['TNFi 治疗 6 个月后仍处于中高疾病活动的患者','合并纤维肌痛的患者疾病活动情况','60 岁以上女性患者的达标率','JAK 抑制剂治疗的患者'];
 $('#examples').innerHTML=questionExamples.map(q=>`<button type="button" class="cond-chip example" data-q="${escapeHTML(q)}">${escapeHTML(q)}</button>`).join('');
 $('#examples').addEventListener('click',event=>{const button=event.target.closest('[data-q]');if(button)toQuestion(button.dataset.q);});
 const searchList=$('#picker-list'),searchState=$('#patient-search-state'),searchPage=$('#patient-search-page');

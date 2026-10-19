@@ -11,7 +11,7 @@ let entryFlight=null,entryToken=0;
 function identityKey(){return JSON.stringify(currentUser());}
 function waiting(){ $('#cancel-analysis').hidden=!(flight||pageFlight); }
 function invalidate(error=null) {
-  endComparison(error?.code||'ANALYSIS_CHANGED');comparisonState('idle','当前条件或分析已变化，请显式新比较');renderComparisonSources();
+  endComparison(error?.code||'ANALYSIS_CHANGED');comparisonState('idle','当前条件或分析已变化，请重新比较');renderComparisonSources();
   generation++;const previous=[flight,pageFlight];flight=null;pageFlight=null;
   for(const operation of previous)if(operation){if(!operation.terminal)operation.terminal=error?.code||'SUPERSEDED';clearTimeout(operation.timer);}
   clearResults();waiting();lockControls();updateChatEntry();
@@ -864,27 +864,38 @@ function applyPrivateFilters(filters){
   entryIds=filters.ids===null?null:[...filters.ids];blockedEntry=false;
   history.replaceState(null,'',location.pathname+window.RACohortConditions.encode(filters)+location.hash);renderChips();saveParametersChanged();
 }
+let listTotal=null;
+function privatePagination(){
+  $('#private-prev').disabled=Boolean(listFlight)||listPage<=1;
+  $('#private-next').disabled=Boolean(listFlight)||listTotal===null||listPage>=Math.max(1,Math.ceil(listTotal/20));
+  const pager=$('#private-prev').parentElement;
+  if(pager)pager.hidden=listTotal===null||listTotal<=20;
+}
 function listState(name,message){$('#private-list-state').dataset.state=name;$('#private-list-state').textContent=message;}
 function clearPrivate(){
   revokeApplication();
   resetComparison();
   cancelSave();cancelPrivateCommand();privateItems.clear();privateDeleted.clear();const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='IDENTITY_ENDED';clearTimeout(previous.timer);previous.controller.abort();}
-  $('#private-edit-name').value='';$('#private-edit-note').value='';$('#private-edit-note-mode').value='preserve';$('#private-command-target').textContent='';listPage=1;$('#private-items').replaceChildren();$('#private-page').textContent='';$('#private-prev').disabled=true;$('#private-open-meta').textContent='';$('#private-name').value='';$('#private-note').value='';listState('idle','尚未加载');
+  $('#private-edit-name').value='';$('#private-edit-note').value='';$('#private-edit-note-mode').value='preserve';$('#private-command-target').textContent='';listPage=1;listTotal=null;privatePagination();$('#private-items').replaceChildren();$('#private-page').textContent='';$('#private-prev').disabled=true;$('#private-open-meta').textContent='';$('#private-name').value='';$('#private-note').value='';listState('idle','尚未加载');
 }
-function loadPrivateList(page=listPage,refreshEdit=false){
+function loadPrivateList(page=listPage,refreshEdit=false,fallbackRemaining=1){
   if(disposed||checkIdentity()||!Number.isSafeInteger(page)||page<1)return;
   const editing=refreshEdit?privateEdit:null;
   if(editing){endPrivateCommand('REFRESHED');privateCommand=null;}else cancelPrivateCommand();
   const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='SUPERSEDED';clearTimeout(previous.timer);previous.controller.abort();}
   listPage=page;const operation={token:listToken,identity,page,controller:new AbortController(),timer:null,terminal:null};listFlight=operation;
-  privateItems.clear();$('#private-items').replaceChildren();$('#private-prev').disabled=page===1;$('#private-page').textContent=`第 ${page} 页 · 每页 20 条 · 总数待确认`;listState('loading','正在读取私有条件定义');
+  privateItems.clear();$('#private-items').replaceChildren();privatePagination();$('#private-page').textContent=`第 ${page} 页 · 每页 20 条 · 总数待确认`;listState('loading','正在读取私有条件定义');
   const finishList=(result,error)=>{
     if(disposed||operation.terminal||listFlight!==operation||operation.token!==listToken)return;
     if(operation.identity!==identityKey()){checkIdentity();return;}
     const data=result?.data;
     if(!error&&(!data||!validPrivateMeta(data,result.traceId)||data.page!==operation.page||data.size!==20||!Number.isSafeInteger(data.total)||data.total<0||!Array.isArray(data.items)||data.items.length>20||data.items.length>data.total||!data.items.every(validPrivateItem)||new Set(data.items.map(item=>item.cohortId)).size!==data.items.length))error={status:result?.status,code:'INVALID_RESPONSE',message:'私有定义列表响应不完整',traceId:result?.traceId};
-    operation.terminal=error?.code||'SUCCESS';listFlight=null;clearTimeout(operation.timer);
+    operation.terminal=error?.code||'SUCCESS';listFlight=null;clearTimeout(operation.timer);privatePagination();
     if(error){if(error.status===401){clearPrivate();invalidate(error);return;}if(editing&&privateEdit===editing){$('#private-version-refresh').hidden=false;$('#private-command-confirm').disabled=true;commandState('error',`元信息刷新失败：${ui.error(error)} ；原输入已保留，请显式再次刷新。`);}listState('error',`${ui.error(error)} `);return;}
+    listTotal=data.total;
+    const lastPage=Math.max(1,Math.ceil(listTotal/20));
+    if(operation.page>lastPage){if(fallbackRemaining>0)loadPrivateList(lastPage,refreshEdit,fallbackRemaining-1);else{privatePagination();listState('error','列表在读取时发生变化，请显式重新加载');}return;}
+    privatePagination();
     $('#private-page').textContent=`第 ${data.page} 页 · 每页 ${data.size} 条 · 共 ${data.total} 条`;
     for(const item of data.items){privateItems.set(item.cohortId,item);for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===item.cohortId)comparisonSlots[side].item=comparisonClone(item);const row=textNode('div',privateItemText(item),'private-item');row.dataset.privateCohort=item.cohortId;row.setAttribute('role','listitem');const button=textNode('button','打开并重新分析','button');button.type='button';button.dataset.openCohort=item.cohortId;row.append(button);const edit=textNode('button','修改名称/备注','button');edit.type='button';edit.dataset.editCohort=item.cohortId;edit.disabled=!Number.isSafeInteger(item.version);row.append(edit);const remove=textNode('button','删除','button');remove.type='button';remove.dataset.deleteCohort=item.cohortId;remove.disabled=!Number.isSafeInteger(item.version);row.append(remove);for(const side of ['a','b']){const choose=textNode('button','设为'+side.toUpperCase(),'button');choose.type='button';choose.dataset.compareSide=side;choose.dataset.compareCohort=item.cohortId;row.append(choose);}if(!Number.isSafeInteger(item.version))row.append(textNode('small','版本超出安全整数范围，只能读取或打开'));$('#private-items').append(row);}
     renderComparisonSources();
@@ -901,8 +912,9 @@ function openPrivate(cohortId){
   window.RACohortAPI.open({cohortId},{signal:operation.controller.signal}).then(result=>finish(operation,result),error=>finish(operation,null,error));
 }
 $('#private-list-load').addEventListener('click',()=>loadPrivateList(listPage));
-$('#private-prev').addEventListener('click',()=>loadPrivateList(listPage-1));
-$('#private-next').addEventListener('click',()=>loadPrivateList(listPage+1));
+$('#private-prev').addEventListener('click',()=>{if(!listFlight&&listPage>1)loadPrivateList(listPage-1);});
+$('#private-next').addEventListener('click',()=>{if(!listFlight&&listTotal!==null&&listPage<Math.ceil(listTotal/20))loadPrivateList(listPage+1);});
+privatePagination();
 $('#private-items').addEventListener('click',event=>{const source=event.target.closest('[data-compare-cohort]');if(source)selectSavedComparison(source.dataset.compareSide,source.dataset.compareCohort);const button=event.target.closest('[data-open-cohort]');if(button)openPrivate(button.dataset.openCohort);const edit=event.target.closest('[data-edit-cohort]');if(edit)beginPrivateEdit(edit.dataset.editCohort);const remove=event.target.closest('[data-delete-cohort]');if(remove)beginPrivateEdit(remove.dataset.deleteCohort,'delete');});
 // 元信息命令只依据实际列表条目；回执从不组装或恢复列表。
 let privateEdit=null,privateCommand=null,privateCommandFlight=null,privateCommandToken=0;
@@ -1012,7 +1024,7 @@ function saveCurrent(retry=false){
   operation.timer=setTimeout(()=>{finishSave(null,{code:'REQUEST_TIMEOUT',message:'保存请求超过30秒'});operation.controller.abort();},30000);
   window.RACohortAPI.save(command,{signal:operation.controller.signal}).then(result=>finishSave(result),error=>finishSave(null,error));
 }
-$('#save-cohort').addEventListener('click',()=>{if(disposed||checkIdentity())return;if(blockedEntry){showError(blockedEntry);return;}cancelSave();$('#private-save-dialog').hidden=false;});
+$('#save-cohort').addEventListener('click',()=>{if(disposed||checkIdentity())return;if(blockedEntry){showError(blockedEntry);return;}cancelSave();const dialog=$('#private-save-dialog');dialog.hidden=false;dialog.scrollIntoView?.({block:'center',behavior:'smooth'});$('#private-name').focus?.();});
 $('#private-cancel').addEventListener('click',cancelSave);
 $('#private-save').addEventListener('click',()=>saveCurrent());
 $('#private-retry').addEventListener('click',()=>saveCurrent(true));

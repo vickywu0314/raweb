@@ -51,7 +51,7 @@
       patientDisplay();
       $('#scope-all').checked=scope.kind==='ALL';$('#scope-cohort').checked=scope.kind==='COHORT';
       if(scope.kind==='COHORT'&&history.length>1&&document.referrer){const ref=new URL(document.referrer,location.href);if(ref.origin===location.origin&&ref.pathname.endsWith('/ai-cohort.html')){$('#chat-return').href=ref.pathname;$('#chat-return').textContent='返回原条件页';$('#chat-return').onclick=e=>{e.preventDefault();history.back();};}}
-      state('idle','范围已确定，请显式提交问题');
+      state('idle','范围已确定，请输入问题');
     }catch{scope=null;state('invalid','问答范围入口无效，请返回条件页重新选择');}
   }
   function patientDisplay(){suggestions();const patient=scope?.kind==='PATIENT';$('#patient-picker').hidden=!(patient||selectingPatient);if(!patient){$('#chat-return').href='ai-analysis.html';$('#chat-return').textContent='返回智能分析';$('#chat-return').onclick=null;}$('#scope-patient').checked=patient;$('#patient-focus').hidden=!patient;$('#scope-patient-note').textContent=patient?'患者 '+scope.patientId+' · '+(scope.visitId?'本次访视 '+scope.visitId:'全程'):'显式搜索选择本人患者';$('#patient-course').hidden=!patient||scope.visitId===null;$('#patient-visit').hidden=!patient||!originalVisit||scope.visitId!==null;
