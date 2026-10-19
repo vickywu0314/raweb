@@ -15,7 +15,7 @@ export async function browserLoopbackScenario(context,proxyPort,identity,owner,p
   try {
     const response=await page.goto(`${origin}/`,{waitUntil:'load'});
     assert.equal(response.status(),200,'current page must be served by the owned proxy');
-    assert.equal(await page.title(),'队列分析 · 患者数据研究平台');
+    assert.equal(await page.title(),'队列分析 · 中国中医风湿病注册研究信息平台');
     assert.equal(await page.locator('h1').textContent(),'群体智能分析 · 队列分析');
     for(const selector of ['#question-form','#question','#question-form button[type="submit"]']){await page.locator(selector).waitFor({state:'visible'});assert.equal(await page.locator(selector).isVisible(),true);}
     assert.deepEqual(pageErrors,[]);

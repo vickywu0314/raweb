@@ -48,7 +48,7 @@ const REFS = { 1: 'Aletaha D, et al. 2010 rheumatoid arthritis classification cr
 document.addEventListener('DOMContentLoaded', () => {
   shell('learning');
   const t = TOPICS.find(x => x.id === queryParam('t')) || TOPICS[0], i = TOPICS.indexOf(t);
-  document.title = `${t.title} · 学习中心 · 患者数据研究平台`;
+  document.title = `${t.title} · 学习中心 · 中国中医风湿病注册研究信息平台`;
   $('#lt-crumb').textContent = t.title;
   $('#lt-head').innerHTML = `<span class="lt-no">${t.no}</span><div><h1>${t.title}</h1><p>${t.lead}</p></div>`;
   $('#lt-toc').innerHTML = t.sections.map((s, k) => `<a href="#s${k}">${s[0]}</a>`).join('');

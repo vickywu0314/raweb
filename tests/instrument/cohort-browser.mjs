@@ -21,7 +21,7 @@ export async function cohortBrowserScenario(context,proxyPort,identity,owner,pro
   let dom;
   try {
     const response=await page.goto(`${origin}/ai-cohort.html`,{waitUntil:'load'});await auth.verify(page);assert.equal(response.status(),200);
-    assert.equal(await page.title(),'队列分析 · 患者数据研究平台');assert.equal(await page.locator('h1').textContent(),'群体智能分析 · 队列分析');
+    assert.equal(await page.title(),'队列分析 · 中国中医风湿病注册研究信息平台');assert.equal(await page.locator('h1').textContent(),'群体智能分析 · 队列分析');
     if(id==='cohort:browser-firstscreen') {
       await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');await expect(page.locator('#cohort-n')).toHaveText('5');await expect(page.locator('#study-total')).toHaveText('5');
       await expect(page.locator('#patient-rows .ai-row')).toHaveCount(5);assert.deepEqual(await page.locator('#patient-rows [data-patient-id]').evaluateAll(nodes=>nodes.map(node=>node.dataset.patientId)),['5','3','1','7','6']);

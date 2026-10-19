@@ -17,13 +17,13 @@ if(aiPatientSource){
  function clearPatient(state,message){
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeAudit){disposeAudit();disposeAudit=null;}
   $('#audit').hidden=true;$('#audit').open=false;$('#audit-list').innerHTML='';$('#audit-count').textContent='';
-  document.title='患者档案 · 患者数据研究平台';
+  document.title='患者档案 · 中国中医风湿病注册研究信息平台';
   $('#patient-basic').setAttribute('data-state',state);
   $('#patient-basic').innerHTML=`<h1>患者档案${state==='loading'?'加载中':'未加载'}</h1><p>来源：${escapeHTML(aiOrigin.label)}</p>${valid?`<p>患者 ID：${escapeHTML(id)}</p>`:''}<p>${escapeHTML(message)}</p>`;
   $('#visit-list').innerHTML='';$('#visit-total').textContent='';$('.visits-section-head').hidden=true;$('#patient-chat-link').removeAttribute('href');$('#patient-chat-link').setAttribute('aria-disabled','true');$('#patient-insight-link').removeAttribute('href');$('#patient-insight-link').setAttribute('aria-disabled','true');
  }
  function showPatient(p){
-  document.title=`${p.name||'患者'} · 随访记录 · 患者数据研究平台`;
+  document.title=`${p.name||'患者'} · 随访记录 · 中国中医风湿病注册研究信息平台`;
   $('#patient-basic').setAttribute('data-state','success');
   $('#patient-basic').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}`;
   $('#patient-chat-link').href='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:id,visitId:null});$('#patient-chat-link').removeAttribute('aria-disabled');$('#patient-insight-link').href=`patient-insight.html?id=${encodeURIComponent(id)}&from=${encodeURIComponent(aiFrom)}`;$('#patient-insight-link').removeAttribute('aria-disabled');
@@ -74,7 +74,7 @@ function visitsSkeleton(){
 const notReady=name=>toast(`「${name}」功能正在开发中`);
 
 function renderVisitPage(){
- document.title=`${p.name} · 随访记录 · 患者数据研究平台`;
+ document.title=`${p.name} · 随访记录 · 中国中医风湿病注册研究信息平台`;
  const pid=encodeURIComponent(p.patientId), lost=p.followStatus==='withdrawn';
  // 按钮分组：查看分析 ｜ 录入编辑 ｜ 危险操作；姓名下的标签、基础信息卡片与访视详情页共用（js/shared/patient-basic.js）
  const actions=actionGroupsHTML([
@@ -145,7 +145,7 @@ const detailOwner=RAPatientDetail.owner({
   pdfGeneration++;
   const ocr=document.getElementById('ocr-dialog');if(ocr){ocr.close();ocr.remove();}document.querySelectorAll('.ocr-banner').forEach(n=>n.remove());
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(reloadAudit.dispose)reloadAudit.dispose();
-  p=null;document.title='随访记录 · 患者数据研究平台';
+  p=null;document.title='随访记录 · 中国中医风湿病注册研究信息平台';
   $('#patient-basic').setAttribute('data-state',state);
   $('#audit').hidden=true;$('#audit').open=false;$('#audit-list').innerHTML='';$('#audit-count').textContent='';
   document.querySelectorAll('.ra-form-dialog').forEach(d=>{d.close();d.remove();});

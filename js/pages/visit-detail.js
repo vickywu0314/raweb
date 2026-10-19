@@ -67,12 +67,12 @@ if(aiVisitSource){
  let currentFlight=null,disposeBasic=null,disposeNav=null;
  function clearVisit(state,message){
   if(disposeBasic){disposeBasic();disposeBasic=null;}if(disposeNav){disposeNav();disposeNav=null;}
-  $('#visit-chat-link').removeAttribute('href');$('#visit-chat-link').setAttribute('aria-disabled','true');document.title='访视详情 · 患者数据研究平台';$('#visit-hero').setAttribute('data-state',state);
+  $('#visit-chat-link').removeAttribute('href');$('#visit-chat-link').setAttribute('aria-disabled','true');document.title='访视详情 · 中国中医风湿病注册研究信息平台';$('#visit-hero').setAttribute('data-state',state);
   $('#visit-hero').innerHTML=`<h1>访视详情${state==='loading'?'加载中':'未加载'}</h1><p>${escapeHTML(message)}</p>`;$('#visit-sections').innerHTML='';document.querySelector('.detail-anchor').classList.remove('is-loading');
  }
  function showVisit(p,v){
   $('#visit-chat-link').href='ai-chat.html'+RACohortChatEntry.encode({kind:'PATIENT',patientId:id,visitId});$('#visit-chat-link').removeAttribute('aria-disabled');
-  document.title=`${p.name||'患者'} · ${v.visitType||'访视'} · 患者数据研究平台`;
+  document.title=`${p.name||'患者'} · ${v.visitType||'访视'} · 中国中医风湿病注册研究信息平台`;
   $('#visit-hero').setAttribute('data-state','success');
   $('#visit-hero').innerHTML=`<div class="patient-basic-head"><div class="patient-basic-title"><h1>${escapeHTML(p.name||'姓名未提供')}</h1>${patientTagsHTML(p)}</div></div><div class="reference-basic-grid visit-meta"><div><span>本次访视</span><b>${escapeHTML(v.visitType||'访视')} · ${escapeHTML(v.visitDate||'日期未填')}</b><small>访视 ID：${escapeHTML(v.visitId)}</small></div><div><span>记录医生</span><b>${escapeHTML(v.doctorName||v.doctorId||'未提供')}</b></div></div><details id="basic-collapse" class="basic-collapse"><summary>患者基础信息</summary>${patientBasicGridHTML(p)}${patientHistoryHTML(p,{trusted:true})}</details>`;
   disposeNav=renderSections(v,true);disposeBasic=bindPatientBasic($('#basic-collapse'),p,{trusted:true});
@@ -115,7 +115,7 @@ const BASIC_OPEN_KEY='ra:visit-basic-open';
 function basicOpenPref(){try{return localStorage.getItem(BASIC_OPEN_KEY)==='1'}catch(e){return false}}
 
 function renderHero(){
- document.title=`${p.name} · ${v.visitType} ${v.visitDate||''} · 患者数据研究平台`;
+ document.title=`${p.name} · ${v.visitType} ${v.visitDate||''} · 中国中医风湿病注册研究信息平台`;
  const lost=p.followStatus==='withdrawn';
  // 按钮分组：查看分析 ｜ 录入编辑 ｜ 危险操作（与患者详情页同一顺序）
  const actions=actionGroupsHTML([
@@ -189,7 +189,7 @@ const detailOwner=RAPatientDetail.owner({
   if(disposeBasic)disposeBasic();if(disposeNav)disposeNav();disposeBasic=disposeNav=null;
   if(disposeAudit){disposeAudit();disposeAudit=null;}
   clearOcrImages();
-  p=null;v=null;document.title='访视详情 · 患者数据研究平台';
+  p=null;v=null;document.title='访视详情 · 中国中医风湿病注册研究信息平台';
   $('#visit-hero').setAttribute('data-state',state);renderError(message);
   const auditPanel=$('#audit');auditPanel.open=false;auditPanel.querySelector('.audit-list').innerHTML='';auditPanel.querySelector('.audit-count').textContent='';
   document.querySelector('.detail-anchor').classList.remove('is-loading');

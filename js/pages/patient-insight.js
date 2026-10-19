@@ -2,7 +2,7 @@
 "use strict";
 (()=>{
  const display=window.RAUserDisplay;
- const $=selector=>document.querySelector(selector),baseTitle='患者病程分析 · 患者数据研究平台';
+ const $=selector=>document.querySelector(selector),baseTitle='患者病程分析 · 中国中医风湿病注册研究信息平台';
  const id=value=>typeof value==='string'&&/^[1-9][0-9]*$/.test(value)&&(value.length<19||(value.length===19&&value<='9223372036854775807'));
  const esc=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
  const params=new URLSearchParams(location.search),from=params.get('from')||'ai-analysis',patientId=params.get('id');

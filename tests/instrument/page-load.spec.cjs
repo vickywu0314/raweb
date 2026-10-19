@@ -13,7 +13,7 @@ test('instrument:page-load', async ({ page, context, browser }) => {
   try {
     const response = await page.goto(`${origin}/ai-cohort.html`, { waitUntil: 'load' });
     expect(response.status()).toBe(200);
-    await expect(page).toHaveTitle('队列分析 · 患者数据研究平台');
+    await expect(page).toHaveTitle('队列分析 · 中国中医风湿病注册研究信息平台');
     await expect(page.locator('h1')).toHaveText('群体智能分析 · 队列分析');
     await expect(page.locator('#question-form')).toBeVisible();
     await expect(page.locator('#question')).toBeVisible();

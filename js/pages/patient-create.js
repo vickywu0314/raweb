@@ -279,7 +279,7 @@ async function loadEdit() {
     const b = r.basic || {};
     form.querySelectorAll('input,select,button').forEach(el => el.disabled = false);
     $('#comorbid-pick').querySelectorAll('.since-year').forEach(y => y.disabled = true);
-    document.title = `${b.name} · 编辑档案 · 患者数据研究平台`;
+    document.title = `${b.name} · 编辑档案 · 中国中医风湿病注册研究信息平台`;
     $('#edit-title').textContent = `编辑患者档案 · ${b.name}`;
     $('#edit-sub').textContent = `ID号 ${r.patientId} · 研究编号 ${r.studyNo || '—'} · 只保存改动过的内容`;
     if (b.cardNo) field('cardNo').value = b.cardNo;

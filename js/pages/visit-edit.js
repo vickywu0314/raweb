@@ -15,7 +15,7 @@ const val=x=>escapeHTML(x==null||x===''?'未提供':x);
 const showError=msg=>{const e=$('#edit-error');e.hidden=!msg;e.innerHTML=msg||''};
 
 function render(){
- document.title=`${p.name} · 编辑随访 · 患者数据研究平台`;
+ document.title=`${p.name} · 编辑随访 · 中国中医风湿病注册研究信息平台`;
  $('#visit-title').textContent=`编辑随访 · ${p.name}`;
  $('#visit-sub').textContent=`研究编号 ${p.studyNo||'—'} · ${form.visitType} ${form.visitDate||''} · 保存后会写入该患者的修改记录`;
  $('#edit-profile').href=`patient-edit.html?id=${encodeURIComponent(p.patientId)}&back=visit`;
@@ -64,7 +64,7 @@ $('#edit-form').addEventListener('submit',async e=>{
 const detailOwner=RAPatientDetail.owner({
  clear(state,message){
   vfCancelConfirmations();
-  form=null;p=null;VF.form=null;VF.defs={};dirty=false;preparing=false;document.title='编辑随访 · 患者数据研究平台';
+  form=null;p=null;VF.form=null;VF.defs={};dirty=false;preparing=false;document.title='编辑随访 · 中国中医风湿病注册研究信息平台';
   $('#basic-readonly').innerHTML='';$('#edit-sections').innerHTML='';$('#visit-date').value='';
   $('#save-edit').disabled=true;$('#visit-title').textContent='编辑随访';$('#visit-title').setAttribute('data-state',state);$('#visit-sub').textContent='';
   $('#edit-profile').removeAttribute('href');showError(message);

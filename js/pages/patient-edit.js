@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.js-back').forEach(a=>a.href=back);
   if(fromVisit)document.querySelector('.back-link').textContent='← 返回新增随访';
   document.getElementById('edit-title').textContent=`编辑患者档案 · ${p.name}`;
-  document.title=`${p.name} · 编辑档案 · 患者数据研究平台`;
+  document.title=`${p.name} · 编辑档案 · 中国中医风湿病注册研究信息平台`;
 
   const form=document.getElementById('edit-form');
   form.querySelector('#basic .form-grid').insertAdjacentHTML('beforeend',comorbidEditorHTML());
