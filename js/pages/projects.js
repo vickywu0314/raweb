@@ -5,7 +5,7 @@ document.addEventListener('DOMContentLoaded',async()=>{
   shell('projects');
   const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};
   const pct=(v,digits)=>(v==null?'—':Number(v).toFixed(digits)+'%');
-  const IDS=['pv-enrolled','pv-completion','pv-quality','pv-sites','pv-progress','pv-pending','pv-qc','pv-ready'];
+  const IDS=['pv-enrolled','pv-times2','pv-times3','pv-times4','pv-quality','pv-sites','pv-progress','pv-pending','pv-qc','pv-ready'];
   // 加载中：数字位置显示灰色闪动占位条（与患者列表同一效果）
   IDS.forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<i class="skeleton pv-skeleton"></i>'});
   $('#pv-progress-note').innerHTML='<i class="skeleton pv-skeleton-note"></i>';
@@ -13,7 +13,8 @@ document.addEventListener('DOMContentLoaded',async()=>{
     const d=await apiPost('/api/ra/project/projectsData',{doctorId:currentDoctorId()});
     // 顶部 4 张卡片
     set('pv-enrolled',d.enrolledPatients);           // 已入组患者
-    set('pv-completion',pct(d.followUpCompletionRate,0)); // 计划随访完成率（整数 %）
+    // 随访完成 2 / 3 / 4 次率（不含基线访视；分母 = 已入组患者）
+    [2,3,4].forEach(n=>{set('pv-times'+n,pct(d['followUp'+n+'Rate'],1));const el=document.getElementById('pv-times'+n);if(el)el.title=`${d['followUp'+n+'Count']??'—'} 位患者完成 ≥${n} 次随访`;});
     set('pv-quality',pct(d.dataQualityRate,1));      // 整体数据质量（1 位小数 %）
     set('pv-sites',d.centerCount);                   // 参与研究中心
     // 研究执行概览

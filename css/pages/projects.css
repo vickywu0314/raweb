@@ -105,3 +105,24 @@
   height:12px;
   margin-top:6px;
 }
+
+/* 随访完成 2 / 3 / 4 次率：一张卡片放三个百分比 */
+.project-overview-cards .pv-times strong {
+  display:flex;
+  align-items:baseline;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.project-overview-cards .pv-times strong b {
+  font-weight:inherit;
+}
+.project-overview-cards .pv-times strong i {
+  color:#c3ccd8;
+  font-style:normal;
+  font-weight:400;
+}
+.project-overview-cards .pv-times-label {
+  display:flex;
+  align-items:center;
+  gap:5px;
+}
