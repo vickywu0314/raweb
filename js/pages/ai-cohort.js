@@ -20,7 +20,7 @@ function invalidate(error=null) {
 }
 function checkIdentity(){
   const current=identityKey();if(current===identity)return false;
-  identity=current;clearPrivate();invalidate({status:401,code:'UNAUTHENTICATED',message:'登录身份已变化，请重新登录后显式分析'});return true;
+  identity=current;clearPrivate();invalidate({status:401,code:'UNAUTHENTICATED',message:'登录身份已变化，请重新登录后再分析'});return true;
 }
 function isCurrent(operation,kind) {
   return !disposed && !operation.terminal && generation===operation.generation && (kind==='cohort'?flight===operation:pageFlight===operation&&resource===operation.resource&&resource.analysisId===operation.analysisId&&resource.cursor===operation.cursor&&!resource.consumed.has(operation.cursor));
@@ -152,7 +152,7 @@ function renderChips() {
 function showError(error) {
   if(error.status===401)clearPrivate();
   const resourceState=error.status===410?'expired':error.status===409&&error.code==='SCOPE_CHANGED'?'scope-changed':'error';
-  state(resourceState,resourceState==='expired'?'分析结果已过期，请显式重新分析':resourceState==='scope-changed'?'授权范围已变化，请显式重新分析':error.status===404?'分析资源不存在，请显式重新分析':'分析失败，请确认条件后重新分析');
+  state(resourceState,resourceState==='expired'?'分析结果已过期，请重新分析':resourceState==='scope-changed'?'授权范围已变化，请重新分析':error.status===404?'分析资源不存在，请重新分析':'分析失败，请确认条件后重新分析');
   $('#analysis-error').hidden = false;
   $('#error-message').textContent = ui.error(error);
   const traceBox=$('#error-trace');traceBox.textContent='';
@@ -258,7 +258,7 @@ function appendPatients(items,meta) {
     if(patientLongId(patient.patientId)){const link=textNode('a','查看患者档案');link.href='patient-visits.html?id='+encodeURIComponent(patient.patientId)+'&from=ai-cohort';personal.append(link);}
     personal.append(textNode('small',`${ui.code(c.sex,'未知')} · 年龄 ${clinicalText(c.age)} · 病程年 ${clinicalText(c.diseaseDurationYears)} · 血清 ${ui.code(c.sero,'未知')}`));row.append(personal);
     row.append(textNode('div',`${ui.code(t.state,'未知')} · ${ui.code(t.category,'未知方案')} · 线数 ${clinicalText(t.line)} · 靶向药史 ${clinicalText(t.targetedDrugHistoryN)} · 用药记录 ${t.genericDrugIds.length} 项 · ${t.genericDrugIds.length?t.genericDrugIds.map(ui.drugLabel).join('、'):'未记录'}`,'patient-treatment'));
-    row.append(textNode('div',`方案月数 ${clinicalText(t.schemeDurationMonths)} · 显式起点 ${clinicalText(t.startDate)} · 估算起点 ${clinicalText(t.estimatedStartDate)} · ${ui.code(t.startConfidence,'未知')} · 结束 ${clinicalText(t.endDate)}`,'patient-duration'));
+    row.append(textNode('div',`方案月数 ${clinicalText(t.schemeDurationMonths)} · 明确起点 ${clinicalText(t.startDate)} · 估算起点 ${clinicalText(t.estimatedStartDate)} · ${ui.code(t.startConfidence,'未知')} · 结束 ${clinicalText(t.endDate)}`,'patient-duration'));
     row.append(textNode('div',`DAS28-CRP 基线 ${clinicalText(patient.das28Base)} → 评估 ${clinicalText(patient.das28At)}；当前 ${clinicalText(patient.das28Current)}；差值 ${clinicalText(patient.deltaDas28)}`,'patient-das28'));
     const activity={remission:'缓解',low:'低',moderate:'中',high:'高'};
     row.append(textNode('div',`DAS28-CRP 活动 ${activity[patient.activity]??'未知'}`,'patient-activity'+(Object.hasOwn(activity,patient.activity)?' activity-'+patient.activity:'')));
@@ -643,7 +643,7 @@ function sendApplication(session,kind='apply'){
  if(disposed||checkIdentity()||applicationFlight||!session||applicationSession!==session||session.identity!==identityKey())return;
  if(kind==='retry'&&!(session.notificationTrusted&&session.receipt?.notification.retryable===true&&session.receipt.notification.statusConfirmed===true&&['PENDING','FAILED'].includes(session.receipt.notification.mailStatus)))return;
  const command=kind==='retry'?Object.freeze({applicationId:session.receipt.applicationId}):session.command;
- const operation={session,identity:session.identity,kind,command,controller:new AbortController(),timer:null,terminal:null};applicationFlight=operation;session.sent=true;session.notificationTrusted=false;$('#application-panel').hidden=false;applicationButtons();applicationState('loading',kind==='retry'?'正在显式重试本申请通知':'正在提交或同参数读取本申请');
+ const operation={session,identity:session.identity,kind,command,controller:new AbortController(),timer:null,terminal:null};applicationFlight=operation;session.sent=true;session.notificationTrusted=false;$('#application-panel').hidden=false;applicationButtons();applicationState('loading',kind==='retry'?'正在重试本申请通知':'正在提交或同参数读取本申请');
  operation.timer=setTimeout(()=>{finishApplication(operation,null,{code:'REQUEST_TIMEOUT'});operation.controller.abort();},30000);
  window.RACohortAPI[kind==='retry'?'retryNotification':'applyAnalysis'](command,{signal:operation.controller.signal}).then(result=>finishApplication(operation,result),error=>finishApplication(operation,null,error));
 }
@@ -680,7 +680,7 @@ $('#export-default').addEventListener('click',()=>requestExport());
 $('#export-confirm').addEventListener('click',()=>requestExport([...$('#export-fields').querySelectorAll('input:checked')].map(input=>input.value)));
 $('#export-eligible').addEventListener('click',()=>{if(!exportFlight&&exportSelection?.eligible){showExportFields(exportSelection.eligible);exportState('selecting','建议字段已选，请明确确认后请求');}});
 $('#export-cancel').addEventListener('click',()=>{endExport('REQUEST_CANCELLED');exportState('cancelled','已取消本次文件等待，不能确定服务器是否已写出');});
-$('#cancel-analysis').addEventListener('click',()=>{if(flight||pageFlight)invalidate({code:'REQUEST_CANCELLED',message:'请求已取消，请显式重新分析'});});
+$('#cancel-analysis').addEventListener('click',()=>{if(flight||pageFlight)invalidate({code:'REQUEST_CANCELLED',message:'请求已取消，请重新分析'});});
 // 比较拥有独立operation/代次与保留资源，原分析owner不参与发布。
 let comparisonSlots={a:null,b:null},comparisonResource=null,comparisonFlight=null,comparisonGeneration=0;
 const COMPARISON_ROWS=[['n','COUNT'],['age','CONTINUOUS'],['duration','CONTINUOUS'],['das28At','CONTINUOUS'],['crpAt','CONTINUOUS'],['haqAt','CONTINUOUS'],['female','BINARY'],['sero','BINARY'],['target','BINARY'],['complete','BINARY'],['activity','DISTRIBUTION'],['line','DISTRIBUTION']];
@@ -707,7 +707,7 @@ function renderComparisonSources(){
 }
 function selectComparison(side,slot){
  if(disposed||checkIdentity()||blockedEntry)return;
- endComparison('SOURCE_CHANGED');comparisonSlots[side]=slot;comparisonState('idle','来源已选择，请显式比较');renderComparisonSources();
+ endComparison('SOURCE_CHANGED');comparisonSlots[side]=slot;comparisonState('idle','来源已选择，请比较');renderComparisonSources();
 }
 for(const side of ['a','b'])$('#compare-current-'+side).addEventListener('click',()=>selectComparison(side,{source:'FILTERS',filters:{...currentFilters(),ids:entryIds===null?null:[...entryIds]}}));
 function selectSavedComparison(side,cohortId){const item=privateItems.get(cohortId);if(!item)return;selectComparison(side,{source:'SAVED',cohortId,item:comparisonClone(item)});}
@@ -814,9 +814,9 @@ function finishComparison(operation,result,error){
  if(error){
   clearComparisonResult();
   if(error.status===401){clearPrivate();invalidate(error);}
-  if(operation.kind==='read'){const reason=error.status===404?'保留比较不存在':error.status===410?'保留比较已过期':error.status===409&&error.code==='SCOPE_CHANGED'?'授权研究库范围已变化':'无法验证保留结果';comparisonState('error',`${ui.error(error)}：${reason}，引用已清除，请显式重新比较`);return;}
+  if(operation.kind==='read'){const reason=error.status===404?'保留比较不存在':error.status===410?'保留比较已过期':error.status===409&&error.code==='SCOPE_CHANGED'?'授权研究库范围已变化':'无法验证保留结果';comparisonState('error',`${ui.error(error)}：${reason}，引用已清除，请重新比较`);return;}
   const unknown=error.status>=500||['NETWORK_ERROR','INVALID_RESPONSE','REQUEST_TIMEOUT','REQUEST_CANCELLED'].includes(error.code);
-  comparisonState('error',`${ui.error(error,'比较未完成')}${unknown?'；结果尚未确认，不能确定是否已提交。显式再次比较可能创建新ID。':''}`);return;
+  comparisonState('error',`${ui.error(error,'比较未完成')}${unknown?'；结果尚未确认，不能确定是否已提交。再次比较会生成一条新结果。':''}`);return;
  }
  publishComparison(result.data);
 }
@@ -830,16 +830,16 @@ function startComparison(){
 }
 function removeComparisonDefinition(cohortId){
  const affected=['a','b'].some(side=>comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===cohortId);
- if(comparisonFlight?.kind==='compare'&&['a','b'].some(side=>comparisonFlight.body[side].source==='SAVED'&&comparisonFlight.body[side].cohortId===cohortId)){endComparison('SOURCE_DELETED');comparisonState('error','来源定义已删除，请显式重选来源');}
+ if(comparisonFlight?.kind==='compare'&&['a','b'].some(side=>comparisonFlight.body[side].source==='SAVED'&&comparisonFlight.body[side].cohortId===cohortId)){endComparison('SOURCE_DELETED');comparisonState('error','来源定义已删除，请重选来源');}
  for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===cohortId)comparisonSlots[side]=null;
  if(affected)renderComparisonSources();
  if(comparisonResource&&['a','b'].some(side=>comparisonResource[side].source==='SAVED'&&comparisonResource[side].cohortId===cohortId))$('#compare-definition-note').textContent='来源定义已删除，当前为已保留结果；原ID、数值和有效期保持。';
 }
 $('#compare-start').addEventListener('click',startComparison);
 $('#compare-read').addEventListener('click',startComparisonRead);
-$('#compare-swap').addEventListener('click',()=>{if(disposed||checkIdentity())return;endComparison('SWAPPED');[comparisonSlots.a,comparisonSlots.b]=[comparisonSlots.b,comparisonSlots.a];comparisonState('idle','A/B已交换，请显式新比较');renderComparisonSources();});
-$('#compare-exclude').addEventListener('change',()=>{if(disposed||checkIdentity())return;endComparison('EXCLUSION_CHANGED');comparisonState('idle','排重选择已改变，请显式新比较');renderComparisonSources();});
-$('#compare-cancel').addEventListener('click',()=>{if(!comparisonFlight)return;const read=comparisonFlight.kind==='read';endComparison('REQUEST_CANCELLED');comparisonState('error',read?'已取消保留重读，引用已清除，请显式重新比较。':'已取消等待，结果尚未确认，不能确定是否已提交；显式新比较可能创建新ID。');});
+$('#compare-swap').addEventListener('click',()=>{if(disposed||checkIdentity())return;endComparison('SWAPPED');[comparisonSlots.a,comparisonSlots.b]=[comparisonSlots.b,comparisonSlots.a];comparisonState('idle','A/B已交换，请新比较');renderComparisonSources();});
+$('#compare-exclude').addEventListener('change',()=>{if(disposed||checkIdentity())return;endComparison('EXCLUSION_CHANGED');comparisonState('idle','排重选择已改变，请新比较');renderComparisonSources();});
+$('#compare-cancel').addEventListener('click',()=>{if(!comparisonFlight)return;const read=comparisonFlight.kind==='read';endComparison('REQUEST_CANCELLED');comparisonState('error',read?'已取消保留重读，引用已清除，请重新比较。':'已取消等待，结果尚未确认，不能确定是否已提交；重新比较会生成一条新结果。');});
 window.RACohortComparison=Object.freeze({getResource:()=>comparisonResource===null?null:comparisonClone(comparisonResource)});
 // 私有定义只读元信息；列表与保存独立于分析owner，不自动统计人数。
 let listFlight=null,listToken=0,listPage=1,privateItems=new Map(),privateDeleted=new Set();
@@ -891,10 +891,10 @@ function loadPrivateList(page=listPage,refreshEdit=false,fallbackRemaining=1){
     const data=result?.data;
     if(!error&&(!data||!validPrivateMeta(data,result.traceId)||data.page!==operation.page||data.size!==20||!Number.isSafeInteger(data.total)||data.total<0||!Array.isArray(data.items)||data.items.length>20||data.items.length>data.total||!data.items.every(validPrivateItem)||new Set(data.items.map(item=>item.cohortId)).size!==data.items.length))error={status:result?.status,code:'INVALID_RESPONSE',message:'私有定义列表响应不完整',traceId:result?.traceId};
     operation.terminal=error?.code||'SUCCESS';listFlight=null;clearTimeout(operation.timer);privatePagination();
-    if(error){if(error.status===401){clearPrivate();invalidate(error);return;}if(editing&&privateEdit===editing){$('#private-version-refresh').hidden=false;$('#private-command-confirm').disabled=true;commandState('error',`元信息刷新失败：${ui.error(error)} ；原输入已保留，请显式再次刷新。`);}listState('error',`${ui.error(error)} `);return;}
+    if(error){if(error.status===401){clearPrivate();invalidate(error);return;}if(editing&&privateEdit===editing){$('#private-version-refresh').hidden=false;$('#private-command-confirm').disabled=true;commandState('error',`元信息刷新失败：${ui.error(error)} ；原输入已保留，请再次刷新。`);}listState('error',`${ui.error(error)} `);return;}
     listTotal=data.total;
     const lastPage=Math.max(1,Math.ceil(listTotal/20));
-    if(operation.page>lastPage){if(fallbackRemaining>0)loadPrivateList(lastPage,refreshEdit,fallbackRemaining-1);else{privatePagination();listState('error','列表在读取时发生变化，请显式重新加载');}return;}
+    if(operation.page>lastPage){if(fallbackRemaining>0)loadPrivateList(lastPage,refreshEdit,fallbackRemaining-1);else{privatePagination();listState('error','列表在读取时发生变化，请重新加载');}return;}
     privatePagination();
     $('#private-page').textContent=`第 ${data.page} 页 · 每页 ${data.size} 条 · 共 ${data.total} 条`;
     for(const item of data.items){privateItems.set(item.cohortId,item);for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===item.cohortId)comparisonSlots[side].item=comparisonClone(item);const row=textNode('div',privateItemText(item),'private-item');row.dataset.privateCohort=item.cohortId;row.setAttribute('role','listitem');const button=textNode('button','打开并重新分析','button');button.type='button';button.dataset.openCohort=item.cohortId;row.append(button);const edit=textNode('button','修改名称/备注','button');edit.type='button';edit.dataset.editCohort=item.cohortId;edit.disabled=!Number.isSafeInteger(item.version);row.append(edit);const remove=textNode('button','删除','button');remove.type='button';remove.dataset.deleteCohort=item.cohortId;remove.disabled=!Number.isSafeInteger(item.version);row.append(remove);for(const side of ['a','b']){const choose=textNode('button','设为'+side.toUpperCase(),'button');choose.type='button';choose.dataset.compareSide=side;choose.dataset.compareCohort=item.cohortId;row.append(choose);}if(!Number.isSafeInteger(item.version))row.append(textNode('small','版本超出安全整数范围，只能读取或打开'));$('#private-items').append(row);}
@@ -902,13 +902,13 @@ function loadPrivateList(page=listPage,refreshEdit=false,fallbackRemaining=1){
     if(editing&&privateEdit===editing){const item=privateItems.get(editing.item.cohortId);if(item){editing.item=item;editing.versionConflict=false;$('#private-command-target').textContent=privateItemText(item);$('#private-command-confirm').disabled=!Number.isSafeInteger(item.version);commandState('idle',Number.isSafeInteger(item.version)?'元信息已刷新，请核对输入后确认新命令':'版本超出安全整数范围，只能读取或打开');}else{cancelPrivateCommand();commandState('error','当前页未找到该定义，请加载对应页后重新选择。');}}
     listState(data.items.length?'success':'empty',data.items.length?'列表已读取，人数在打开后计算':'当前页没有私有定义');
   };
-  operation.timer=setTimeout(()=>{finishList(null,{code:'REQUEST_TIMEOUT',message:'列表请求超过30秒，请显式重试'});operation.controller.abort();},30000);
+  operation.timer=setTimeout(()=>{finishList(null,{code:'REQUEST_TIMEOUT',message:'列表请求超过30秒，请重试'});operation.controller.abort();},30000);
   window.RACohortAPI.list({page,size:20},{signal:operation.controller.signal}).then(result=>finishList(result),error=>finishList(null,error));
 }
 function openPrivate(cohortId){
   if(disposed||checkIdentity()||!PRIVATE_UUID.test(cohortId))return;
   invalidate();const operation={controller:new AbortController(),timer:null,terminal:null,identity,generation,cohortId};flight=operation;waiting();state('loading','正在打开私有条件并重新分析');
-  operation.timer=setTimeout(()=>{finish(operation,null,{code:'REQUEST_TIMEOUT',message:'打开请求超过30秒，请显式重试'});operation.controller.abort();},30000);
+  operation.timer=setTimeout(()=>{finish(operation,null,{code:'REQUEST_TIMEOUT',message:'打开请求超过30秒，请重试'});operation.controller.abort();},30000);
   window.RACohortAPI.open({cohortId},{signal:operation.controller.signal}).then(result=>finish(operation,result),error=>finish(operation,null,error));
 }
 $('#private-list-load').addEventListener('click',()=>loadPrivateList(listPage));
@@ -962,8 +962,8 @@ function confirmPrivateCommand(retry=false){
     if(error){
       if(error.status===401){clearPrivate();invalidate(error);return;}
       const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
-      const instruction=unknown?'结果尚未确认，不能确定是否已提交。可显式重试原命令。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新确认。':error.code==='VERSION_CONFLICT'?'版本冲突，请显式刷新元信息，再核对输入并确认新命令。':error.code==='IDEMPOTENCY_CONFLICT'?'原请求标识对应不同参数，请核对输入；不要盲目重试。':error.status===404?'定义不存在、已删除或不属于当前身份，请重新加载列表。':'';
-      if(error.status===404){removeComparisonDefinition(pending.body.cohortId);privateItems.delete(pending.body.cohortId);$(`[data-private-cohort="${pending.body.cohortId}"]`)?.remove();listState('error','条目已不可用，请显式重新加载列表');}
+      const instruction=unknown?'结果尚未确认，不能确定是否已提交。可点重试。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新确认。':error.code==='VERSION_CONFLICT'?'版本冲突，请刷新元信息，再核对输入并确认新命令。':error.code==='IDEMPOTENCY_CONFLICT'?'原请求标识对应不同参数，请核对输入；不要盲目重试。':error.status===404?'定义不存在、已删除或不属于当前身份，请重新加载列表。':'';
+      if(error.status===404){removeComparisonDefinition(pending.body.cohortId);privateItems.delete(pending.body.cohortId);$(`[data-private-cohort="${pending.body.cohortId}"]`)?.remove();listState('error','条目已不可用，请重新加载列表');}
       if(error.code==='VERSION_CONFLICT'){privateEdit.versionConflict=true;$('#private-command-confirm').disabled=true;}
       $('#private-command-retry').hidden=!unknown;$('#private-version-refresh').hidden=error.code!=='VERSION_CONFLICT';if(!unknown)privateCommand=null;
       commandState('error',`${ui.error(error)} ${instruction} `);return;
@@ -1015,7 +1015,7 @@ function saveCurrent(retry=false){
     if(error){
       if(error.status===401){clearPrivate();invalidate(error);return;}
       const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
-      const instruction=unknown?'保存结果尚未确认，不能确定是否已提交。可显式重试原命令。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新保存。':error.code==='IDEMPOTENCY_CONFLICT'?'请求标识对应不同参数，请核对输入后发起新命令。':'';
+      const instruction=unknown?'保存结果尚未确认，不能确定是否已提交。可点重试。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新保存。':error.code==='IDEMPOTENCY_CONFLICT'?'请求标识对应不同参数，请核对输入后发起新命令。':'';
       $('#private-retry').hidden=!unknown;if(!unknown)saveCommand=null;
       saveState('error',`${ui.error(error)} ${instruction} `);return;
     }
