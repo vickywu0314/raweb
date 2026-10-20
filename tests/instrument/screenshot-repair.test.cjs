@@ -33,8 +33,8 @@ test('screenshots:repair-contract',async t=>{
   const html=source('ai-chat.html'),css=source('css/pages/ai-chat.css');
   assert.match(html,/css\/shared\/ai-analytics\.css\?v=/);
   assert.match(html,/<nav aria-label="主导航">/);
-  assert.match(html,/class="nav-item active"[^>]*href="ai-chat\.html"[^>]*aria-current="page"/);
-  assert.match(html,/class="sidebar-nav-group"/);
+  // 与其它页面同一份侧栏：「AI 智能分析」为当前项
+  assert.match(html,/class="nav-item active"[^>]*data-nav="ai"[^>]*href="ai-analysis\.html"[^>]*aria-current="page"/);
   assert.doesNotMatch(html,/js\/(?:data|common)\.js/);
   assert.doesNotMatch(css,/\.sidebar nav\s*\{/);
  });

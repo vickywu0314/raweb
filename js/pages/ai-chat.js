@@ -91,5 +91,10 @@
   window.addEventListener('pagehide',()=>{disposed=true;clear('PAGEHIDE');scope=null;patientScope=null;originalVisit=null;selectingPatient=false;patientDisplay();state('disposed','页面已离开');});
   window.addEventListener('pageshow',e=>{if(e.persisted){disposed=false;restore();}});
   $('#chat-account').textContent=typeof user()?.name==='string'?user().name:'当前登录用户';
+  // 页头头像、侧栏研究库卡片、欢迎语里的范围名（与原型一致；不影响问答逻辑）
+  if($('#chat-avatar'))$('#chat-avatar').textContent=($('#chat-account').textContent||'医').slice(0,1);
+  $('#project-switch')?.addEventListener('click',()=>{location.href='projects.html';});
+  const welcomeScope=()=>{const node=$('#chat-welcome-scope'),checked=document.querySelector('#scope-list input:checked');if(node&&checked)node.textContent={ALL:'整个研究库',COHORT:'当前队列',PATIENT:'所选患者'}[checked.value]||'当前选择的范围';};
+  $('#scope-list')?.addEventListener('change',welcomeScope);welcomeScope();
   window.RAChatPage=Object.freeze({ask});restore();
 })();

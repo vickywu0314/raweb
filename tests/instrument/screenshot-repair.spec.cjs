@@ -43,8 +43,8 @@ test('screenshots:layout-states',async({page,context,browser})=>{
   await expect(page.locator('#suggest')).toContainText('患者全程有哪些实测记录');
   await expect(page.locator('#suggest')).not.toContainText('达标率');
   const nav=await page.locator('.sidebar .nav-item').evaluateAll(items=>items.map(item=>({top:item.getBoundingClientRect().top,height:item.getBoundingClientRect().height,background:getComputedStyle(item).backgroundColor})));
-  expect(nav).toHaveLength(3);expect(nav[2].top-nav[0].top).toBeLessThan(120);expect(nav[2].background).not.toBe('rgba(0, 0, 0, 0)');
-  await expect(page.locator('.sidebar [aria-current="page"]')).toHaveText('研究数据对话');
+  expect(nav.length).toBeGreaterThan(3);expect(nav.filter(item=>item.background!=='rgba(0, 0, 0, 0)')).toHaveLength(1);
+  await expect(page.locator('.sidebar [aria-current="page"]')).toHaveText('AI 智能分析');
   await expect(page.locator('.chat-main')).toHaveCSS('background-color','rgb(255, 255, 255)');
   await page.locator('#suggest button').first().click();
   expect(requests.filter(request=>request.path==='/api/ra/ai/chat')).toHaveLength(0);

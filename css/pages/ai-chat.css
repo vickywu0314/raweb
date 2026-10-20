@@ -225,3 +225,10 @@
 #patient-picker{margin:16px 0}#patient-search{display:grid;gap:8px}#patient-keyword{min-width:0;width:100%;box-sizing:border-box}#patient-results{display:grid;gap:8px}#patient-results button{text-align:left;overflow-wrap:anywhere}.patient-pages,#patient-focus{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chat-fact table{display:block;overflow-x:auto}.chat-fact h4{font-size:14px}.chat-fact td{overflow-wrap:anywhere}
 
 .record-date { white-space:nowrap; }
+
+/* 2026-10-21 按原型：对话为空时显示欢迎语（不带演示版说明），状态行缩成小字 */
+.chat-welcome { max-width:640px; }
+.chat-main:has(#chat-log > *) .chat-welcome { display:none; }
+#chat-state { margin:0 0 10px; color:#8a98ab; font-size:var(--fs-xs); }
+#chat-state[data-state="error"] { color:#a12b20; }
+.chat-welcome { padding:12px 14px; border:1px solid #ebe6fb; border-radius:12px; background:#fbfaff; color:var(--ink); font-size:var(--fs-sm); }
