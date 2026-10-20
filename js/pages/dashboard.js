@@ -1,7 +1,7 @@
 /* dashboard.html 页面脚本（依赖 boot.js → common.js）
    数据来自后端 POST /api/ra/dashboard/summary：只统计当前医生名下的 RA 患者；
    随访状态、DAS28 活动度、资料完整性与患者列表同一口径，逾期 / 到期 / 按期随访率 / 疑似失访与随访管理同一口径。
-   「智能研究队列」暂不做（页面已隐藏）。 */
+   「智能研究队列」「当前方案持续 ≥ 12 个月」用 POST /api/ra/dashboard/cohortPreview（与 AI 队列分析同一套计算）。 */
 "use strict";
 shell('dashboard');
 
@@ -15,17 +15,18 @@ let D = null;
 
 function render() {
   const s = D.scale, f = D.followup, a = D.activity, t = D.attention, q = D.quality, r = D.research, N = s.total;
-  $('#stat-date').textContent = `我名下的 RA 患者 · 统计截至 ${D.asOf}，每次打开页面重新计算`;
+  $('#stat-date').textContent = `全部研究中心 · 统计截至 ${D.asOf}，随数据实时更新`;
   $('#dashboard').innerHTML =
-    section('患者规模', '活跃指未脱落、近 6 个月内有随访记录') + `<div class="metric-grid">${metric('总患者数', N, '我名下的 RA 患者（含已脱落）', '人', '', 'patients.html')}${metric('活跃患者数', s.active, `占全部患者 ${pctOf(s.active, N)}%`, '人', 'metric-success')}${metric('本月新增患者', s.newThisMonth, `${D.asOf.slice(0, 7).replace('-', ' 年 ')} 月建档`)}${metric('已脱落 / 疑似失访', `${s.withdrawn} / ${s.lost}`, '已标记脱落 / 超过 2 年未随访', '人', 'metric-danger', 'followups.html?status=lost')}</div>` +
+    section('患者规模', '活跃指近 6 个月内有随访记录') + `<div class="metric-grid">${metric('总患者数', N, '覆盖 1 家研究中心', '人', '', 'patients.html')}${metric('活跃患者数', s.active, `占全部患者 ${pctOf(s.active, N)}%`, '人', 'metric-success')}${metric('本月新增患者', s.newThisMonth, `${D.asOf.slice(0, 7).replace('-', ' 年 ')} 月建档`)}${metric('已脱落 / 失访', s.withdrawn + s.lost, '不再纳入随访计划', '人', 'metric-danger', 'followups.html?status=lost')}</div>` +
     section('随访管理', '与随访管理页同一口径（不含已脱落、疑似失访）') + `<div class="metric-grid">${metric('已逾期', f.overdue, '优先安排随访', '人', 'metric-warning', 'followups.html?status=overdue')}${metric('7 日内待随访', f.due7, '需提前电话确认', '人', '', 'followups.html?status=soon')}${metric('30 日内待随访', f.due30, '含 7 日内')}${metric('按期随访率', f.onTimeRate, `已做基线的 ${f.planned - f.pendingFirst} 项随访计划 · 另有 ${f.pendingFirst} 位待首次随访`, '%', 'metric-success')}</div><a class="panel-link" href="followups.html">进入随访管理 →</a>` +
     `<div class="dashboard-grid"><article class="panel"><h3>需关注患者</h3><div class="metric-value danger-text">${t.notTarget}<small>人未达标（中高疾病活动）</small></div>${[['炎症指标升高（最近一次 CRP > 10 mg/L）', t.highCrp, ''], ['高疾病活动（DAS28-CRP > 4.1）', t.highActivity, 'ai-cohort.html?act=high'], ['合并 FM · 评分需复核', t.fm, 'ai-cohort.html?cm=FM']].map(([n, v, h]) => `<div class="progress-row"><span>${h ? `<a href="${h}">${n}</a>` : n}</span><progress value="${v}" max="${N || 1}" aria-label="${n} ${v} 人"></progress><b>${v}</b></div>`).join('')}<p class="metric-note">同一患者可计入多项，以最近一次访视为准。</p></article>
     <article class="panel"><h3>疾病活动度 · DAS28-CRP</h3><p class="metric-note">最近一次评分分布（${a.evaluable} 人有评分）· 达标率 ${a.targetRate ?? '—'}%</p>${a.dist.map(d => `<div class="detail-line"><span><a href="ai-cohort.html?act=${d.key}">${escapeHTML(d.label)}</a></span><b>${d.n} 人 · ${pctOf(d.n, a.evaluable)}%</b></div>`).join('')}</article>
-    <article class="panel"><h3>数据质量</h3><div class="metric-value">${q.completeRate ?? '—'}%<small>患者资料完整率</small></div>${lines(q.byItem.map(x => [escapeHTML(x.item), `${x.n} 人`]))}<a class="panel-link" href="patients.html?data=missing">查看待补全患者 →</a></article>
-    <article class="panel"><h3>研究数据</h3>${lines([['有效研究样本数', `${r.validSample} 人`], ['累计完成访视', `${r.totalVisits} 次`], ['近 30 天有随访', `${r.visited30} 人`], ['近 90 天有随访', `${r.visited90} 人`]])}<a class="panel-link" href="ai-cohort.html">进入队列分析 →</a></article></div>` +
+    <article class="panel"><h3>数据质量</h3><div class="metric-value">${q.completeRate ?? '—'}%<small>患者资料完整率</small></div>${lines(q.byItem.map(x => [escapeHTML(x.item), `${x.n} 人`]))}<a class="panel-link" href="data-quality.html">进入数据质控 →</a></article>
+    <article class="panel"><h3>研究数据</h3>${lines([['有效研究样本数', `${r.validSample} 人`], ['累计完成访视', `${r.totalVisits} 次`], ['当前方案持续 ≥ 12 个月', '<span id="scheme12">…</span>'], ['近 90 天有随访', `${r.visited90} 人`]])}<a class="panel-link" href="ai-cohort.html">进入队列分析 →</a></article></div>` +
     section('风险提醒', '点击卡片查看名单') + `<div class="risk-grid">${D.risks.map(x => `<button class="panel risk-card" data-risk="${x.key}" aria-label="查看${escapeHTML(x.name)}，${x.count}人"><span class="risk-card-heading"><strong>${escapeHTML(x.name)}</strong>${badge(x.level + '风险', x.level === '高' ? 'danger' : 'warning')}</span><span class="metric-value danger-text">${x.count}<small>人</small></span><span class="metric-note">${escapeHTML(x.note)}</span><span class="risk-link">查看风险患者 ${icon('chevron')}</span></button>`).join('')}</div>` +
-    section('近期动态', '按访视日期，最近的在前') + `<div class="dashboard-grid"><article class="panel"><h3>最近炎症指标偏高（CRP > 20 mg/L）</h3>${D.recentHighCrp.length ? D.recentHighCrp.map(p => `<div class="activity"><b><a href="${visitsHref(p.patientId)}">${escapeHTML(p.name)}</a></b><span>CRP ${escapeHTML(p.crp)} mg/L</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article><article class="panel"><h3>最近完成随访</h3>${D.recentVisits.length ? D.recentVisits.map(p => `<div class="activity"><b><a href="${withFrom(`visit-detail.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(p.visitId)}`)}">${escapeHTML(p.name)}</a></b><span>${escapeHTML(p.label)} · 已完成</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article></div>` +
-    `<p class="dashboard-note">统计口径：只统计您名下的 RA 患者。随访状态、DAS28-CRP 活动度（CRP 阈值：缓解 &lt;2.3、低 ≤2.7、中 ≤4.1、高 &gt;4.1）、资料完整性与患者列表一致；逾期、到期、按期随访率、疑似失访与随访管理一致。</p>`;
+    section('近期动态', '按最近一次访视日期') + `<div class="dashboard-grid"><article class="panel"><h3>最近炎症指标偏高</h3>${D.recentHighCrp.length ? D.recentHighCrp.map(p => `<div class="activity"><b><a href="${visitsHref(p.patientId)}">${escapeHTML(p.name)}</a></b><span>CRP ${escapeHTML(p.crp)} mg/L</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article><article class="panel"><h3>最近完成随访</h3>${D.recentVisits.length ? D.recentVisits.map(p => `<div class="activity"><b><a href="${withFrom(`visit-detail.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(p.visitId)}`)}">${escapeHTML(p.name)}</a></b><span>${escapeHTML(p.label)} · 已完成</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article></div>` +
+    `<p class="dashboard-note">统计口径：资料完整指建档必填项、DAS28 评分、基线检验、合并疾病与用药史均已录入。</p>`;
+  loadScheme12();
 }
 
 const RISK_LINK = { overdue: id => `patient-visits.html?id=${encodeURIComponent(id)}&from=followups`, rebound: visitsHref, high: visitsHref };
@@ -49,9 +50,49 @@ $('#export-report')?.addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const el = document.createElement('a'); el.href = url; el.download = `RA-统计报表-${D.asOf}.csv`; el.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
+// 研究数据：当前方案持续 ≥ 12 个月（与队列分析同口径）
+async function loadScheme12() {
+  try { const d = await apiPostJson('/api/ra/dashboard/cohortPreview', { filters: {} }); $('#scheme12').textContent = `${d.scheme12} 人`; }
+  catch (e) { $('#scheme12').textContent = '—'; $('#scheme12').title = apiErrorMessage(e); }
+}
+
+// 智能研究队列：问题 → 规则 / AI 解析出条件 → 预览人数、资料完整度、方案时长
+const FILTER_LABEL = {
+  sex: v => v === 'F' ? '女性' : v === 'M' ? '男性' : '',
+  age: v => { const [a, b] = String(v).split('-'); return b ? `${a}–${b} 岁` : `${a} 岁以上`; },
+  sero: () => 'RF / ACPA 阳性',
+  tx: v => v === 'bio' ? '当前治疗：生物 / 靶向' : `当前治疗：${v}`,
+  at: v => v === '6m' ? '评估时点：治疗 6 个月' : '',
+  act: v => ({ remission: '缓解', low: '低疾病活动', moderate: '中疾病活动', high: '高疾病活动', 'mod-high': '中高疾病活动（未达标）', target: '已达标（缓解 / 低活动）' })[v] || '',
+  cm: v => v === 'none' ? '无合并 FM / AS' : `合并 ${v}`,
+  data: v => v === 'missing' ? '资料待补全' : '资料完整'
+};
+let cohortSeq = 0;
+async function previewCohort() {
+  const q = $('#cohort-q').value.trim(), seq = ++cohortSeq;
+  if (!q) { $('#cohort-chips').innerHTML = '<span>请输入研究问题</span>'; $('#cohort-result').innerHTML = ''; return; }
+  $('#cohort-chips').innerHTML = '<span>正在解析…</span>'; $('#cohort-result').innerHTML = '';
+  try {
+    const parsed = await apiPostJson('/api/ra/ai/parse', { question: q });
+    if (seq !== cohortSeq) return;
+    const filters = parsed.candidateFilters || {};
+    const chips = Object.entries(filters).map(([k, v]) => FILTER_LABEL[k] ? FILTER_LABEL[k](v) : '').filter(Boolean);
+    $('#cohort-chips').innerHTML = chips.length ? chips.map(c => `<span>${escapeHTML(c)}</span>`).join('') : '<span>未识别到条件 · 将以全部 RA 患者为队列</span>';
+    const d = await apiPostJson('/api/ra/dashboard/cohortPreview', { filters });
+    if (seq !== cohortSeq) return;
+    const rate = d.completeRate == null ? '—' : Math.round(d.completeRate * 100) + '%';
+    $('#cohort-result').innerHTML = [[d.n, '符合条件患者'], [rate, '资料完整度'], [d.scheme3, '方案 ≥ 3 个月'], [d.scheme6, '方案 ≥ 6 个月']].map(([v, l]) => `<div><strong>${escapeHTML(String(v))}</strong><span>${l}</span></div>`).join('');
+  } catch (e) {
+    if (seq !== cohortSeq) return;
+    $('#cohort-chips').innerHTML = ''; $('#cohort-result').innerHTML = `<p class="metric-note">预览失败：${escapeHTML(apiErrorMessage(e))}</p>`;
+  }
+}
+$('#cohort-form').addEventListener('submit', e => { e.preventDefault(); previewCohort(); });
+$('#create-cohort').addEventListener('click', () => { const q = $('#cohort-q').value.trim(); location.href = q ? `ai-cohort.html?q=${encodeURIComponent(q)}` : 'ai-cohort.html'; });
+
 async function load() {
   $('#dashboard').innerHTML = '<p class="metric-note">正在统计…</p>';
-  try { D = await apiPost('/api/ra/dashboard/summary', { doctorId: currentDoctorId() }); render(); }
+  try { D = await apiPost('/api/ra/dashboard/summary', { doctorId: currentDoctorId() }); render(); previewCohort(); }
   catch (e) { console.error(e); $('#dashboard').innerHTML = `<p class="pv-load-error">看板数据加载失败：${escapeHTML(apiErrorMessage(e))}</p>`; }
 }
 load();
