@@ -120,6 +120,7 @@ function renderPanels(data) {
 }
 // 自动发现：只用本次分析结果里的数字，描述差异，不做因果判断
 function renderDiscoveries(data) {
+  if(!$('#insights')||!$('#discoveries'))return; // 页面还是旧版 HTML 时不渲染，避免影响分析结果显示
   const st=data.stats||{},tx=data.byTx||{},fm=data.fm||{},meta=data.meta||{},pct=v=>typeof v==='number'&&Number.isFinite(v)?Math.round(v*100)+'%':'—',cards=[];
   if(typeof st.targetRate==='number'&&st.evaluable)cards.push(['good','达标情况',`队列达标率 ${pct(st.targetRate)}，研究库整体 ${tx.studyTargetMeta?.displayText??'—'}`,`${st.evaluable} 位可评估患者中 ${Math.round(st.targetRate*st.evaluable)} 位 DAS28-CRP ≤ 2.7（低疾病活动或缓解）。`,`评估时点：${ui.time(meta.at)} · 阈值 DAS28-CRP ≤ 2.7`]);
   const groups=(tx.groups||[]).filter(g=>g.evalN>0&&typeof g.rate==='number');
@@ -138,7 +139,7 @@ function clearResults() {
   $('#numeric-computed-at').textContent='';$('#display-read-at').textContent='';
   for(const selector of ['#activity-base','#activity-current','#tx-groups','#line-groups','#fm-rows'])$(selector).replaceChildren();
   for(const id of ['activity-summary','tx-summary','study-target','tx-test','tx-notice','line-summary','fm-summary','fm-note','analysis-policy'])$('#'+id).textContent='';
-  $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;$('#insights').replaceChildren();$('#discoveries').hidden=true;
+  $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;if($('#insights'))$('#insights').replaceChildren();if($('#discoveries'))$('#discoveries').hidden=true;
   $('#results').hidden = true; $('#no-result').hidden = true; $('#analysis-error').hidden = true;
   $('#login-return').hidden = true; $('#more').hidden = true; $('#more').disabled=true;
   $('#export').disabled=true;resource=null;delete $('#results').dataset.analysisId;$('#private-open-meta').textContent='';delete $('#private-open-meta').dataset.cohortId;

@@ -380,3 +380,16 @@ a.ai-row:hover {
 #discoveries[hidden] { display:none; }
 @media (max-width:1100px) { #patient-rows .ai-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:600px) { #patient-rows .ai-row { grid-template-columns:1fr; } #activity-base, #activity-current { margin-left:0; } #clinical-panels .ai-panel h3 { float:none; } }
+/* 原型里没有的状态行：空闲时不显示，只在解析中 / 出错 / 有候选待确认时出现；「重新分析」收到当前条件行右侧 */
+.builder .entry-panel:has(#entry-state[data-state="idle"]),
+.builder .parse-panel:has(#parse-state[data-state="idle"]) { display:none; }
+.cond-line { align-items:center; }
+.cond-line .chip-row { flex:1 1 auto; }
+.cond-line #reanalyze { flex:none; margin:0 0 0 auto; height:auto; min-height:0; padding:2px 0; border:0; background:none; box-shadow:none; color:var(--primary); font-size:var(--fs-xs); font-weight:600; }
+.cond-line #reanalyze:hover { text-decoration:underline; }
+/* 与原型一致：统计检验细节不显示；每行「临床来源与质量」缩成一行小字，点开查看 */
+#tx-test, #tx-summary { display:none; }
+#patient-rows .ai-row > .patient-provenance { margin-top:-4px; font-size:11px; }
+#patient-rows .ai-row > .patient-provenance > summary { color:#a0adbd; font-size:11px; }
+#patient-rows .ai-row { padding:12px 6px; }
+.patient-clinical span:nth-child(2) { color:#8a98ab; font-size:var(--fs-xs); }
