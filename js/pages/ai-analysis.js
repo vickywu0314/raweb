@@ -14,9 +14,12 @@ $('#ask-form').addEventListener('submit',event=>{event.preventDefault();toQuesti
 const questionExamples=['TNFi 治疗 6 个月后仍处于中高疾病活动的患者','合并纤维肌痛的患者疾病活动情况','60 岁以上女性患者的达标率','JAK 抑制剂治疗的患者'];
 $('#examples').innerHTML=questionExamples.map(q=>`<button type="button" class="cond-chip example" data-q="${escapeHTML(q)}">${escapeHTML(q)}</button>`).join('');
 $('#examples').addEventListener('click',event=>{const button=event.target.closest('[data-q]');if(button)toQuestion(button.dataset.q);});
-const searchList=$('#picker-list'),searchState=$('#patient-search-state'),searchPage=$('#patient-search-page');
-let searchFlight=null,searchKeyword=null,searchPageNumber=0,searchTotal=0;
-function clearSearch(){searchList.innerHTML='';searchList.hidden=true;searchPage.textContent='';searchPageNumber=0;searchTotal=0;$('#patient-search-prev').disabled=true;$('#patient-search-next').disabled=true;}
+// 个体分析：按原型下拉选择患者（输入即查本人 RA 患者，最多 8 位），选中进入病程分析
+const SEARCH_SIZE=8,SEARCH_DELAY=250;
+const picker=$('#picker'),searchList=$('#picker-list'),searchState=$('#patient-search-state');
+let searchFlight=null,searchItems=[],searchActive=-1,searchDebounce=null,searchShown=null;
+function closeSearchList(){searchList.hidden=true;picker.setAttribute('aria-expanded','false');picker.removeAttribute('aria-activedescendant');searchActive=-1;}
+function clearSearch(){searchList.innerHTML='';searchItems=[];searchShown=null;closeSearchList();}
 function searchStatus(state,text){searchState.dataset.state=state;searchState.textContent=text;}
 function currentSearch(flight){return searchFlight===flight&&!flight.cause;}
 function finishSearch(flight,cause){
@@ -24,28 +27,40 @@ function finishSearch(flight,cause){
   flight.cause=cause;searchFlight=null;clearTimeout(flight.timer);
   if(cause!=='success')flight.controller.abort();return true;
 }
-function cancelSearch(cause='replaced'){if(searchFlight)finishSearch(searchFlight,cause);clearSearch();}
-function publishSearch(data){
-  searchPageNumber=data.page;searchTotal=data.total;searchList.hidden=data.items.length===0;
-  searchList.innerHTML=data.items.map(item=>`<article class="patient-search-row"><div><strong>${escapeHTML(item.name??'姓名未提供')}</strong><span>研究号：${escapeHTML(item.studyNo??'未提供')}</span><small>患者编号：${escapeHTML(item.patientId)}</small></div><a class="button" href="${escapeHTML('patient-visits.html?id='+encodeURIComponent(item.patientId)+'&from=ai-analysis')}">查看患者档案</a></article>`).join('');
-  searchPage.textContent=`第 ${data.page} 页 · 共 ${data.total} 人`;$('#patient-search-prev').disabled=data.page<=1;$('#patient-search-next').disabled=data.page*data.size>=data.total;
-  searchStatus(data.items.length?'success':'empty',data.items.length?'当前本人 RA 患者':'没有符合条件的患者');
+function cancelSearch(cause='replaced'){clearTimeout(searchDebounce);searchDebounce=null;if(searchFlight)finishSearch(searchFlight,cause);clearSearch();}
+function drawSearch(){
+  searchList.innerHTML=searchItems.length?searchItems.map((item,i)=>`<button type="button" role="option" id="picker-option-${i}" data-i="${i}" class="${i===searchActive?'active':''}" aria-selected="${i===searchActive}"><b>${escapeHTML(item.name??'姓名未提供')}</b><span>研究号 ${escapeHTML(item.studyNo??'未提供')} · 患者编号 ${escapeHTML(item.patientId)}</span></button>`).join('')+(searchShown.total>searchItems.length?`<p class="picker-empty">共 ${searchShown.total} 位，继续输入缩小范围</p>`:''):'<p class="picker-empty">没有匹配的患者</p>';
+  if(searchActive>=0)picker.setAttribute('aria-activedescendant','picker-option-'+searchActive);else picker.removeAttribute('aria-activedescendant');
+  searchList.hidden=false;picker.setAttribute('aria-expanded','true');
 }
-async function loadSearch(page){
+function publishSearch(keyword,data){
+  searchItems=data.items;searchShown={keyword,total:data.total};searchActive=-1;
+  searchStatus(data.items.length?'success':'empty','');
+  if(document.activeElement===picker)drawSearch();
+}
+async function loadSearch(keyword){
   if(!overviewPageActive)return;
   cancelSearch();searchStatus('loading','正在查询本人 RA 患者…');const flight={controller:new AbortController(),cause:null,timer:null};searchFlight=flight;
   flight.timer=setTimeout(()=>{
     if(!finishSearch(flight,'timeout'))return;
-    clearSearch();searchStatus('error','患者搜索超时，请重新搜索');
+    clearSearch();searchStatus('error','患者搜索超时，请重新输入');
   },30000);
-  try{const result=await window.RACohortAPI.patientSearch({keyword:searchKeyword,page,size:20},{signal:flight.controller.signal});if(!finishSearch(flight,'success'))return;publishSearch(result.data);}
+  try{const result=await window.RACohortAPI.patientSearch({keyword,page:1,size:SEARCH_SIZE},{signal:flight.controller.signal});if(!finishSearch(flight,'success'))return;publishSearch(keyword,result.data);}
   catch(error){if(!finishSearch(flight,'error'))return;clearSearch();searchStatus('error',display.error(error,'患者搜索暂不可用'));}
 }
-$('#patient-search-form').addEventListener('submit',event=>{event.preventDefault();searchKeyword=$('#picker').value;loadSearch(1);});
-$('#picker').addEventListener('input',()=>{cancelSearch();searchKeyword=null;searchStatus('idle','关键词已改变，请提交搜索');});
-$('#patient-search-prev').addEventListener('click',()=>{if(searchPageNumber>1)loadSearch(searchPageNumber-1);});
-$('#patient-search-next').addEventListener('click',()=>{if(searchPageNumber*20<searchTotal)loadSearch(searchPageNumber+1);});
-function revokeSearch(cause){cancelSearch(cause);searchKeyword=null;$('#picker').value='';searchStatus('idle','提交搜索后显示当前本人 RA 患者');}
+function pickPatient(item){if(item){closeSearchList();location.href='patient-insight.html?id='+encodeURIComponent(item.patientId)+'&from=ai-analysis';}}
+picker.addEventListener('focus',()=>{if(searchShown&&searchShown.keyword===picker.value)drawSearch();else if(!searchFlight)loadSearch(picker.value);});
+picker.addEventListener('input',()=>{cancelSearch();searchStatus('idle','');const keyword=picker.value;searchDebounce=setTimeout(()=>{searchDebounce=null;loadSearch(keyword);},SEARCH_DELAY);});
+picker.addEventListener('keydown',event=>{
+  if(event.key==='Escape'){closeSearchList();return;}
+  if(searchList.hidden||!searchItems.length)return;
+  if(event.key==='ArrowDown'){searchActive=Math.min(searchItems.length-1,searchActive+1);drawSearch();event.preventDefault();}
+  else if(event.key==='ArrowUp'){searchActive=Math.max(0,searchActive-1);drawSearch();event.preventDefault();}
+  else if(event.key==='Enter'){pickPatient(searchItems[Math.max(0,searchActive)]);event.preventDefault();}
+});
+searchList.addEventListener('mousedown',event=>{const option=event.target.closest('[data-i]');if(option){event.preventDefault();pickPatient(searchItems[Number(option.dataset.i)]);}});
+picker.addEventListener('blur',()=>setTimeout(closeSearchList,120));
+function revokeSearch(cause){cancelSearch(cause);picker.value='';searchStatus('idle','');}
 revokeSearch('initial');
 function clearOverview(){overviewNode.innerHTML='';overviewSource.textContent='';}
 function overviewStatus(state,text){overviewState.dataset.state=state;overviewState.textContent=text;}

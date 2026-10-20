@@ -94,3 +94,4 @@ a.stat-tile:hover {
 #overview-retry {margin-top:10px;}
 
 .patient-search-form label{display:block;font-size:13px;color:var(--muted);margin-bottom:8px}.patient-search-form input{min-width:0;flex:1;padding:10px;border:1px solid var(--line);border-radius:8px}.patient-search-list{display:grid;gap:10px;margin:12px 0}.patient-search-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);padding-top:12px}.patient-search-row div{min-width:0;overflow-wrap:anywhere}.patient-search-row span,.patient-search-row small{display:block;color:var(--muted);font-size:12px;margin-top:4px}.patient-search-pagination{display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap}#patient-search-state[data-state="error"]{color:#9b2b20}.patient-search-list[hidden]{display:none}
+.picker-state{margin:8px 0 0;color:var(--muted);font-size:12px}.picker-state:empty{display:none}.picker-state[data-state="error"]{color:#9b2b20}
