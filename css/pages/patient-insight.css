@@ -677,3 +677,4 @@
 .insight-record { gap:30px; }
 .journey .insight-record::before { left:98px; }
 .journey:before { left:104px; }
+#cancel-load { display:none !important; } /* 不显示「取消读取」：加载中只提示「正在智能分析患者数据…」 */

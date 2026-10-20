@@ -165,7 +165,7 @@
  $('#journey-filter').addEventListener('click',event=>{const b=event.target.closest('[data-f]');if(!b)return;$('#journey-filter').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));$('#journey').querySelectorAll('.insight-record').forEach(n=>n.hidden=b.dataset.f!=='all'&&n.dataset.kind!==b.dataset.f);});
  async function load(){
    if(hidden)return;
-   invalidate('loading','正在读取本人 RA 患者病程…');
+   invalidate('loading','正在智能分析患者数据…');
    if(!valid){state('invalid','患者入口无效');return;}
    const owner={generation,controller:new AbortController(),timer:null,terminal:null};flight=owner;
    owner.timer=setTimeout(()=>finish(owner,'timeout',()=>{clear();state('timeout','患者病程读取超时');},true),30000);
