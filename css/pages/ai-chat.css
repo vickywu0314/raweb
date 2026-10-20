@@ -223,3 +223,5 @@
 .chat-fact{border-top:1px solid #e4e8ef;padding:12px 0}.chat-fact h3{font-size:16px;margin:0 0 8px}.msg-ev{overflow-wrap:anywhere}.chat-side .side-note{line-height:1.7}#chat-state[data-state="error"],#chat-state[data-state="invalid"],#chat-state[data-state="timeout"]{color:#9c3024}#chat-cancel{white-space:nowrap}.question{font-weight:600;white-space:pre-wrap}
 
 #patient-picker{margin:16px 0}#patient-search{display:grid;gap:8px}#patient-keyword{min-width:0;width:100%;box-sizing:border-box}#patient-results{display:grid;gap:8px}#patient-results button{text-align:left;overflow-wrap:anywhere}.patient-pages,#patient-focus{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}.chat-fact table{display:block;overflow-x:auto}.chat-fact h4{font-size:14px}.chat-fact td{overflow-wrap:anywhere}
+
+.record-date { white-space:nowrap; }

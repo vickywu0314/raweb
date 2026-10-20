@@ -15,7 +15,15 @@ function load(config) {
 test('cohort:legacy-compat', async () => {
   const {harness,flush}=require('../fixtures/issue1-patient-detail.cjs');const page=harness();await flush();
   assert.equal(page.requests[0].url,'/api/ra/patient/patientDetail');assert.deepEqual(Object.fromEntries(new URLSearchParams(page.requests[0].options.body)),{patientId:'9007199254740993'});await page.event('pagehide');
-  assert.match(readFileSync(resolve(__dirname,'../../js/pages/visit-edit.js'),'utf8'), /apiPostJson\('\/api\/ra\/visit\/updateVisit',collect\(\)\)/);
+  const fixture=require('../fixtures/issue1-patient-detail.cjs'),edit=harness('visit-edit');await flush();
+  await edit.answer(0,fixture.detail());await edit.answer(1,fixture.form());
+  let finishValidation;edit.context.vfPrepareSubmission=()=>new Promise(resolve=>{finishValidation=resolve});
+  await edit.submit();assert.equal(edit.requests.filter(r=>r.url.endsWith('/updateVisit')).length,0,'legacy JSON save waits for asynchronous field validation');
+  finishValidation();await flush();
+  const update=edit.requests.find(r=>r.url.endsWith('/updateVisit'));assert.ok(update,'validated visit uses existing updateVisit endpoint');
+  assert.equal(update.options.headers['Content-Type'],'application/json;charset=UTF-8');
+  assert.deepEqual(JSON.parse(update.options.body),{doctorId:'101',visitId:fixture.VISIT,version:'synthetic-version',visitDate:'2026-10-01',modules:{}});
+  await edit.event('pagehide');
   const same = load();
   assert.deepEqual(await same.post('/api/ra/patient/patientDetail', {patientId:'9223372036854775807',doctorId:101}), {name:'合成患者'});
   assert.equal(same.requests[0].url, '/api/ra/patient/patientDetail');

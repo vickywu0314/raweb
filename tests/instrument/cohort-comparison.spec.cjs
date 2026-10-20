@@ -210,6 +210,9 @@ test('cohort:comparison-rows',async({page,context,browser})=>{
   await page.goto(o.origin+'/ai-cohort.html?ids=1,2,3,4,5,6,7,8');await o.auth.verify(page);await expect(page.locator('#cohort-state')).toHaveAttribute('data-state','success');
   await page.locator('#compare-current-a').click();await setCurrent(page,before.b.filters);await page.locator('#compare-current-b').click();await page.locator('#compare-start').click();await expect(page.locator('#compare-state')).toHaveAttribute('data-state','success');await assertResult(page,lastData);
   await expect(page.locator('#compare-rows > tr')).toHaveCount(12);
+  // 当前表原有横向滚动；同源几何验完整最右列可到达，不把截图截断当作丢列。
+  await page.setViewportSize({width:390,height:844});await expect(page.locator('#compare-scroll-hint')).toContainText('横向滚动');const scroll=page.locator('#compare-table-scroll');await scroll.focus();await expect(scroll).toBeFocused();const geometry=await scroll.evaluate(wrap=>{wrap.scrollLeft=wrap.scrollWidth;const box=wrap.getBoundingClientRect(),last=wrap.querySelector('th:last-child').getBoundingClientRect();return {client:wrap.clientWidth,scroll:wrap.scrollWidth,left:wrap.scrollLeft,right:last.right,viewportRight:box.right};});expect(geometry.scroll).toBeGreaterThan(geometry.client);expect(geometry.left).toBeGreaterThan(0);expect(geometry.right).toBeLessThanOrEqual(geometry.viewportRight+1);await expect(page.locator('#compare-table th').last()).toHaveText('整体检验');await page.setViewportSize({width:1440,height:1000});
+
   expect(await page.locator('#compare-rows > tr').evaluateAll(rows=>rows.map(row=>row.dataset.metric))).toEqual(['n','age','duration','das28At','crpAt','haqAt','female','sero','target','complete','activity','line']);
   const checkRows=async()=>{
   for(const row of lastData.rows){

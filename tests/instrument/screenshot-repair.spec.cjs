@@ -3,6 +3,7 @@ const {test,expect}=require('@playwright/test');
 const {writeFile}=require('node:fs/promises');
 const {installAuthBootstrap}=require('../fixtures/auth-bootstrap.cjs');
 const {insightFixture}=require('./patient-insight-fixture.cjs');
+const walkthroughInsight=()=>{const d=insightFixture();d.visits[0].metrics.gh.value=null;return d;};
 test('screenshots:layout-states',async({page,context,browser})=>{
  const origin=process.env.RA_STATIC_URL,errors=[],blocked=[],requests=[],geometry=[];
  const auth=await installAuthBootstrap(context,{origin});
@@ -13,7 +14,7 @@ test('screenshots:layout-states',async({page,context,browser})=>{
   if(await auth.handle(route))return;
   if(!url.pathname.startsWith('/api/'))return route.continue();
   requests.push({path:url.pathname,body:request.postDataJSON()});
-  if(url.pathname==='/api/ra/ai/patientInsight')return route.fulfill({status:200,contentType:'application/json',headers:{'X-Trace-Id':'insight-trace'},body:JSON.stringify({success:true,code:'200',message:'',data:insightFixture()})});
+  if(url.pathname==='/api/ra/ai/patientInsight')return route.fulfill({status:200,contentType:'application/json',headers:{'X-Trace-Id':'insight-trace'},body:JSON.stringify({success:true,code:'200',message:'',data:walkthroughInsight()})});
   if(url.pathname==='/api/ra/ai/chat')return route.fulfill({status:503,contentType:'application/json',headers:{'X-Trace-Id':'synthetic-private-trace'},body:JSON.stringify({success:false,code:'CHAT_DISABLED',message:'RAW_PRIVATE_SERVICE_SENTINEL',data:null})});
   return route.abort('blockedbyclient');
  });
@@ -23,16 +24,16 @@ test('screenshots:layout-states',async({page,context,browser})=>{
    await page.goto(origin+'/patient-insight.html?id=9007199254740993');
    await expect(page.locator('#insight-state')).toHaveAttribute('data-state','success');
    const size=await page.locator('#journey .insight-record').first().evaluate(article=>{
-    const content=article.querySelector('.journey-content'),wrap=article.querySelector('.insight-table-wrap'),link=content.querySelector('a'),box=element=>{const r=element.getBoundingClientRect();return {width:r.width,height:r.height};};
-    return {article:box(article),content:box(content),link:box(link),lineHeight:parseFloat(getComputedStyle(link).lineHeight),wrapWidth:wrap.clientWidth,tableWidth:wrap.scrollWidth,pageWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth};
+    const date=article.querySelector('time'),range=document.createRange();range.selectNodeContents(date);const dateLines=range.getClientRects().length;const content=article.querySelector('.journey-content'),wrap=article.querySelector('.insight-table-wrap'),link=content.querySelector('a'),box=element=>{const r=element.getBoundingClientRect();return {width:r.width,height:r.height};};
+    return {date:date.textContent,dateLines,article:box(article),content:box(content),link:box(link),lineHeight:parseFloat(getComputedStyle(link).lineHeight),wrapWidth:wrap.clientWidth,tableWidth:wrap.scrollWidth,pageWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth};
    });
-   geometry.push({viewport,...size});
+   geometry.push({viewport,...size});expect(size.date).toBe('2026-01-01');expect(size.dateLines).toBe(1);
    expect(size.content.width).toBeGreaterThan(size.article.width*.6);
    expect(size.link.width).toBeGreaterThan(100);
    expect(size.link.height).toBeLessThan(size.lineHeight*2.2);
    expect(size.pageWidth).toBeLessThanOrEqual(size.viewportWidth+1);
    if(viewport.width<700)expect(size.tableWidth).toBeGreaterThan(size.wrapWidth);
-   await expect(page.locator('#journey')).toContainText('4.11');
+   await expect(page.locator('#journey')).toContainText('4.11');const gh=page.locator('#journey tr').filter({has:page.locator('td', {hasText:/^GH$/})});await expect(gh.locator('td').nth(1)).toHaveText('未知');await expect(gh.locator('td').nth(2)).toHaveText('量表范围 0–100');await expect(page.locator('#journey')).toContainText('量表范围 0–3');const pain=page.locator('#journey tr').filter({has:page.locator('td', {hasText:/^疼痛$/})});expect((await pain.innerText()).match(/量表(?:尚)?未核实/g)).toHaveLength(1);
    await expect(page.locator('#journey')).toContainText('历史记录尚未核实');
   }
   await page.setViewportSize({width:1440,height:1000});

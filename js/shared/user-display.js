@@ -22,5 +22,7 @@ function patientFm(value,provenance){
  return code(value,'未知');
 }
 function fieldValue(key,value){if(value==null)return '未提供';if(key==='evidenceId')return '已记录，可按记录日期核对';if(key==='unit'&&value==='count')return '个';if(key==='genericDrugId')return drugLabel(value);if(['sourceField','field'].includes(key))return label(value);if(['quality','missingCodes'].includes(key))return list(value);if(key==='at')return time(value);if(['source','status','missingReason','deltaMissingReason','fmState','startConfidence'].includes(key))return code(value);if(typeof value==='boolean')return code(value);if(Array.isArray(value))return value.length?value.join('、'):'无';if(typeof value==='object')return '未提供';return String(value);}
-const api=Object.freeze({code,label,list,time,conditions,error,fieldValue,drugLabel,patientFm});root.RAUserDisplay=api;if(typeof module==='object'&&module.exports)module.exports=api;
+function measurementUnit(unit){return unit==='0-100'?'量表范围 0–100':unit==='0-3'?'量表范围 0–3':unit==='count'?'个':unit||'—';}
+function measurementQuality(metric){const values=(metric.quality||[]).filter(v=>!(metric.missingReason==='UNVERIFIED_SCALE'&&v==='SCALE_UNVERIFIED')).map(v=>code(v,'其他资料限制'));if(metric.missingReason)values.push(code(metric.missingReason));return [...new Set(values)].join('、')||'无';}
+const api=Object.freeze({measurementUnit,measurementQuality,code,label,list,time,conditions,error,fieldValue,drugLabel,patientFm});root.RAUserDisplay=api;if(typeof module==='object'&&module.exports)module.exports=api;
 })(typeof window==='object'?window:globalThis);

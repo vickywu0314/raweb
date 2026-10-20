@@ -53,4 +53,5 @@ checks.push(['empty errors invalid data and raw q remain distinct',async()=>{
  const before=h.pending.length;h.get('#examples').events.click({target:{closest:()=>({dataset:{q:'\ud800'}})}});assert.equal(h.context.location.href,'');assert.equal(h.pending.length,before,'q must not apply filters or invoke model on homepage');
  assert.doesNotMatch(source('js/pages/ai-analysis.js'),/\b(?:patients|AI_DATA|demoStats|cohortStats|bindPatientPicker|localStorage|sessionStorage)\b|Number\([^)]*patient/i);
 }]);
+checks.push(['empty and populated suggestions do not query on navigation or escape',async()=>{for(const total of [0,1,21]){const h=page();h.submit('');await h.answer(1,{items:total?[pageData().items[0]]:[],total,page:1,size:8});assert.equal(h.get('#patient-search-state').dataset.state,total?'success':'empty');const n=h.pending.length;h.key('ArrowDown');h.key('ArrowUp');h.key('Escape');assert.equal(h.get('#picker-list').hidden,true);h.key('Enter');assert.equal(h.pending.length,n);}}]);
 test('analysis:patient-search-contract',async()=>{for(const [name,run] of checks){try{await run()}catch(error){error.message=name+': '+error.message;throw error}}});

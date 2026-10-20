@@ -92,7 +92,7 @@
 .journey:before {
   content:"";
   position:absolute;
-  left:76px;
+  left:98px;
   top:12px;
   bottom:18px;
   width:1px;
@@ -101,13 +101,14 @@
 
 .insight-record {
   display:grid;
-  grid-template-columns:66px minmax(0,1fr);
+  grid-template-columns:88px minmax(0,1fr);
   gap:20px;
   position:relative;
   padding:0 0 19px;
 }
 
 .insight-record time {
+  white-space:nowrap;
   font-size:var(--fs-xs);
   color:#8090a3;
   padding-top:2px;
@@ -117,7 +118,7 @@
 .journey .insight-record::before {
   content:"";
   position:absolute;
-  left:72px;
+  left:94px;
   top:5px;
   width:9px;
   height:9px;
@@ -367,14 +368,14 @@
     flex-direction:column;
   }
   .journey:before {
-    left:62px;
+    display:none;
   }
   .insight-record {
-    grid-template-columns:52px minmax(0,1fr);
-    gap:18px;
+    grid-template-columns:minmax(0,1fr);
+    gap:8px;
   }
   .journey .insight-record::before {
-    left:58px;
+    display:none;
   }
 }
 
@@ -647,3 +648,5 @@
   color:#6d5424;
   font-size:var(--fs-sm);
 }
+
+@media (max-width:700px) { .insight-record time { text-align:left; } }

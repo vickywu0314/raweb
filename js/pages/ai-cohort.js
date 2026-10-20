@@ -373,9 +373,9 @@ function showParse(data,applied=false){
  $('.parse-panel').dataset.parseStatus=data.parseStatus;
  $('#parse-candidate').textContent=(data.candidateFilters?ui.conditions(data.candidateFilters):'')||'暂无可用候选，保留当前条件';
  const unresolved=(data.unrecognized||[]).reduce((n,x)=>n+x.count,0);
- $('#parse-details').textContent=[data.parseStatus==='PARTIAL'?'仅识别了部分内容，确认前不会应用':data.parseStatus==='OK'?'已识别可用条件':ui.code(data.parseStatus),unresolved?`仍有部分文字未识别（${unresolved}个字符），未用于筛选`:'',...(data.rejectedFields||[]).map(x=>`${ui.label(x.field)}：${ui.code(x.reason)}`),...new Set((data.warnings||[]).map(x=>ui.code(x)))].filter(Boolean).join('；');
+ $('#parse-details').textContent=[data.parseStatus==='PARTIAL'?(applied?'仅识别了部分内容，已明确确认并应用已识别条件':'仅识别了部分内容，确认前不会应用'):data.parseStatus==='OK'?'已识别可用条件':ui.code(data.parseStatus),unresolved?`仍有部分文字未识别（${unresolved}个字符），未用于筛选`:'',...(data.rejectedFields||[]).map(x=>`${ui.label(x.field)}：${ui.code(x.reason)}`),...new Set((data.warnings||[]).filter(x=>!(applied&&x==='PARTIAL_REQUIRES_CONFIRMATION')).map(x=>ui.code(x)))].filter(Boolean).join('；');
  $('#parse-note').hidden=false;$('#parse-note').textContent=data.notice;$('#parse-note-context').hidden=!applied;$('#parse-note-context').textContent=applied?'解析时说明（应用前）':'';
- parseState('success',applied?'候选已应用，正在按新条件分析':data.parseStatus==='PARTIAL'?'部分候选尚未应用，需要明确确认后才可应用':'候选尚未应用，当前条件保持不变');
+ parseState('success',applied?'候选已应用':data.parseStatus==='PARTIAL'?'部分候选尚未应用，需要明确确认后才可应用':'候选尚未应用，当前条件保持不变');
 }
 function settleParse(operation,cause){
  if(operation.terminal)return false;operation.terminal=cause;
@@ -498,7 +498,7 @@ function finishEntry(operation,result,error){
  if(error){if(error.status===401){clearPrivate();invalidate(error);}entryState('error',`${ui.error(error,'入口等待已结束')} `);return;}
  const fact=`${ui.code(result.data.status)} · 缺少依据：${result.data.missingBasis.map(ui.label).join('、')||'无'}${result.data.reason?' · '+ui.code(result.data.reason):''}`;
  if(filters===false){entryState('empty',fact+'，未创建分析');return;}
- applyPrivateFilters(filters);analyze(result.data.filters);entryState('success',fact);
+ applyPrivateFilters(filters);analyze(result.data.filters);entryState('success','按以下特征筛选，包含当前患者；'+ui.conditions(filters)+'。'+fact);
 }
 function resolveSimilar(indexPatientId){
  if(disposed||checkIdentity())return;endEntry();
@@ -622,7 +622,7 @@ function revokeApplication(cause='IDENTITY_ENDED'){
 }
 function showApplicationReceipt(session){
  const d=session.receipt,n=d.notification,accepted=n.smtpAccepted===true?'邮件服务已受理':n.smtpAccepted===false?'邮件服务尚未受理':'邮件受理状态未知';
- $('#application-receipt').hidden=false;$('#application-receipt').textContent=`申请 #${d.applicationId} 已记录 · ${ui.code(n.mailStatus)}\n${accepted}，送达待确认\n${n.statusConfirmed?'通知状态已确认':'状态提交尚未确认'}${n.reason?' · '+APPLICATION_REASONS[n.reason]:''}\n申请记录不表示审批或已生成历史文件。`;
+ $('#application-receipt').hidden=false;$('#application-receipt').textContent=`申请 #${d.applicationId} 已记录 · ${n.mailStatus==='FAILED'&&n.reason==='NOT_CONFIGURED'?'通知未发送，尚未配置':ui.code(n.mailStatus)}\n${accepted}，送达待确认\n${n.statusConfirmed?'通知状态已确认':'状态提交尚未确认'}${n.reason?' · '+APPLICATION_REASONS[n.reason]:''}\n申请记录不表示审批或已生成历史文件。`;
 }
 function applicationMayPublish(operation){return !disposed&&!operation.terminal&&applicationFlight===operation&&applicationSession===operation.session&&identity===operation.identity&&identityKey()===operation.identity;}
 function finishApplication(operation,result,error){
@@ -842,7 +842,7 @@ $('#compare-exclude').addEventListener('change',()=>{if(disposed||checkIdentity(
 $('#compare-cancel').addEventListener('click',()=>{if(!comparisonFlight)return;const read=comparisonFlight.kind==='read';endComparison('REQUEST_CANCELLED');comparisonState('error',read?'已取消保留重读，引用已清除，请重新比较。':'已取消等待，结果尚未确认，不能确定是否已提交；重新比较会生成一条新结果。');});
 window.RACohortComparison=Object.freeze({getResource:()=>comparisonResource===null?null:comparisonClone(comparisonResource)});
 // 私有定义只读元信息；列表与保存独立于分析owner，不自动统计人数。
-let listFlight=null,listToken=0,listPage=1,privateItems=new Map(),privateDeleted=new Set();
+let listFlight=null,listToken=0,listPage=1,listTotal=null,privateItems=new Map(),privateDeleted=new Set();
 const PRIVATE_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function privateFilters(filters){
   if(!filters||typeof filters!=='object'||Array.isArray(filters)||Object.keys(filters).length!==10||!['studyCode',...Object.keys(SELECTS),'ids'].every(key=>Object.hasOwn(filters,key))||filters.studyCode!=='RA'||!['now','6m'].includes(filters.at))return null;
@@ -864,7 +864,6 @@ function applyPrivateFilters(filters){
   entryIds=filters.ids===null?null:[...filters.ids];blockedEntry=false;
   history.replaceState(null,'',location.pathname+window.RACohortConditions.encode(filters)+location.hash);renderChips();saveParametersChanged();
 }
-let listTotal=null;
 function privatePagination(){
   $('#private-prev').disabled=Boolean(listFlight)||listPage<=1;
   $('#private-next').disabled=Boolean(listFlight)||listTotal===null||listPage>=Math.max(1,Math.ceil(listTotal/20));
