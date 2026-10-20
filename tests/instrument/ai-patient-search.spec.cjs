@@ -17,7 +17,7 @@ test('analysis:patient-search',async({page,context,browser})=>{
  page.on('pageerror',e=>errors.push(e.message));await context.route('**/*',async route=>{
   const request=route.request(),url=new URL(request.url());if(url.origin!==origin){blocked.push(request.url());return route.abort('blockedbyclient')}
   if(await auth.handle(route))return;
-  if(!url.pathname.startsWith('/api/'))return route.continue();const body=request.postDataJSON();requests.push({path:url.pathname,body});let data,http=200,error='200';
+  if(url.pathname==='/patient-insight.html')return route.fulfill({status:200,contentType:'text/html',body:'<!doctype html><title>insight</title>'});if(!url.pathname.startsWith('/api/'))return route.continue();const body=request.postDataJSON();requests.push({path:url.pathname,body});let data,http=200,error='200';
   if(url.pathname==='/api/ra/ai/overview')data=overview;
   else if(url.pathname==='/api/ra/ai/patientSearch'){data={items,total,page:body.page,size:body.size};http=status;error=code}
   else if(url.pathname==='/api/ra/ai/parse')data=parse.PARTIAL;

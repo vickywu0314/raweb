@@ -24,7 +24,7 @@ test('analysis:overview-states',async({page,context,browser})=>{
  try{
   await page.goto(origin+'/ai-analysis.html');await state('success');await expect(page.locator('#overview .stat-tile')).toHaveCount(5);await expect(page.locator('#overview')).toContainText('40%');
   expect(await page.locator('#overview a').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href')))).toEqual(['ai-cohort.html','ai-cohort.html?act=target','ai-cohort.html?act=mod-high','ai-cohort.html?cm=FM','ai-cohort.html?data=missing']);
-  await expect(page.locator('.study-meta')).not.toContainText('异常检验');await expect(page.locator('#picker')).toBeEnabled();await expect(page.locator('#patient-search-form')).toBeVisible();await expect(page.locator('#patient-search-state')).toHaveAttribute('data-state','idle');
+  await expect(page.locator('.study-meta')).not.toContainText('异常检验');await expect(page.locator('#picker')).toBeEnabled();await expect(page.locator('#picker')).toHaveAttribute('role','combobox');await expect(page.locator('#picker-list')).toBeHidden();await expect(page.locator('#patient-search-state')).toHaveAttribute('data-state','idle');
   reply=truth(6,'NO_DATA');await load();await state('success');await expect(page.locator('#overview')).toContainText('暂无可评估患者');await expect(page.locator('#overview')).toContainText('未知 6 人');
   reply={...truth(),targetRate:{value:0,meta:{numerator:0,denominator:5,unknownN:1,status:'OK',displayText:'0%'}},modHighN:5};await load();await state('success');await expect(page.locator('#overview')).toContainText('0%');await expect(page.locator('#overview')).not.toContainText('暂无可评估患者');
   reply=truth(0,'NO_DATA');await load();await state('success');await expect(page.locator('#overview')).toContainText('当前研究库为空');
