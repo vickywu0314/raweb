@@ -126,3 +126,9 @@
   align-items:center;
   gap:5px;
 }
+
+/* 指标卡的「i」说明不被卡片裁掉：卡片不再 overflow:hidden，顶部色条自己带圆角；悬停 / 聚焦时卡片浮到最上层 */
+.project-overview-cards article { overflow:visible; }
+.project-overview-cards article::before { border-radius:inherit; border-bottom-left-radius:0; border-bottom-right-radius:0; }
+.project-overview-cards article:hover, .project-overview-cards article:focus-within { z-index:30; }
+.project-overview-cards .kpi-info::after { width:280px; box-shadow:0 8px 24px rgba(20,30,45,.18); }
