@@ -23,7 +23,6 @@ function loginFailure(status,code,message){
 document.addEventListener('DOMContentLoaded', () => {
   const next = new URLSearchParams(location.search).get('next');
   const go = () => location.replace(next && !/^(https?:)?\/\//.test(next) ? next : 'projects.html');
-  if (currentUser()) { go(); return; }
   const form = document.getElementById('login-form'), user = document.getElementById('username'), pw = document.getElementById('password');
   const err = document.getElementById('login-error'), remember = document.getElementById('remember');
   try { const r = localStorage.getItem(REMEMBER_KEY); if (r) { user.value = r; remember.checked = true; pw.focus(); } else user.focus(); } catch (e) { user.focus(); }
@@ -31,6 +30,20 @@ document.addEventListener('DOMContentLoaded', () => {
   [user, pw].forEach(i => i.addEventListener('input', () => showErr('')));
   document.getElementById('pw-toggle').onclick = e => { const b = e.currentTarget, on = pw.type === 'password'; pw.type = on ? 'text' : 'password'; b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? '隐藏密码' : '显示密码'); pw.focus(); };
   pw.addEventListener('keyup', e => { document.getElementById('caps-tip').hidden = !(e.getModifierState && e.getModifierState('CapsLock')); });
+  // 浏览器里留着上次的登录记录时，先问后台会话是否还有效：有效才进入；后台不认就留在登录页；连不上就提示，不再跳过去一直加载
+  if (currentUser()) {
+    const base0 = typeof window.RA_CONFIG?.apiBase === 'string' ? window.RA_CONFIG.apiBase : '', ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 8000);
+    showErr('正在确认登录状态…');
+    fetch(base0 + '/api/ra/auth/me', { method: 'POST', credentials: 'same-origin', signal: ctl.signal })
+      .then(async res => { let r = null; try { r = await res.json(); } catch (e) {} return { res, r }; })
+      .then(({ res, r }) => {
+        if (res.ok && r && r.success) { go(); return; }
+        if (res.status === 401 || (r && ['401', 'UNAUTHENTICATED'].includes(String(r.code)))) { clearAuth(); showErr(''); return; }
+        showErr('后台服务暂时无法访问（' + res.status + '），请稍后重试；如持续出现，请联系项目数据管理员。');
+      })
+      .catch(() => showErr('暂时无法连接后台服务，请检查后台是否已启动；如持续出现，请联系项目数据管理员。'))
+      .finally(() => clearTimeout(timer));
+  }
   document.getElementById('forgot').onclick = () => showErr('请联系项目数据管理员重置密码。');
   document.querySelector('.demo-accounts').addEventListener('click', e => { const b = e.target.closest('[data-u]'); if (!b) return; user.value = b.dataset.u; pw.value = b.dataset.p; showErr(''); });
   form.addEventListener('submit', e => {
