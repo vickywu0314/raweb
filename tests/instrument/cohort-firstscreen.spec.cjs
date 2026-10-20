@@ -106,7 +106,7 @@ test('cohort:no-demo-actions',async ({page,context,browser})=>{
     expect(observed.requests.at(-1).body).toEqual({question:'女性且吸烟'});
     await expect(page.locator('#export')).toBeEnabled();
     await page.locator('#export').click();await expect(page.locator('#export-dialog')).toBeVisible();expect(observed.requests.length).toBe(before+1);expect(downloads).toEqual([]);
-    expect(await page.locator('#patient-rows a').evaluateAll(nodes=>nodes.map(node=>({text:node.textContent,href:node.getAttribute('href')})))).toEqual(ids.map(id=>({text:'查看患者档案',href:'patient-visits.html?id='+id+'&from=ai-cohort'}))); await expect(page.locator('#clinical-panels')).toBeVisible();expect(await page.locator('main').innerText()).not.toContain('自动发现');expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
+    expect(await page.locator('#patient-rows a').evaluateAll(nodes=>nodes.map(node=>({text:node.textContent,href:node.getAttribute('href')})))).toEqual(ids.map(id=>({text:'查看患者档案',href:'patient-visits.html?id='+id+'&from=ai-cohort'}))); await expect(page.locator('#clinical-panels')).toBeVisible();for(const demo of ['DAS28-ESR','EULAR','演示数据'])expect(await page.locator('#insights').innerText()).not.toContain(demo);expect(await page.locator('main').innerText()).not.toContain('DAS28-ESR');
     expect(observed.requests.every(request=>new URL(request.url).origin===observed.origin&&['/api/ra/ai/cohort','/api/ra/ai/parse'].includes(new URL(request.url).pathname))).toBe(true);
     expect(observed.pageErrors).toEqual([]);
   }finally{await observed.save();}

@@ -116,6 +116,19 @@ function renderPanels(data) {
   }
   $('#analysis-policy').textContent=`统计口径尚未医学批准。评估时点：${ui.time(meta.at)}；数据截至 ${meta.asOfDate??'未提供'}；读取 ${meta.readStartedAt??'未提供'} 至 ${meta.readCompletedAt??'未提供'}；计算 ${meta.computedAt??'未提供'}；${meta.statisticalDisclosure??'统计结果仅供探索，不表示因果。'}`;$('#analysis-policy').hidden=false;
   $('#clinical-panels').hidden=false;
+  if(typeof renderDiscoveries==='function')renderDiscoveries(data);
+}
+// 自动发现：只用本次分析结果里的数字，描述差异，不做因果判断
+function renderDiscoveries(data) {
+  const st=data.stats||{},tx=data.byTx||{},fm=data.fm||{},meta=data.meta||{},pct=v=>typeof v==='number'&&Number.isFinite(v)?Math.round(v*100)+'%':'—',cards=[];
+  if(typeof st.targetRate==='number'&&st.evaluable)cards.push(['good','达标情况',`队列达标率 ${pct(st.targetRate)}，研究库整体 ${tx.studyTargetMeta?.displayText??'—'}`,`${st.evaluable} 位可评估患者中 ${Math.round(st.targetRate*st.evaluable)} 位 DAS28-CRP ≤ 2.7（低疾病活动或缓解）。`,`评估时点：${ui.time(meta.at)} · 阈值 DAS28-CRP ≤ 2.7`]);
+  const groups=(tx.groups||[]).filter(g=>g.evalN>0&&typeof g.rate==='number');
+  if(groups.length>=2){const sorted=[...groups].sort((a,b)=>b.rate-a.rate),hi=sorted[0],lo=sorted[sorted.length-1];cards.push(['','治疗分组',`${ui.code(hi.tx,hi.tx)} 组达标率最高（${pct(hi.rate)}），${ui.code(lo.tx,lo.tx)} 组最低（${pct(lo.rate)}）`,`各组可评估人数：${groups.map(g=>`${g.tx} ${g.evalN}`).join(' · ')}。组间基线疾病活动、病程和治疗线数不同，差异不等同于疗效差异。`,'观察性数据的组间描述，未做倾向评分或多因素校正']);}
+  const rows=fm.rows||[],top=rows.find(r=>r.highlight===true)||rows[0];
+  cards.push(['warn','亚组差异',rows.length?`合并 FM ${fm.nFM} 位 vs 明确无 FM ${fm.nOther} 位：${ui.label(top.metric)} ${top.displayFM} vs ${top.displayOther}`:`合并 FM 亚组样本不足（FM ${fm.nFM??'—'} 位 · 明确无 FM ${fm.nOther??'—'} 位）`,rows.length?rows.map(r=>`${ui.label(r.metric)} 差值 ${r.displayDifference}`).join('；')+'。':'每组至少需要 3 位可比较患者，暂不比较。','压痛相关指标差异明显时，应警惕 DAS28 被 FM 抬高']);
+  if(typeof st.completeRate==='number'&&data.n)cards.push(['','数据质量',`${st.incompleteCount??'—'} 位患者（${pct(1-st.completeRate)}）资料待补全`,'缺失项可能影响上述比例的可靠性；可在数据质控中定位并补录。','缺失项来源：数据质控规则','data-quality.html']);
+  $('#insights').replaceChildren(...cards.map(([kind,tag,title,text,basis,link])=>{const item=textNode('article','','insight-item'+(kind?' '+kind:'')),box=textNode('div','');box.append(textNode('span',tag,'tag'),textNode('strong',title),textNode('p',text));const small=textNode('small','依据：'+basis);if(link){const a=textNode('a','前往处理 →');a.href=link;small.append(a);}box.append(small);item.append(box);return item;}));
+  $('#discoveries').hidden=cards.length===0;
 }
 
 function clearResults() {
@@ -125,7 +138,7 @@ function clearResults() {
   $('#numeric-computed-at').textContent='';$('#display-read-at').textContent='';
   for(const selector of ['#activity-base','#activity-current','#tx-groups','#line-groups','#fm-rows'])$(selector).replaceChildren();
   for(const id of ['activity-summary','tx-summary','study-target','tx-test','tx-notice','line-summary','fm-summary','fm-note','analysis-policy'])$('#'+id).textContent='';
-  $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;
+  $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;$('#insights').replaceChildren();$('#discoveries').hidden=true;
   $('#results').hidden = true; $('#no-result').hidden = true; $('#analysis-error').hidden = true;
   $('#login-return').hidden = true; $('#more').hidden = true; $('#more').disabled=true;
   $('#export').disabled=true;resource=null;delete $('#results').dataset.analysisId;$('#private-open-meta').textContent='';delete $('#private-open-meta').dataset.cohortId;
@@ -249,6 +262,17 @@ function renderPatientTimes(meta) {
   $('#display-read-at').textContent=`名单显示字段读取时间：${clinicalText(meta.readCompletedAt,'未提供')}`;
 }
 function patientLongId(id){return typeof id==='string'&&/^[1-9][0-9]*$/.test(id)&&(id.length<19||(id.length===19&&id<='9223372036854775807'));}
+function compactCells(patient) {
+  const c=patient.clinical,t=patient.treatment,v=x=>typeof x==='number'&&Number.isFinite(x)?String(Math.round(x*100)/100):'—';
+  const cell=(main,sub,cls)=>{const node=textNode('div','','patient-cell '+cls);node.append(textNode('b',main),textNode('small',sub));return node;};
+  const drugs=t.genericDrugIds.length?t.genericDrugIds.map(ui.drugLabel).join('、'):'未记录药物';
+  const activity={remission:'缓解',low:'低疾病活动',moderate:'中疾病活动',high:'高疾病活动'};
+  const pill=textNode('div','','patient-cell cell-activity');pill.append(textNode('span',activity[patient.activity]??'未知','activity-pill'+(Object.hasOwn(activity,patient.activity)?' activity-'+patient.activity:'')));
+  const crp=patient.crpCurrent?.value??patient.crpAt?.value;
+  const comorbid=[c.fm==='TRUE'?'FM':null,c.as==='TRUE'?'AS':null].filter(Boolean).join(' / ')||(c.fm==='FALSE'&&c.as==='FALSE'?'无':'未知');
+  return [cell(t.category||'未知方案',drugs+(t.line?` · ${t.line} 线`:''),'cell-tx'),cell(t.schemeDurationMonths==null?'未知':`${t.schemeDurationMonths} 个月`,'当前方案时长','cell-duration'),
+    cell(`${v(patient.das28Base)} → ${v(patient.das28Current??patient.das28At)}`,'DAS28-CRP 基线 → 当前','cell-das'),pill,cell(v(crp),'CRP mg/L','cell-crp'),cell(comorbid,'其他病史','cell-comorbid')];
+}
 function appendPatients(items,meta) {
   for (const patient of items) {
     const row=document.createElement('div');row.className='ai-row';row.dataset.patientId=patient.patientId;row.setAttribute('role','listitem');
@@ -257,6 +281,7 @@ function appendPatients(items,meta) {
     for(const value of [patient.name??'未记录姓名',patient.studyNo??'未记录研究号',patient.patientId])personal.append(textNode('span',value));
     if(patientLongId(patient.patientId)){const link=textNode('a','查看患者档案');link.href='patient-visits.html?id='+encodeURIComponent(patient.patientId)+'&from=ai-cohort';personal.append(link);}
     personal.append(textNode('small',`${ui.code(c.sex,'未知')} · 年龄 ${clinicalText(c.age)} · 病程年 ${clinicalText(c.diseaseDurationYears)} · 血清 ${ui.code(c.sero,'未知')}`));row.append(personal);
+    if(typeof compactCells==='function')row.append(...compactCells(patient));
     row.append(textNode('div',`${ui.code(t.state,'未知')} · ${ui.code(t.category,'未知方案')} · 线数 ${clinicalText(t.line)} · 靶向药史 ${clinicalText(t.targetedDrugHistoryN)} · 用药记录 ${t.genericDrugIds.length} 项 · ${t.genericDrugIds.length?t.genericDrugIds.map(ui.drugLabel).join('、'):'未记录'}`,'patient-treatment'));
     row.append(textNode('div',`方案月数 ${clinicalText(t.schemeDurationMonths)} · 明确起点 ${clinicalText(t.startDate)} · 估算起点 ${clinicalText(t.estimatedStartDate)} · ${ui.code(t.startConfidence,'未知')} · 结束 ${clinicalText(t.endDate)}`,'patient-duration'));
     row.append(textNode('div',`DAS28-CRP 基线 ${clinicalText(patient.das28Base)} → 评估 ${clinicalText(patient.das28At)}；当前 ${clinicalText(patient.das28Current)}；差值 ${clinicalText(patient.deltaDas28)}`,'patient-das28'));

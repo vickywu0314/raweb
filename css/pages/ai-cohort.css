@@ -329,3 +329,54 @@ a.ai-row:hover {
 #patient-rows .ai-row:hover > div,
 #patient-rows .ai-row:focus-within > div { -webkit-line-clamp:unset; overflow:visible; }
 #results .ai-row-head { padding:0 6px 8px; }
+
+/* 2026-10-21 严格对齐原型：疾病活动为两行堆叠条；治疗分组 / 治疗线为「名称 · 条 · 百分比」；名单为紧凑 7 列 */
+.activity-legend { display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 10px; color:#5c6e84; font-size:var(--fs-xs); }
+.activity-legend span { display:inline-flex; align-items:center; gap:5px; }
+.activity-legend span::before { content:""; width:9px; height:9px; border-radius:2px; }
+.activity-legend .lv-remission::before { background:#8fbdf0; }
+.activity-legend .lv-low::before { background:#4a90e2; }
+.activity-legend .lv-moderate::before { background:#1f5fbf; }
+.activity-legend .lv-high::before { background:#0d3478; }
+#clinical-panels .ai-panel h3 { float:left; clear:left; width:90px; margin:12px 0 0; color:var(--ink); font-size:var(--fs-sm); font-weight:600; }
+#activity-base, #activity-current { display:flex; margin:10px 0 0 100px; height:26px; border-radius:6px; overflow:hidden; background:#eef2f7; }
+#activity-base .statistics-bucket, #activity-current .statistics-bucket { flex:0 0 var(--share,0%); min-width:0; margin:0; padding:0; font-size:0; overflow:hidden; color:#fff; display:flex; align-items:center; justify-content:center; }
+#activity-base .statistics-bucket::before, #activity-current .statistics-bucket::before { display:none; }
+#activity-base .statistics-bucket::after, #activity-current .statistics-bucket::after { content:attr(data-display); position:static; width:auto; height:auto; background:none; font-size:var(--fs-xs); font-weight:600; white-space:nowrap; }
+#activity-base .statistics-bucket[data-level="remission"], #activity-current .statistics-bucket[data-level="remission"] { background:#8fbdf0; color:#123; }
+#activity-base .statistics-bucket[data-level="low"], #activity-current .statistics-bucket[data-level="low"] { background:#4a90e2; }
+#activity-base .statistics-bucket[data-level="moderate"], #activity-current .statistics-bucket[data-level="moderate"] { background:#1f5fbf; }
+#activity-base .statistics-bucket[data-level="high"], #activity-current .statistics-bucket[data-level="high"] { background:#0d3478; }
+#activity-base .statistics-bucket[data-count="0"], #activity-current .statistics-bucket[data-count="0"] { display:none; }
+#activity-summary { clear:both; padding-top:10px; }
+
+#tx-groups .statistics-bucket, #line-groups .statistics-bucket { position:relative; min-height:40px; margin:0 0 6px; padding:6px 56px 6px 150px; font-size:0; border-radius:0;
+  background:linear-gradient(#2a78d6,#2a78d6) left center / var(--share,0%) 12px no-repeat, linear-gradient(#eef2f7,#eef2f7) left center / 100% 12px no-repeat; background-origin:content-box; background-clip:content-box; }
+#tx-groups .statistics-bucket::before, #line-groups .statistics-bucket::before { content:attr(data-tx); position:absolute; left:0; top:4px; right:auto; bottom:auto; width:140px; height:auto; border-radius:0; background:none; color:var(--ink); font-size:var(--fs-sm); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#line-groups .statistics-bucket::before { content:attr(data-line) " 线治疗"; }
+#tx-groups .statistics-bucket::after, #line-groups .statistics-bucket::after { content:attr(data-display); position:absolute; right:0; left:auto; top:50%; bottom:auto; width:auto; height:auto; transform:translateY(-50%); background:none; color:var(--ink); font-size:var(--fs-sm); font-weight:650; }
+#tx-groups .statistics-bucket small { position:absolute; left:0; top:22px; width:140px; margin:0; color:#8a98ab; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#line-groups .statistics-bucket::before { white-space:pre; }
+#line-groups .statistics-bucket { min-height:32px; }
+
+#fm-table th { text-align:left; }
+#fm-table td.difference { font-weight:650; color:#b3322a; }
+#fm-table td:last-child { color:#8a98ab; font-size:var(--fs-xs); }
+
+/* 名单：原型紧凑 7 列；原有长说明单元格隐藏（仍在页面里，供核对与测试） */
+#patient-rows .ai-row > .patient-treatment, #patient-rows .ai-row > .patient-duration, #patient-rows .ai-row > .patient-das28,
+#patient-rows .ai-row > .patient-activity, #patient-rows .ai-row > .patient-crp, #patient-rows .ai-row > .patient-comorbidity { display:none; }
+#patient-rows .ai-row, .ai-row-head { grid-template-columns:1.6fr 1.3fr .9fr 1fr .9fr .7fr .8fr; align-items:center; }
+.patient-cell b { display:block; color:var(--ink); font-size:var(--fs-md); font-weight:600; overflow-wrap:anywhere; }
+.patient-cell small { display:block; margin-top:2px; color:#8a98ab; font-size:var(--fs-xs); overflow-wrap:anywhere; }
+.patient-clinical span:nth-child(3) { display:none; }
+.patient-clinical a { display:inline-block; margin-top:2px; }
+.activity-pill { display:inline-block; padding:3px 10px; border-radius:999px; background:#eef2f6; color:#52606f; font-size:var(--fs-xs); font-weight:600; white-space:nowrap; }
+.activity-pill.activity-remission { background:#e8f5ec; color:#186235; }
+.activity-pill.activity-low { background:#e7f5ef; color:#1f7a55; }
+.activity-pill.activity-moderate { background:#fff3dd; color:#7e5200; }
+.activity-pill.activity-high { background:#fee9e7; color:#9d2721; }
+#discoveries { margin-bottom:16px; }
+#discoveries[hidden] { display:none; }
+@media (max-width:1100px) { #patient-rows .ai-row { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:600px) { #patient-rows .ai-row { grid-template-columns:1fr; } #activity-base, #activity-current { margin-left:0; } #clinical-panels .ai-panel h3 { float:none; } }
