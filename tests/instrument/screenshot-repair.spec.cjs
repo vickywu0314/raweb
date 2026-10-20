@@ -23,6 +23,7 @@ test('screenshots:layout-states',async({page,context,browser})=>{
    await page.setViewportSize(viewport);
    await page.goto(origin+'/patient-insight.html?id=9007199254740993');
    await expect(page.locator('#insight-state')).toHaveAttribute('data-state','success');
+   await page.locator('#journey details').evaluateAll(list=>list.forEach(d=>{d.open=true;}));
    const size=await page.locator('#journey .insight-record').first().evaluate(article=>{
     const date=article.querySelector('time'),range=document.createRange();range.selectNodeContents(date);const dateLines=range.getClientRects().length;const content=article.querySelector('.journey-content'),wrap=article.querySelector('.insight-table-wrap'),link=content.querySelector('a'),box=element=>{const r=element.getBoundingClientRect();return {width:r.width,height:r.height};};
     return {date:date.textContent,dateLines,article:box(article),content:box(content),link:box(link),lineHeight:parseFloat(getComputedStyle(link).lineHeight),wrapWidth:wrap.clientWidth,tableWidth:wrap.scrollWidth,pageWidth:document.documentElement.scrollWidth,viewportWidth:innerWidth};

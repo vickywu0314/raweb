@@ -650,3 +650,30 @@
 }
 
 @media (max-width:700px) { .insight-record time { text-align:left; } }
+
+/* 2026-10-21 按原型调整：时间线圆点着色、指标明细折叠、问问 AI 按钮、来源折叠区 */
+.journey .insight-record.good::before { border-color:#42a57d; }
+.journey .insight-record.alert::before { border-color:#d59a3a; }
+.journey .insight-record.current::before { background:#0b63ce; border-color:#0b63ce; }
+.journey .insight-record[hidden] { display:none; }
+.journey-content > strong a { font-weight:inherit; }
+.journey-content > p { margin:4px 0 7px; color:#718299; font-size:var(--fs-xs); }
+.journey-detail { margin-top:8px; }
+.journey-detail > summary { cursor:pointer; color:#5c7ca3; font-size:var(--fs-xs); }
+.journey-detail[open] > summary { margin-bottom:8px; }
+.journey-detail .insight-table-wrap table { font-size:var(--fs-xs); }
+.ask-ai-button { color:var(--ai); border-color:var(--ai-line); background:#fff; }
+.ask-ai-button:hover { background:var(--ai-soft); border-color:#bfaef7; }
+.ask-ai-button::before { content:"✦"; margin-right:6px; font-size:var(--fs-xs); }
+.insight-source-detail { margin-top:10px; font-size:var(--fs-xs); color:#5c6e84; }
+.insight-source-detail > summary, .insight-source-panel > summary { cursor:pointer; color:#5c7ca3; font-size:var(--fs-sm); }
+.insight-source-panel h3 { margin:14px 0 6px; font-size:var(--fs-sm); }
+.insight-source-panel p, .insight-source-detail p { margin:4px 0; font-size:var(--fs-xs); color:#6b7c92; overflow-wrap:anywhere; }
+#insight-state { margin:0 0 12px; color:#8493a6; font-size:var(--fs-xs); }
+#insight-state[data-state="error"], #insight-state[data-state="timeout"], #insight-state[data-state="invalid"] { color:#a12b20; }
+#insight-body[hidden] { display:none; }
+.similar-summary .metric-note { grid-column:1 / -1; }
+.u-mt-14 { margin-top:14px; }
+.insight-record { gap:30px; }
+.journey .insight-record::before { left:98px; }
+.journey:before { left:104px; }
