@@ -51,8 +51,9 @@ $('#export-report')?.addEventListener('click', () => {
 });
 
 // 研究数据：当前方案持续 ≥ 12 个月（与队列分析同口径）
+let schemeRequest = null; // 与看板统计同时发出，不排队等
 async function loadScheme12() {
-  try { const d = await apiPostJson('/api/ra/dashboard/cohortPreview', { filters: {} }); $('#scheme12').textContent = `${d.scheme12} 人`; }
+  try { const d = await schemeRequest; $('#scheme12').textContent = `${d.scheme12} 人`; }
   catch (e) { $('#scheme12').textContent = '—'; $('#scheme12').title = apiErrorMessage(e); }
 }
 
@@ -87,12 +88,15 @@ async function previewCohort() {
     $('#cohort-chips').innerHTML = ''; $('#cohort-result').innerHTML = `<p class="metric-note">预览失败：${escapeHTML(apiErrorMessage(e))}</p>`;
   }
 }
+// 打开页面不自动算（全量计算较重），点「解析条件」再预览
+$('#cohort-chips').innerHTML = '<span>点「解析条件」预览样本量和资料完整度</span>';
 $('#cohort-form').addEventListener('submit', e => { e.preventDefault(); previewCohort(); });
 $('#create-cohort').addEventListener('click', () => { const q = $('#cohort-q').value.trim(); location.href = q ? `ai-cohort.html?q=${encodeURIComponent(q)}` : 'ai-cohort.html'; });
 
 async function load() {
   $('#dashboard').innerHTML = '<p class="metric-note">正在统计…</p>';
-  try { D = await apiPost('/api/ra/dashboard/summary', { doctorId: currentDoctorId() }); render(); previewCohort(); }
+  schemeRequest = apiPostJson('/api/ra/dashboard/cohortPreview', { filters: {} }); schemeRequest.catch(() => {});
+  try { D = await apiPost('/api/ra/dashboard/summary', { doctorId: currentDoctorId() }); render(); }
   catch (e) { console.error(e); $('#dashboard').innerHTML = `<p class="pv-load-error">看板数据加载失败：${escapeHTML(apiErrorMessage(e))}</p>`; }
 }
 load();
