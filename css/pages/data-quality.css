@@ -84,3 +84,19 @@
 .mark-done:hover {
   background:#eef5ff;
 }
+
+/* 问题类型说明卡片：点击按类型筛选（规则与后端 QualityServiceImpl 一致） */
+.qc-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:20px}
+.qc-legend:empty{display:none}
+.qc-type-card{display:flex;flex-direction:column;gap:8px;text-align:left;padding:16px 18px;border:1px solid var(--line);border-left:4px solid #e0a43a;border-radius:12px;background:#fff;font:inherit;color:var(--ink);cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.qc-type-card.bad{border-left-color:#d0453b}
+.qc-type-card:hover{box-shadow:0 4px 14px #25477514}
+.qc-type-card.active{border-color:#82acf0;border-left-width:4px;box-shadow:0 0 0 3px #0b5ccc14}
+.qc-type-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.qc-type-head b{font-size:var(--fs-lg)}
+.qc-type-head em{margin-left:auto;font-style:normal;color:#8193aa;font-size:var(--fs-xs)}
+.qc-type-desc{color:#53647b;font-size:var(--fs-sm);line-height:1.7}
+.qc-rule-list{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:var(--fs-xs);color:#53647b}
+.qc-rule-list span{display:inline-flex;align-items:center;gap:6px}
+.qc-rule-list small{min-width:18px;padding:0 6px;border-radius:9px;background:#eef2f7;color:#4d5d72;text-align:center;font-variant-numeric:tabular-nums}
+@media (max-width:900px){.qc-legend{grid-template-columns:1fr}}
