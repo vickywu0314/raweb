@@ -6,7 +6,9 @@
 shell('dashboard');
 
 const section = (title, note = "") => `<div class="section-heading"><h2>${title}</h2><p>${note}</p></div>`;
-const metric = (label, value, note, suffix = "人", tone = "", href = "") => `<${href ? `a href="${href}"` : 'article'} class="panel ${tone}${href ? ' metric-link' : ''}"><p class="metric-label">${label}</p><div class="metric-value">${value ?? '—'}<small>${value == null ? '' : suffix}</small></div><p class="metric-note">${note}</p></${href ? 'a' : 'article'}>`;
+// num(v)：数字加千分位，并标上 data-count 供 countUp 从 0 增长到同一文字（动画结束后文字与直接显示一致）
+const num = v => v == null ? '—' : `<span data-count="${escapeHTML(fmtN(v))}">${escapeHTML(fmtN(v))}</span>`;
+const metric = (label, value, note, suffix = "人", tone = "", href = "") => `<${href ? `a href="${href}"` : 'article'} class="panel ${tone}${href ? ' metric-link' : ''}"><p class="metric-label">${label}</p><div class="metric-value">${num(value)}<small>${value == null ? '' : suffix}</small></div><p class="metric-note">${note}</p></${href ? 'a' : 'article'}>`;
 const lines = items => items.map(([name, value, href]) => `<div class="detail-line"><span>${href ? `<a href="${href}">${name}</a>` : name}</span><b>${value}</b></div>`).join("");
 const md = d => d ? d.slice(5).replace('-', '/') : '—';
 const pctOf = (n, d) => d ? Math.round(n / d * 100) : 0;
@@ -18,14 +20,15 @@ function render() {
   $('#stat-date').textContent = `全部研究中心 · 统计截至 ${D.asOf}，随数据实时更新`;
   $('#dashboard').innerHTML =
     section('患者规模', '活跃指近 6 个月内有随访记录') + `<div class="metric-grid">${metric('总患者数', N, '覆盖 1 家研究中心', '人', '', 'patients.html')}${metric('活跃患者数', s.active, `占全部患者 ${pctOf(s.active, N)}%`, '人', 'metric-success')}${metric('本月新增患者', s.newThisMonth, `${D.asOf.slice(0, 7).replace('-', ' 年 ')} 月建档`)}${metric('已脱落 / 失访', s.withdrawn + s.lost, '不再纳入随访计划', '人', 'metric-danger', 'followups.html?status=lost')}</div>` +
-    section('随访管理', '与随访管理页同一口径（不含已脱落、疑似失访）') + `<div class="metric-grid">${metric('已逾期', f.overdue, '优先安排随访', '人', 'metric-warning', 'followups.html?status=overdue')}${metric('7 日内待随访', f.due7, '需提前电话确认', '人', '', 'followups.html?status=soon')}${metric('30 日内待随访', f.due30, '含 7 日内')}${metric('按期随访率', f.onTimeRate, `已做基线的 ${f.planned - f.pendingFirst} 项随访计划 · 另有 ${f.pendingFirst} 位待首次随访`, '%', 'metric-success')}</div><a class="panel-link" href="followups.html">进入随访管理 →</a>` +
-    `<div class="dashboard-grid"><article class="panel"><h3>需关注患者</h3><div class="metric-value danger-text">${t.notTarget}<small>人未达标（中高疾病活动）</small></div>${[['炎症指标升高（最近一次 CRP > 10 mg/L）', t.highCrp, ''], ['高疾病活动（DAS28-CRP > 4.1）', t.highActivity, 'ai-cohort.html?act=high'], ['合并 FM · 评分需复核', t.fm, 'ai-cohort.html?cm=FM']].map(([n, v, h]) => `<div class="progress-row"><span>${h ? `<a href="${h}">${n}</a>` : n}</span><progress value="${v}" max="${N || 1}" aria-label="${n} ${v} 人"></progress><b>${v}</b></div>`).join('')}<p class="metric-note">同一患者可计入多项，以最近一次访视为准。</p></article>
-    <article class="panel"><h3>疾病活动度 · DAS28-CRP</h3><p class="metric-note">最近一次评分分布（${a.evaluable} 人有评分）· 达标率 ${a.targetRate ?? '—'}%</p>${a.dist.map(d => `<div class="detail-line"><span><a href="ai-cohort.html?act=${d.key}">${escapeHTML(d.label)}</a></span><b>${d.n} 人 · ${pctOf(d.n, a.evaluable)}%</b></div>`).join('')}</article>
-    <article class="panel"><h3>数据质量</h3><div class="metric-value">${q.completeRate ?? '—'}%<small>患者资料完整率</small></div>${lines(q.byItem.map(x => [escapeHTML(x.item), `${x.n} 人`]))}<a class="panel-link" href="data-quality.html">进入数据质控 →</a></article>
-    <article class="panel"><h3>研究数据</h3>${lines([['有效研究样本数', `${r.validSample} 人`], ['累计完成访视', `${r.totalVisits} 次`], ['当前方案持续 ≥ 12 个月', '<span id="scheme12">…</span>'], ['近 90 天有随访', `${r.visited90} 人`]])}<a class="panel-link" href="ai-cohort.html">进入队列分析 →</a></article></div>` +
-    section('风险提醒', '点击卡片查看名单') + `<div class="risk-grid">${D.risks.map(x => `<button class="panel risk-card" data-risk="${x.key}" aria-label="查看${escapeHTML(x.name)}，${x.count}人"><span class="risk-card-heading"><strong>${escapeHTML(x.name)}</strong>${badge(x.level + '风险', x.level === '高' ? 'danger' : 'warning')}</span><span class="metric-value danger-text">${x.count}<small>人</small></span><span class="metric-note">${escapeHTML(x.note)}</span><span class="risk-link">查看风险患者 ${icon('chevron')}</span></button>`).join('')}</div>` +
+    section('随访管理', '与随访管理页同一口径（不含已脱落、疑似失访）') + `<div class="metric-grid">${metric('已逾期', f.overdue, '优先安排随访', '人', 'metric-warning', 'followups.html?status=overdue')}${metric('7 日内待随访', f.due7, '需提前电话确认', '人', '', 'followups.html?status=soon')}${metric('30 日内待随访', f.due30, '含 7 日内')}${metric('按期随访率', f.onTimeRate, `已做基线的 ${fmtN(f.planned - f.pendingFirst)} 项随访计划 · 另有 ${fmtN(f.pendingFirst)} 位待首次随访`, '%', 'metric-success')}</div><a class="panel-link" href="followups.html">进入随访管理 →</a>` +
+    `<div class="dashboard-grid"><article class="panel"><h3>需关注患者</h3><div class="metric-value danger-text">${num(t.notTarget)}<small>人未达标（中高疾病活动）</small></div>${[['炎症指标升高（最近一次 CRP > 10 mg/L）', t.highCrp, ''], ['高疾病活动（DAS28-CRP > 4.1）', t.highActivity, 'ai-cohort.html?act=high'], ['合并 FM · 评分需复核', t.fm, 'ai-cohort.html?cm=FM']].map(([n, v, h]) => `<div class="progress-row"><span>${h ? `<a href="${h}">${n}</a>` : n}</span><progress value="${v}" max="${N || 1}" aria-label="${n} ${v} 人"></progress><b>${fmtN(v)}</b></div>`).join('')}<p class="metric-note">同一患者可计入多项，以最近一次访视为准。</p></article>
+    <article class="panel"><h3>疾病活动度 · DAS28-CRP</h3><p class="metric-note">最近一次评分分布（${fmtN(a.evaluable)} 人有评分）· 达标率 ${a.targetRate ?? '—'}%</p>${a.dist.map(d => `<div class="detail-line"><span><a href="ai-cohort.html?act=${d.key}">${escapeHTML(d.label)}</a></span><b>${fmtN(d.n)} 人 · ${pctOf(d.n, a.evaluable)}%</b></div>`).join('')}</article>
+    <article class="panel"><h3>数据质量</h3><div class="metric-value">${q.completeRate == null ? '—%' : num(q.completeRate + '%')}<small>患者资料完整率</small></div>${lines(q.byItem.map(x => [escapeHTML(x.item), `${fmtN(x.n)} 人`]))}<a class="panel-link" href="data-quality.html">进入数据质控 →</a></article>
+    <article class="panel"><h3>研究数据</h3>${lines([['有效研究样本数', `${fmtN(r.validSample)} 人`], ['累计完成访视', `${fmtN(r.totalVisits)} 次`], ['当前方案持续 ≥ 12 个月', '<span id="scheme12">…</span>'], ['近 90 天有随访', `${fmtN(r.visited90)} 人`]])}<a class="panel-link" href="ai-cohort.html">进入队列分析 →</a></article></div>` +
+    section('风险提醒', '点击卡片查看名单') + `<div class="risk-grid">${D.risks.map(x => `<button class="panel risk-card" data-risk="${x.key}" aria-label="查看${escapeHTML(x.name)}，${x.count}人"><span class="risk-card-heading"><strong>${escapeHTML(x.name)}</strong>${badge(x.level + '风险', x.level === '高' ? 'danger' : 'warning')}</span><span class="metric-value danger-text">${num(x.count)}<small>人</small></span><span class="metric-note">${escapeHTML(x.note)}</span><span class="risk-link">查看风险患者 ${icon('chevron')}</span></button>`).join('')}</div>` +
     section('近期动态', '按最近一次访视日期') + `<div class="dashboard-grid"><article class="panel"><h3>最近炎症指标偏高</h3>${D.recentHighCrp.length ? D.recentHighCrp.map(p => `<div class="activity"><b><a href="${visitsHref(p.patientId)}">${escapeHTML(p.name)}</a></b><span>CRP ${escapeHTML(p.crp)} mg/L</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article><article class="panel"><h3>最近完成随访</h3>${D.recentVisits.length ? D.recentVisits.map(p => `<div class="activity"><b><a href="${withFrom(`visit-detail.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(p.visitId)}`)}">${escapeHTML(p.name)}</a></b><span>${escapeHTML(p.label)} · 已完成</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article></div>` +
     `<p class="dashboard-note">统计口径：资料完整指建档必填项、DAS28 评分、基线检验、合并疾病与用药史均已录入。</p>`;
+  countUp($('#dashboard'));
   loadScheme12();
 }
 
@@ -34,8 +37,8 @@ const RISK_MORE = { overdue: 'followups.html?status=overdue', high: 'ai-cohort.h
 function showRisk(key) {
   const r = D.risks.find(x => x.key === key); if (!r) return;
   $('#risk-title').textContent = r.name;
-  $('#risk-detail').innerHTML = `${badge(r.level + '风险', r.level === '高' ? 'danger' : 'warning')}<dl class="risk-facts"><div><dt>统计人数</dt><dd>${r.count} 人</dd></div><div><dt>风险条件</dt><dd>${escapeHTML(r.note)}</dd></div></dl>` +
-    (r.count ? `<div class="risk-list">${r.patients.slice(0, 12).map(p => `<a href="${RISK_LINK[key](p.patientId)}"><b>${escapeHTML(p.name)}</b><span>${escapeHTML(p.studyNo || '—')}</span><em>${escapeHTML(p.detail)}</em></a>`).join('')}</div>${r.count > 12 ? `<p class="metric-note">仅显示前 12 位，共 ${r.count} 位</p>` : ''}${RISK_MORE[key] ? `<a class="panel-link" href="${RISK_MORE[key]}">查看全部 →</a>` : ''}` : '<p class="metric-note">当前没有符合条件的患者。</p>');
+  $('#risk-detail').innerHTML = `${badge(r.level + '风险', r.level === '高' ? 'danger' : 'warning')}<dl class="risk-facts"><div><dt>统计人数</dt><dd>${fmtN(r.count)} 人</dd></div><div><dt>风险条件</dt><dd>${escapeHTML(r.note)}</dd></div></dl>` +
+    (r.count ? `<div class="risk-list">${r.patients.slice(0, 12).map(p => `<a href="${RISK_LINK[key](p.patientId)}"><b>${escapeHTML(p.name)}</b><span>${escapeHTML(p.studyNo || '—')}</span><em>${escapeHTML(p.detail)}</em></a>`).join('')}</div>${r.count > 12 ? `<p class="metric-note">仅显示前 12 位，共 ${fmtN(r.count)} 位</p>` : ''}${RISK_MORE[key] ? `<a class="panel-link" href="${RISK_MORE[key]}">查看全部 →</a>` : ''}` : '<p class="metric-note">当前没有符合条件的患者。</p>');
   $('#risk-dialog').showModal();
 }
 $('#dashboard').addEventListener('click', e => { const card = e.target.closest('[data-risk]'); if (card) showRisk(card.dataset.risk); });
@@ -53,7 +56,7 @@ $('#export-report')?.addEventListener('click', () => {
 // 研究数据：当前方案持续 ≥ 12 个月（与队列分析同口径）
 let schemeRequest = null; // 与看板统计同时发出，不排队等
 async function loadScheme12() {
-  try { const d = await schemeRequest; $('#scheme12').textContent = `${d.scheme12} 人`; }
+  try { const d = await schemeRequest; $('#scheme12').textContent = `${fmtN(d.scheme12)} 人`; }
   catch (e) { $('#scheme12').textContent = '—'; $('#scheme12').title = apiErrorMessage(e); }
 }
 

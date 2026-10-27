@@ -337,3 +337,6 @@ a.metric-link:hover {
   color:#6f7f95;
   font-style:normal;
 }
+
+/* 数字增长动画时等宽数字，避免抖动 */
+[data-count]{font-variant-numeric:tabular-nums}
