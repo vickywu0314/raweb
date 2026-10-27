@@ -135,3 +135,22 @@
 
 /* 数字增长动画时等宽数字，避免抖动 */
 [data-count]{font-variant-numeric:tabular-nums}
+
+/* 入组趋势：近 12 个月每月新入组（柱高按 12 个月内最大值缩放） */
+.enroll-chart{padding:6px 2px 0}
+.enroll-bars{display:flex;align-items:flex-end;gap:8px;height:200px;box-sizing:border-box;padding:20px 0 36px;position:relative}
+.enroll-bars::after{content:"";position:absolute;left:0;right:0;bottom:36px;border-top:1px solid #dfe6ee;pointer-events:none}
+.enroll-col{flex:1;min-width:0;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:stretch;position:relative;cursor:default;border-radius:4px;outline:none}
+.enroll-col b{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);margin-bottom:3px;color:#4d5d72;font-size:11px;font-style:normal;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.enroll-col i{display:block;position:relative;width:100%;max-width:44px;margin:0 auto;border-radius:3px 3px 0 0;background:linear-gradient(180deg,#5a8ce0,#0b5ccc);min-height:2px;transform-origin:bottom;animation:enrollGrow .6s ease both}
+.enroll-col.is-zero i{background:#d5dfeb}
+.enroll-col:hover i,.enroll-col:focus-visible i{background:#084cae}
+.enroll-col:focus-visible{box-shadow:0 0 0 2px #fff,0 0 0 4px var(--primary)}
+.enroll-col small{position:absolute;left:0;right:0;bottom:-34px;color:#8a98ac;font-size:11px;line-height:1.35;text-align:center;white-space:nowrap}
+.enroll-col small em{display:block;font-style:normal;color:#b0bac7}
+.enroll-empty{margin:0;padding:28px 0;color:#8a98ab;text-align:center;font-size:var(--fs-sm)}
+.enroll-skeleton{display:block;height:200px;border-radius:8px}
+@keyframes enrollGrow{from{transform:scaleY(0)}}
+@media (prefers-reduced-motion:reduce){.enroll-col i{animation:none}}
+@media (max-width:600px){.enroll-bars{gap:3px}.enroll-col b{font-size:10px}.enroll-col small{font-size:10px}.enroll-unit{display:none}}
+.viz-tip{position:fixed;z-index:120;background:#1f2d3d;color:#fff;font-size:12px;padding:6px 10px;border-radius:7px;pointer-events:none;box-shadow:0 6px 18px rgba(20,40,70,.2);white-space:nowrap}
