@@ -46,9 +46,9 @@ test('screenshots:layout-states',async({page,context,browser})=>{
   expect(nav.length).toBeGreaterThan(3);expect(nav.filter(item=>item.background!=='rgba(0, 0, 0, 0)')).toHaveLength(1);
   await expect(page.locator('.sidebar [aria-current="page"]')).toHaveText('AI 智能分析');
   await expect(page.locator('.chat-main')).toHaveCSS('background-color','rgb(255, 255, 255)');
-  await page.locator('#suggest button').first().click();
   expect(requests.filter(request=>request.path==='/api/ra/ai/chat')).toHaveLength(0);
-  await page.locator('#chat-send').click();await expect(page.locator('#chat-state')).toHaveText('研究问答尚未启用，请联系管理员');
+  await page.locator('#suggest button').first().click();await expect(page.locator('#chat-state')).toHaveText('研究问答尚未启用，请联系管理员');
+  expect(requests.filter(request=>request.path==='/api/ra/ai/chat')).toHaveLength(1);expect(requests.at(-1).body.question).toBe('患者全程有哪些实测记录？');
   await expect(page.locator('#chat-log')).not.toContainText('RAW_PRIVATE_SERVICE_SENTINEL');
   await expect(page.locator('#chat-log')).not.toContainText('synthetic-private-trace');
   expect(requests.at(-1).body.scope).toEqual({kind:'PATIENT',patientId:'9007199254740993',visitId:null});

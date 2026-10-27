@@ -58,6 +58,7 @@ test('patient:management-query-characterization',async()=>{
 test('chat:scope-change-guidance',async()=>{
  const p=chat();assert.equal(p.requests.length,0);p.node('#scope-all').events.change();
  assert.equal(p.node('#chat-state').textContent,'已切换分析范围，请输入问题或选择下方推荐问题。');assert.equal(p.requests.length,0,'切换范围后必须零AI请求');
- const q='当前范围的达标率是多少？';p.node('#suggest').events.click({target:{closest:()=>({dataset:{q}})}});assert.equal(p.node('#chat-input').value,q);assert.equal(p.requests.length,0,'推荐问题只填入输入框');
- p.node('#chat-form').events.submit({preventDefault(){}});await flush();assert.equal(p.requests.length,1,'显式提交才请求AI');assert.equal(p.requests[0].question,q);assert.equal(p.requests[0].scope.kind,'ALL');
+ const q='当前范围的达标率是多少？';p.node('#chat-input').value='手动输入的问题';p.node('#chat-form').events.submit({preventDefault(){}});await flush();assert.equal(p.requests.length,1,'显式提交才请求AI');assert.equal(p.requests[0].question,'手动输入的问题');assert.equal(p.requests[0].scope.kind,'ALL');
+ p.node('#chat-send').events.click({preventDefault(){}});assert.equal(p.node('#chat-state').dataset.state,'cancelled','发送按钮在请求中即停止按钮');
+ p.node('#suggest').events.click({target:{closest:()=>({dataset:{q}})}});await flush();assert.equal(p.requests.length,2,'点击推荐问题即按当前范围提问');assert.equal(p.requests[1].question,q);assert.equal(p.requests[1].scope.kind,'ALL');
 });

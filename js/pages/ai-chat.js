@@ -3,15 +3,22 @@
 (()=>{
   const display=window.RAUserDisplay;
   const $=s=>document.querySelector(s),escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let scope=null,cohortScope=null,patientScope=null,originalVisit=null,selectingPatient=false,searchFlight=null,searchRows=[],searchTerm='',searchPage=1,searchTotal=0,flight=null,generation=0,disposed=false,questions=[],cards=[];
+  let scope=null,cohortScope=null,patientScope=null,originalVisit=null,selectingPatient=false,searchFlight=null,searchRows=[],searchTerm='',searchPage=1,searchTotal=0,flight=null,generation=0,disposed=false,questions=[],cards=[],forceScroll=false;
+  const SPARK='<svg viewBox="0 0 24 24"><path d="M12 4.5 13.6 9l4.4 1.6-4.4 1.6L12 16.7l-1.6-4.5L6 10.6 10.4 9 12 4.5Z"/></svg>',ICON_COPY='<svg viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',ICON_RETRY='<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 5v6h-6"/></svg>';
+  const clock=v=>{const d=new Date(v);return Number.isNaN(d.getTime())?String(v??''):d.toTimeString().slice(0,8);},nearBottom=el=>!(el.scrollHeight>0)||el.scrollHeight-el.scrollTop-el.clientHeight<80;
   const user=()=>typeof currentUser==='function'?currentUser():null,identityKey=()=>JSON.stringify(user());let identity=identityKey();
-  const state=(kind,message)=>{$('#chat-state').dataset.state=kind;$('#chat-state').textContent=message;$('#chat-cancel').hidden=!flight;$('#chat-send').disabled=!scope||disposed||!!flight;};
+  const state=(kind,message)=>{$('#chat-state').dataset.state=kind;$('#chat-state').textContent=message;busy();};
+  // 发送按钮：请求进行中变成「停止」（走取消同一路径）；空输入时不可发送
+  function busy(){const send=$('#chat-send'),on=!!flight,label=on?'停止本轮请求':'发送';send.classList?.toggle('stop',on);send.setAttribute?.('aria-label',label);send.title=label;send.disabled=!on&&(!scope||disposed||!String($('#chat-input').value??'').trim());}
+  function grow(){const input=$('#chat-input');if(input.style&&input.scrollHeight!==undefined){input.style.height='auto';input.style.height=Math.min(180,input.scrollHeight)+'px';}busy();}
+  const validQuestion=v=>{const q=String(v).trim();return q.isWellFormed()&&[...q].length>=1&&[...q].length<=500;};
   const missing={NO_RELIABLE_START:'无可靠起点',MISSING_BASELINE:'缺基线',MISSING_EVALUATION:'缺评估',PATIENT_MISMATCH:'患者不匹配',EPISODE_MISMATCH:'方案不匹配',UNDATED_PAIR:'无日期',BASELINE_AFTER_EVALUATION:'基线晚于评估',EVAL_BEFORE_SCHEME:'评估早于方案',EVAL_AFTER_SCHEME:'评估晚于方案'};
   function suggestions(){
     const questions=scope?.kind==='PATIENT'
       ?scope.visitId?['本次访视有哪些实测指标？','本次访视记录了哪些用药？']:['患者全程有哪些实测记录？','患者有哪些治疗记录？','患者的临床资料有哪些？']
       :scope?['当前范围的达标率是多少？','当前范围的疾病活动分布如何？','当前范围的成对DAS28-CRP变化如何？']:[];
-    $('#suggest').innerHTML=questions.map(q=>'<button type="button" data-q="'+escape(q)+'">'+escape(q)+'</button>').join('');
+    const tag=q=>/用药|治疗/.test(q)?'治疗':/临床/.test(q)?'临床':/达标/.test(q)?'达标':/活动分布/.test(q)?'活动度':/变化/.test(q)?'变化':'实测';
+    $('#suggest').innerHTML=questions.map(q=>'<button type="button" data-q="'+escape(q)+'"><small>'+tag(q)+'</small>'+escape(q)+'</button>').join('');
   }
   const sample=(m,noun='符合')=>Object.hasOwn(m,'validN')?`有效 ${m.validN} · 未知 ${m.unknownN}`:`${noun} ${m.numerator} 人 · 有效/分母 ${m.denominator} · 未知 ${m.unknownN}`;
   const value=(v,d=2)=>v===null?'无数据':Number(v).toFixed(d).replace(/\.0+$|(?<=\.[0-9]*?)0+$/g,'');
@@ -40,9 +47,16 @@
     if(d.status==='UNSUPPORTED')return '<p>'+escape({SCOPE_CHANGE_REQUIRED:'此问题需要改变范围，请返回原条件页修改范围后再问。',MEDICAL_ADVICE:'当前研究问答不提供诊疗建议。',UNSUPPORTED_QUESTION:'当前问题不在数据查询、既有统计、实测变化与结果解释范围内。'}[d.reason])+'</p>'+meta;
     return d.facts.map(factHtml).join('')+meta;
   }
-  function render(){const current=cards.at(-1);$('#chat-log').innerHTML=cards.map(c=>'<article class="msg ai"><p class="msg-ev">'+(c===current?'本轮问题':'旧轮记录（不代表当前结果）')+' · '+escape(c.at)+'</p><p class="question">'+escape(c.question)+'</p>'+(c.data?resultHtml(c.data):'<p>'+escape(c.message)+'</p>')+'</article>').join('');}
+  function render(){const current=cards.at(-1),log=$('#chat-log'),stick=forceScroll||nearBottom(log);forceScroll=false;
+    log.innerHTML=cards.map((c,i)=>{const pending=flight?.card===c;return '<article class="chat-turn'+(c.fresh?' fresh':'')+'" data-card="'+i+'"><div class="msg-user"><p class="question">'+escape(c.question)+'</p></div><div class="msg-ai"><span class="avatar-ai" aria-hidden="true">'+SPARK+'</span><div class="ai-body"><p class="msg-ev turn-tag'+(c===current?'':' old')+'">'+(c===current?'本轮问题':'旧轮记录（不代表当前结果）')+' · '+escape(clock(c.at))+'</p>'
+      +(pending?'<div class="ai-pending" aria-hidden="true"><i></i><i></i><i></i></div><p class="msg-ev">'+escape(c.message)+'</p>'
+        :'<div class="ai-answer">'+(c.data?resultHtml(c.data):'<p class="ai-stopped">'+escape(c.message)+'</p>')+'</div><div class="ai-actions"><button type="button" data-act="copy" title="复制" aria-label="复制回答">'+ICON_COPY+'</button><button type="button" data-act="retry" title="重新生成" aria-label="重新生成">'+ICON_RETRY+'</button><span class="ai-meta">'+escape(c.done||'')+'</span></div>')
+      +'</div></div></article>';}).join('');
+    cards.forEach(c=>{c.fresh=false;});if(stick&&log.scrollHeight!==undefined)log.scrollTop=log.scrollHeight;}
+  // 已结束的一轮：记录真实完成时间，回答淡入一次
+  function finish(card,text){const now=new Date();card.done=text+' · '+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');card.fresh=true;}
   function retire(op,cause){if(!op||op.terminal)return;op.terminal=cause;if(flight===op)flight=null;clearTimeout(op.timer);op.timer=null;op.controller.abort();}
-  function clear(cause){generation++;retireSearch(searchFlight);searchRows=[];$('#patient-results').innerHTML='';$('#patient-page').textContent='';$('#patient-prev').disabled=true;$('#patient-next').disabled=true;$('#patient-keyword').value='';$('#patient-search-state').textContent='输入姓名、患者编号或研究号后点「搜索」';$('#scope-patient-note').textContent='搜索并选择本人名下的患者';const old=flight;retire(old,cause);questions=[];cards=[];$('#chat-log').innerHTML='';$('#chat-input').value='';}
+  function clear(cause){generation++;retireSearch(searchFlight);searchRows=[];$('#patient-results').innerHTML='';$('#patient-page').textContent='';$('#patient-prev').disabled=true;$('#patient-next').disabled=true;$('#patient-keyword').value='';$('#patient-search-state').textContent='输入姓名、患者编号或研究号后点「搜索」';$('#scope-patient-note').textContent='搜索并选择本人名下的患者';const old=flight;retire(old,cause);questions=[];cards=[];$('#chat-log').innerHTML='';$('#chat-input').value='';grow();}
   function validOwner(op){return !disposed&&!op.terminal&&flight===op&&op.generation===generation&&op.identity===identity&&op.identity===identityKey();}
   function restore(){clear('SCOPE_CHANGED');scope=null;cohortScope=null;patientScope=null;originalVisit=null;selectingPatient=false;identity=identityKey();$('#chat-return').onclick=null;$('#chat-return').href='ai-analysis.html';$('#chat-return').textContent='返回智能分析';$('#scope-cohort-wrap').hidden=true;patientDisplay();
     if(!user()){state('invalid','请先登录后重新进入问答');return;}
@@ -73,18 +87,32 @@
   $('#patient-prev').addEventListener('click',()=>{if(searchPage>1)searchPatients(searchTerm,searchPage-1);});$('#patient-next').addEventListener('click',()=>{if(searchPage*20<searchTotal)searchPatients(searchTerm,searchPage+1);});
   $('#patient-search-cancel').addEventListener('click',()=>{retireSearch(searchFlight);$('#patient-search-state').textContent='搜索已取消';});
   $('#patient-results').addEventListener('click',e=>{const button=e.target.closest('[data-patient-id]'),selected=searchRows.find(p=>p.patientId===button?.dataset.patientId);if(!selected||disposed||identityKey()!==identity)return;clear('PATIENT_CHANGED');scope={kind:'PATIENT',patientId:selected.patientId,visitId:null};patientScope=scope;originalVisit=null;selectingPatient=true;patientDisplay();$('#scope-patient-note').textContent=(selected.name||'姓名未提供')+' · 患者 '+selected.patientId+' · 全程';state('idle','已选择该患者全程记录，请输入问题后点「发送」');});
-  async function ask(question){if(disposed||!scope||!user())return;if(identityKey()!==identity){restore();return;}const q=String(question).trim();if(!q.isWellFormed()||[...q].length<1||[...q].length>500){state('error','问题须为1至500个字符');return;}
-    retire(flight,'SUPERSEDED');const previousQuestions=questions.slice(-3);questions.push(q);questions=questions.slice(-3);const card={question:q,at:new Date().toISOString(),data:null,message:'正在读取本轮数据…'};cards.push(card);const op={controller:new AbortController(),timer:null,terminal:null,generation,identity,card,scope:structuredClone(scope)};flight=op;render();state('loading','正在读取本轮数据并选择事实…');
+  async function ask(question){if(disposed||!scope||!user())return;if(identityKey()!==identity){restore();return;}const q=String(question).trim();if(!validQuestion(q)){state('error','问题须为1至500个字符');return;}
+    const superseded=flight;retire(superseded,'SUPERSEDED');if(superseded){superseded.card.message='已发送新问题，本轮未完成';finish(superseded.card,'已中断');}forceScroll=true;const previousQuestions=questions.slice(-3);questions.push(q);questions=questions.slice(-3);const card={question:q,at:new Date().toISOString(),data:null,message:'正在读取本轮数据…'};cards.push(card);const op={controller:new AbortController(),timer:null,terminal:null,generation,identity,card,scope:structuredClone(scope)};flight=op;render();state('loading','正在读取本轮数据并选择事实…');
     op.timer=setTimeout(()=>{
-  const display=window.RAUserDisplay;if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'TIMEOUT');card.message='等待超时，请重新发送问题';render();state('timeout',card.message);},30000);
-    try{const response=await window.RACohortAPI.chat({scope:op.scope,question:q,previousQuestions},{signal:op.controller.signal});if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'SUCCESS');card.data=response.data;render();state(response.data.status==='ANSWER'?'success':'unsupported',response.data.status==='ANSWER'?'本轮回答已更新':'本轮问题不受支持，范围保持不变');}
-    catch(error){if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'ERROR');card.message=display.error(error,'请求失败');if(error.status===401){clear('UNAUTHENTICATED');scope=null;}else render();state('error',card.message);}
+  const display=window.RAUserDisplay;if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'TIMEOUT');card.message='等待超时，请重新发送问题';finish(card,'已超时');render();state('timeout',card.message);},30000);
+    try{const response=await window.RACohortAPI.chat({scope:op.scope,question:q,previousQuestions},{signal:op.controller.signal});if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'SUCCESS');card.data=response.data;finish(card,response.data.status==='ANSWER'?'回答完成':'不在支持范围');render();state(response.data.status==='ANSWER'?'success':'unsupported',response.data.status==='ANSWER'?'本轮回答已更新':'本轮问题不受支持，范围保持不变');}
+    catch(error){if(identityKey()!==identity){auth();return;}if(!validOwner(op))return;retire(op,'ERROR');card.message=display.error(error,'请求失败');finish(card,'请求失败');if(error.status===401){clear('UNAUTHENTICATED');scope=null;}else render();state('error',card.message);}
   }
-  $('#chat-form').addEventListener('submit',e=>{e.preventDefault();const q=$('#chat-input').value;$('#chat-input').value='';ask(q);});
-  $('#suggest').addEventListener('click',e=>{const button=e.target.closest('[data-q]');if(button){$('#chat-input').value=button.dataset.q;$('#chat-input').focus();}});
+  // 输入框：自动增高（最高180px）；Enter 发送、Shift+Enter 换行；输入法组字中不发送；超出500字时保留原文并提示
+  $('#chat-form').addEventListener('submit',e=>{e.preventDefault();if(flight)return;const q=$('#chat-input').value;if(validQuestion(q)){$('#chat-input').value='';grow();}ask(q);});
+  $('#chat-input').addEventListener('input',grow);
+  $('#chat-input').addEventListener('keydown',e=>{if(e.key!=='Enter'||e.shiftKey||e.isComposing||e.keyCode===229)return;e.preventDefault();if(flight||$('#chat-send').disabled)return;const form=$('#chat-form');if(form.requestSubmit)form.requestSubmit();else form.dispatchEvent(new Event('submit',{cancelable:true}));});
+  // 推荐问题：点击即按当前范围提问（与手动发送同一路径）
+  $('#suggest').addEventListener('click',e=>{const button=e.target.closest('[data-q]');if(button&&!flight){$('#chat-input').value='';grow();ask(button.dataset.q);}});
+  // 回答操作：复制本轮真实回答（含依据与读取时间）、按同一问题重新请求一次
+  function notify(message){if(typeof document.createElement!=='function')return;document.querySelectorAll?.('.ra-toast').forEach(t=>t.remove());const t=document.createElement('div');t.className='ra-toast';t.setAttribute('role','status');t.textContent=message;document.body.appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),250);},1800);}
+  function copyText(text){const fallback=()=>{const area=document.createElement('textarea');area.value=text;area.setAttribute('readonly','');area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();let ok=false;try{ok=document.execCommand('copy');}catch{}area.remove();notify(ok?'已复制到剪贴板':'复制失败，请手动选择文字复制');};
+    if(window.isSecureContext&&navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>notify('已复制到剪贴板'),fallback);else fallback();}
+  $('#chat-log').addEventListener('click',e=>{const button=e.target.closest?.('[data-act]'),turn=button?.closest('[data-card]'),card=cards[Number(turn?.dataset.card)];if(!card)return;
+    if(button.dataset.act==='copy')copyText((turn.querySelector('.ai-answer')?.innerText||'').trim());
+    else if(button.dataset.act==='retry'&&!flight)ask(card.question);});
+  // 开启新对话：停止进行中的请求，清空本页对话回到欢迎状态；范围与患者选择保持不变
+  $('#new-chat')?.addEventListener('click',()=>{if(disposed)return;retire(flight,'NEW_CHAT');questions=[];cards=[];$('#chat-log').innerHTML='';$('#chat-input').value='';grow();if(scope)state('idle','已开启新对话，请输入问题或选择推荐问题');else busy();$('#chat-input').focus();});
   $('#scope-all').addEventListener('change',()=>changeScope('ALL'));$('#scope-cohort').addEventListener('change',()=>changeScope('COHORT'));$('#scope-patient').addEventListener('change',()=>changeScope('PATIENT'));
   $('#patient-course').addEventListener('click',()=>changeFocus(null));$('#patient-visit').addEventListener('click',()=>changeFocus(originalVisit));
-  $('#chat-cancel').addEventListener('click',()=>{const op=flight;if(!op)return;retire(op,'CANCELLED');op.card.message='本轮请求已取消';render();state('cancelled',op.card.message);});
+  // 停止：请求进行中点发送按钮（已变为停止按钮）即取消本轮
+  $('#chat-send').addEventListener('click',e=>{const op=flight;if(!op)return;e?.preventDefault?.();retire(op,'CANCELLED');op.card.message='本轮请求已停止';finish(op.card,'已停止');render();state('cancelled',op.card.message);});
   window.addEventListener('hashchange',()=>{if(!disposed)restore();});
   const auth=()=>{clear('IDENTITY_CHANGED');scope=null;cohortScope=null;patientScope=null;originalVisit=null;selectingPatient=false;patientDisplay();identity=identityKey();state('invalid','登录身份已变化，请刷新页面后重新提问');};
   window.addEventListener('ra-auth-changed',auth);window.addEventListener('storage',e=>{if(e.key==='ra-auth'||e.key===null)auth();});
