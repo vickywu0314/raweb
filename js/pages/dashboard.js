@@ -25,11 +25,22 @@ function render() {
     <article class="panel"><h3>疾病活动度 · DAS28-CRP</h3><p class="metric-note">最近一次评分分布（${fmtN(a.evaluable)} 人有评分）· 达标率 ${a.targetRate ?? '—'}%</p>${a.dist.map(d => `<div class="detail-line"><span><a href="ai-cohort.html?act=${d.key}">${escapeHTML(d.label)}</a></span><b>${fmtN(d.n)} 人 · ${pctOf(d.n, a.evaluable)}%</b></div>`).join('')}</article>
     <article class="panel"><h3>数据质量</h3><div class="metric-value">${q.completeRate == null ? '—%' : num(q.completeRate + '%')}<small>患者资料完整率</small></div>${lines(q.byItem.map(x => [escapeHTML(x.item), `${fmtN(x.n)} 人`]))}<a class="panel-link" href="data-quality.html">进入数据质控 →</a></article>
     <article class="panel"><h3>研究数据</h3>${lines([['有效研究样本数', `${fmtN(r.validSample)} 人`], ['累计完成访视', `${fmtN(r.totalVisits)} 次`], ['当前方案持续 ≥ 12 个月', '<span id="scheme12">…</span>'], ['近 90 天有随访', `${fmtN(r.visited90)} 人`]])}<a class="panel-link" href="ai-cohort.html">进入队列分析 →</a></article></div>` +
+    outcomeSection(D.outcome) +
     section('风险提醒', '点击卡片查看名单') + `<div class="risk-grid">${D.risks.map(x => `<button class="panel risk-card" data-risk="${x.key}" aria-label="查看${escapeHTML(x.name)}，${x.count}人"><span class="risk-card-heading"><strong>${escapeHTML(x.name)}</strong>${badge(x.level + '风险', x.level === '高' ? 'danger' : 'warning')}</span><span class="metric-value danger-text">${num(x.count)}<small>人</small></span><span class="metric-note">${escapeHTML(x.note)}</span><span class="risk-link">查看风险患者 ${icon('chevron')}</span></button>`).join('')}</div>` +
     section('近期动态', '按最近一次访视日期') + `<div class="dashboard-grid"><article class="panel"><h3>最近炎症指标偏高</h3>${D.recentHighCrp.length ? D.recentHighCrp.map(p => `<div class="activity"><b><a href="${visitsHref(p.patientId)}">${escapeHTML(p.name)}</a></b><span>CRP ${escapeHTML(p.crp)} mg/L</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article><article class="panel"><h3>最近完成随访</h3>${D.recentVisits.length ? D.recentVisits.map(p => `<div class="activity"><b><a href="${withFrom(`visit-detail.html?id=${encodeURIComponent(p.patientId)}&visit=${encodeURIComponent(p.visitId)}`)}">${escapeHTML(p.name)}</a></b><span>${escapeHTML(p.label)} · 已完成</span><time>${md(p.visitDate)}</time></div>`).join('') : '<p class="metric-note">暂无</p>'}</article></div>` +
     `<p class="dashboard-note">统计口径：资料完整指建档必填项、DAS28 评分、基线检验、合并疾病与用药史均已录入。</p>`;
   countUp($('#dashboard'));
   loadScheme12();
+}
+
+// 病情变化：首末两次 DAS28-CRP 比较（±0.6，与患者列表「病情变化」筛选同一计算）；接口没有 outcome 时不显示这一节
+const validCount = v => Number.isInteger(v) && v >= 0;
+function outcomeSection(o) {
+  if (!o || !['n', 'better', 'stable', 'worse'].every(k => validCount(o[k]))) return '';
+  const card = (label, v, note, tone, key) => metric(label, v, `${note} · 占 ${pctOf(v, o.n)}%`, '人', tone, `patients.html?trend=${key}`);
+  return section('病情变化', `入组以来首末两次 DAS28-CRP 比较 · ${fmtN(o.n)} 位可评估患者`) +
+    `<div class="metric-grid outcome-grid">${card('病情改善', o.better, 'DAS28-CRP 下降 ≥ 0.6', 'metric-success', 'better')}${card('病情稳定', o.stable, '变化 < 0.6', '', 'stable')}${card('病情加重', o.worse, 'DAS28-CRP 上升 ≥ 0.6', 'metric-danger', 'worse')}</div>` +
+    (o.n ? '' : '<p class="metric-note outcome-empty">暂无有 2 次及以上 DAS28-CRP 评分的患者。</p>');
 }
 
 const RISK_LINK = { overdue: id => `patient-visits.html?id=${encodeURIComponent(id)}&from=followups`, rebound: visitsHref, high: visitsHref };
@@ -48,7 +59,7 @@ document.querySelectorAll('[data-close]').forEach(btn => btn.addEventListener('c
 $('#export-report')?.addEventListener('click', () => {
   if (!D) return;
   const s = D.scale, f = D.followup, a = D.activity, t = D.attention, q = D.quality, r = D.research;
-  const rows = [['统计范围', '我名下的 RA 患者'], ['统计时间', D.asOf], ['指标', '数值'], ['总患者数', s.total], ['活跃患者数', s.active], ['本月新增患者', s.newThisMonth], ['已脱落', s.withdrawn], ['疑似失访（超过 2 年未随访）', s.lost], ['随访已逾期', f.overdue], ['7日内待随访', f.due7], ['30日内待随访', f.due30], ['待首次随访', f.pendingFirst], ['按期随访率', f.onTimeRate == null ? '' : f.onTimeRate + '%'], ['未达标（中高疾病活动）', t.notTarget], ['炎症指标升高（CRP>10）', t.highCrp], ['合并 FM', t.fm], ['有 DAS28-CRP 评分人数', a.evaluable], ['达标率', a.targetRate == null ? '' : a.targetRate + '%'], ...a.dist.map(d => [d.label, d.n]), ['资料完整率', q.completeRate == null ? '' : q.completeRate + '%'], ...q.byItem.map(x => [x.item, x.n]), ['有效研究样本数', r.validSample], ['累计完成访视', r.totalVisits], ['近 30 天有随访', r.visited30], ['近 90 天有随访', r.visited90], ...D.risks.map(x => [x.name, x.count])];
+  const rows = [['统计范围', '我名下的 RA 患者'], ['统计时间', D.asOf], ['指标', '数值'], ['总患者数', s.total], ['活跃患者数', s.active], ['本月新增患者', s.newThisMonth], ['已脱落', s.withdrawn], ['疑似失访（超过 2 年未随访）', s.lost], ['随访已逾期', f.overdue], ['7日内待随访', f.due7], ['30日内待随访', f.due30], ['待首次随访', f.pendingFirst], ['按期随访率', f.onTimeRate == null ? '' : f.onTimeRate + '%'], ['未达标（中高疾病活动）', t.notTarget], ['炎症指标升高（CRP>10）', t.highCrp], ['合并 FM', t.fm], ['有 DAS28-CRP 评分人数', a.evaluable], ['达标率', a.targetRate == null ? '' : a.targetRate + '%'], ...a.dist.map(d => [d.label, d.n]), ['资料完整率', q.completeRate == null ? '' : q.completeRate + '%'], ...q.byItem.map(x => [x.item, x.n]), ['有效研究样本数', r.validSample], ['累计完成访视', r.totalVisits], ['近 30 天有随访', r.visited30], ['近 90 天有随访', r.visited90], ...(D.outcome ? [['病情变化可评估（≥2 次 DAS28-CRP）', D.outcome.n], ['病情改善（DAS28-CRP 下降 ≥ 0.6）', D.outcome.better], ['病情稳定', D.outcome.stable], ['病情加重（DAS28-CRP 上升 ≥ 0.6）', D.outcome.worse]] : []), ...D.risks.map(x => [x.name, x.count])];
   const csv = '﻿' + rows.map(row => row.map(cell => `"${String(cell ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' })); const el = document.createElement('a'); el.href = url; el.download = `RA-统计报表-${D.asOf}.csv`; el.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });

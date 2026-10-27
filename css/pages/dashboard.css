@@ -340,3 +340,16 @@ a.metric-link:hover {
 
 /* 数字增长动画时等宽数字，避免抖动 */
 [data-count]{font-variant-numeric:tabular-nums}
+
+/* 病情变化：病情改善 / 稳定 / 加重三张卡片一行 */
+.metric-grid.outcome-grid {
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+@media (max-width:700px) {
+  .metric-grid.outcome-grid {
+    grid-template-columns:1fr;
+  }
+}
+.outcome-empty {
+  margin-top:8px;
+}
