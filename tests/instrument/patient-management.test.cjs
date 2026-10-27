@@ -6,7 +6,7 @@ const list=(extra={})=>({items:[],total:0,totalPatients:0,incompleteCount:0,page
 function patients(){
  const nodes=new Map(),requests=[],navigation={href:''};
  const node=s=>{if(!nodes.has(s)){let html='',text='';const n={value:'',hidden:false,disabled:false,checked:false,indeterminate:false,events:{},addEventListener(k,fn){this.events[k]=fn},querySelector:()=>node('#empty-title'),querySelectorAll:()=>[]};Object.defineProperties(n,{innerHTML:{get:()=>html,set:v=>{html=String(v);text=html.replace(/<[^>]*>/g,'')}},textContent:{get:()=>text,set:v=>{text=String(v);html=text}}});nodes.set(s,n)}return nodes.get(s)};
- const context=vm.createContext({URL,URLSearchParams,Set,API_BASE:'',console:{error(){}},location:navigation,queryParam:()=>null,shell(){},loadListState:(_key,d)=>d,saveListState(){},$:node,currentDoctorId:()=>101,apiPost(url,body){let resolve;const promise=new Promise(yes=>{resolve=yes});requests.push({url,body,resolve});return promise},escapeHTML:x=>String(x??''),badge:x=>`<b>${x}</b>`,cycleLabel:()=>'',icon:()=>'',COMORBIDITY_INFO:{},alert(){},openComorbidity(){}});
+ const context=vm.createContext({URL,URLSearchParams,Set,API_BASE:'',console:{error(){}},location:navigation,queryParam:()=>null,shell(){},loadListState:(_key,d)=>d,saveListState(){},$:node,currentDoctorId:()=>101,apiPost(url,body){let resolve;const promise=new Promise(yes=>{resolve=yes});requests.push({url,body,resolve});return promise},escapeHTML:x=>String(x??''),badge:x=>`<b>${x}</b>`,cycleLabel:()=>'',icon:()=>'',COMORBIDITY_INFO:{},alert(){},openComorbidity(){},pagerHTML:()=>'',bindPager(){},highlight:x=>String(x??''),flashResult(){},setTimeout:()=>0,clearTimeout(){}});
  vm.runInContext(source('js/pages/patients.js'),context,{filename:'patients.js'});
  return {node,requests,navigation,async answer(index,data){requests[index].resolve(data);await flush()},async event(selector,type,target){node(selector).events[type]({preventDefault(){},target});await flush()}};
 }
@@ -26,7 +26,7 @@ test('patient:summary-plain-counter',async()=>{
  assert.match(rule,/text-decoration\s*:\s*none\s*;/,'计数按钮的已链接样式须去掉下划线；此为源码样式合同，非浏览器computed-style结果');
  assert.match(source('css/common.css'),/button:focus-visible,[\s\S]*?outline:3px solid #8ebaff/,'保留键盘焦点轮廓');
  await p.event('#patient-summary','click',{closest:s=>s==='#show-incomplete'?{}:null});
- assert.deepEqual({...p.requests[1].body},{doctorId:101,page:1,size:8,completeness:'missing'});
+ assert.deepEqual({...p.requests[1].body},{doctorId:101,page:1,size:10,completeness:'missing'});
  assert.equal(p.node('#data-status').value,'missing');assert.equal(p.node('#query').value,'');assert.equal(p.node('#visit-status').value,'');
 });
 test('patient:list-response-shape',async()=>{
@@ -51,8 +51,8 @@ test('patient:management-query-characterization',async()=>{
  for(const [choice,followStatus] of Object.entries({ongoing:'active',due:'soon',overdue:'overdue',none:'pending_first',lost:'withdrawn'})){
   const p=patients();await p.answer(0,list());p.node('#query').value=' 合成%原词 ';p.node('#visit-status').value=choice;p.node('#data-status').value='missing';
   assert.equal(p.requests.length,1,'修改控件本身不自动请求');await p.event('#search-form','submit',{});
-  assert.deepEqual({...p.requests[1].body},{doctorId:101,page:1,size:8,keyword:'合成%原词',followStatus,completeness:'missing'});
-  p.node('#reset').onclick();await flush();assert.deepEqual({...p.requests[2].body},{doctorId:101,page:1,size:8});
+  assert.deepEqual({...p.requests[1].body},{doctorId:101,page:1,size:10,keyword:'合成%原词',followStatus,completeness:'missing'});
+  p.node('#reset').onclick();await flush();assert.deepEqual({...p.requests[2].body},{doctorId:101,page:1,size:10});
  }
 });
 test('chat:scope-change-guidance',async()=>{

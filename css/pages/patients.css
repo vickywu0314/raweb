@@ -108,18 +108,11 @@
   line-height:1.7;
 }
 
-/* 疾病资料：DAS28-CRP 疾病活动度（缓解绿、低灰、中橙、高红），跟在分值后面 */
-.das28-level {
-  display:inline-block;
-  margin-left:4px;
-  padding:0 6px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:600;
-  line-height:18px;
+/* 疾病资料：DAS28-CRP 疾病活动度（彩色圆点见 common.css .das-pill，活动度文字跟在分值后面） */
+.disease-note .das-pill {
   white-space:nowrap;
 }
-.das28-level.remission { color:#137333; background:#e6f4ea; }
-.das28-level.low { color:#3c4a5c; background:#eef2f7; }
-.das28-level.moderate { color:#b06000; background:#fef3e0; }
-.das28-level.high { color:#c5221f; background:#fce8e6; }
+.das-pill b {
+  font-weight:600;
+  color:#53647b;
+}

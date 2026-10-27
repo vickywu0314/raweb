@@ -62,12 +62,16 @@ function functionSource(file,name){const text=source(file),start=text.indexOf('f
 test('performance:pagination-window',()=>{
  for(const kind of ['patients','followups']){
   const nodes=new Map(),get=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',querySelector:()=>({})});return nodes.get(selector);};
-  const c=vm.createContext({$:get,state:{page:1,perPage:8},lastTotal:0,saveListState(){},markKpi(){},syncPick(){},updateSelectionUI(){},card(){},row(){}});
+  const c=vm.createContext({$:get,state:{page:1,perPage:8},lastTotal:0,saveListState(){},markKpi(){},syncPick(){},updateSelectionUI(){},card(){},row(){},flashResult(){},escapeHTML:String});
   vm.runInContext("globalThis.requests=[];const from=Array.from;Array.from=function(value,...args){requests.push(value.length);if(value.length>5)throw new RangeError('pagination allocated '+value.length+' items');return from.call(this,value,...args);};",c);
+  // 页码改用 common.js 的 pagerHTML（首页 / 尾页 + 当前页前后 2 页 + 省略号 + 跳页）
+  vm.runInContext(functionSource('js/common.js','pagerHTML'),c);
   vm.runInContext(functionSource('js/pages/'+kind+'.js','render'),c);
   const render=(pages,page)=>{c.state.page=page;c.rows=()=>({length:pages*8,slice:()=>[]});c.render({items:[],total:pages*8,page,size:8,totalPatients:pages*8,incompleteCount:0});return get('#pagination').innerHTML;};
   for(const [pages,page,expected] of [[1,1,[1]],[3,1,[1,2,3]],[10,1,[1,2,3,4,5]],[10,2,[1,2,3,4,5]],[100,50,[48,49,50,51,52]],[100,100,[98,99,100]],[10000000,5000000,[4999998,4999999,5000000,5000001,5000002]]]){
-   assert.equal(render(pages,page),expected.map(n=>`<button data-page="${n}" class="${n===page?'active':''}">${n}</button>`).join(''),kind+'窗口输出保持');assert.ok(c.requests.at(-1)<=5,kind+'只构造可见页');
+   const html=render(pages,page),shown=[...html.matchAll(/<button type="button" data-page="(\d+)"/g)].map(m=>+m[1]);
+   assert.deepEqual(shown,pages<=1?[]:[...new Set([1,...expected.filter(n=>Math.abs(n-page)<=2),pages])].sort((x,y)=>x-y),kind+'只显示首尾页和当前页前后 2 页');
+   assert.equal(html.length<2000,true,kind+'输出与总页数无关');assert.ok(!c.requests.length||c.requests.at(-1)<=5,kind+'只构造可见页');
   }
  }
 });
