@@ -12,9 +12,35 @@ function trustedImageUrl(value){
   if(!/^https?:/i.test(value.trim())&&url.origin!==location.origin)return null;return url.href;
  }catch{return null;}
 }
+// 模块顶部摘要（只用后端返回的真实字段，按老系统字段名 item.key 取值；取不到就不显示）
+const moduleItem=(m,key)=>{for(const g of m.groups||[])for(const i of g.items||[])if(i&&i.key===key)return i;return null;};
+const itemNum=i=>{if(!i||i.notChecked||i.value==null||String(i.value).trim()==='')return null;const n=Number(i.value);return Number.isFinite(n)?n:null;};
+// DAS28-CRP 活动度：与病程分析（js/pages/patient-insight.js）、后端 das28Activity（raapi docs/API.md）同一分级：<2.3 缓解；≤2.7 低；≤4.1 中；>4.1 高（先按两位小数取值）
+const DAS28_CRP_ACT={remission:'缓解',low:'低疾病活动',moderate:'中疾病活动',high:'高疾病活动'};
+const das28CrpAct=v=>{if(v==null)return null;v=Math.round(v*100)/100;return v<2.3?'remission':v<=2.7?'low':v<=4.1?'moderate':'high';};
+const dasCmp=(cur,prev)=>{if(cur==null||prev==null)return '';const d=Math.round((cur-prev)*100)/100;return `<small class="cmp ${d<0?'down':d>0?'up':''}">较上次 ${d<0?'↓':d>0?'↑':'→'}${Math.abs(d).toFixed(2)}</small>`;};
+function assessmentSummary(m){
+ const box=(label,key,lastKey,crp)=>{const i=moduleItem(m,key),cur=itemNum(i);if(cur==null)return '';const act=crp?das28CrpAct(cur):null;
+  return `<div><span>${label}</span><strong>${escapeHTML(i.value)}</strong>${act?`<em class="act-tag ${act}">${DAS28_CRP_ACT[act]}</em>`:''}${dasCmp(cur,itemNum(moduleItem(m,lastKey)))}</div>`;};
+ const html=box('DAS28-CRP','result.crpScore','result.lastCrpScore',true)+box('DAS28-ESR','result.esrScore','result.lastEsrScore',false);
+ return html?`<div class="assessment-summary">${html}</div>`:'';
+}
+function treatmentSummary(m){
+ const parts=(m.tables||[]).filter(t=>t&&t.title&&Array.isArray(t.rows)).map(t=>`${escapeHTML(t.title)} ${t.rows.length} 项`);
+ return parts.length?`<div class="treatment-head"><span>本次治疗</span><strong>${parts.join(' · ')}</strong></div>`:'';
+}
+function adverseSummary(m){
+ const ev=moduleItem(m,'event'),v=ev&&String(ev.value??'').trim();if(v!=='有'&&v!=='无')return '';
+ const sae=moduleItem(m,'sae'),isSae=v==='有'&&!!sae&&!sae.notChecked&&String(sae.value??'').trim()!=='';
+ return `<div class="adverse-status${v==='有'?' has-event':''}"><span class="status-dot ${v==='有'?'bad':'good'}"></span><div><span>本次是否发生不良反应</span><strong>${v}${isSae?` <em class="sae" title="${escapeHTML('SAE 类别：'+sae.value)}">SAE</em>`:''}</strong></div></div>`;
+}
+function moduleSummary(m){
+ const key=m.key||({bqpg:'assessment',zlfa:'treatment',blsj:'adverse'})[m.column];
+ return key==='assessment'?assessmentSummary(m):key==='treatment'?treatmentSummary(m):key==='adverse'?adverseSummary(m):'';
+}
 function moduleBody(m,trusted=false){
  if(!m.filled)return '<p class="module-empty">本次未记录</p>';
- let html='';
+ let html=moduleSummary(m);
  if(m.record)html+=`<div class="visit-record">${escapeHTML(m.record)}</div>`;
  (m.groups||[]).forEach(g=>{
   html+=`<div class="subcard">${g.title?`<h3>${escapeHTML(g.title)}</h3>`:''}<div class="detail-fields">${g.items.map(i=>`<div class="detail-field${i.notChecked?' not-checked':''}"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.value)}${i.unit?`<small class="field-unit">${escapeHTML(i.unit)}</small>`:''}</strong></div>`).join('')}</div></div>`;

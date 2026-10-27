@@ -897,3 +897,16 @@
 .basic-collapse[open] .basic-collapse-hint {
   display:none;
 }
+
+/* 模块顶部摘要：DAS28 较上次、活动度标签、治疗项数、不良反应状态 / SAE */
+.assessment-summary .cmp{display:block;margin-top:4px;font-size:11px;color:#8a98ab;font-weight:600}
+.assessment-summary .cmp.down{color:#16884f}
+.assessment-summary .cmp.up{color:#c2413a}
+.act-tag{display:inline-block;margin-top:6px;padding:1px 8px;border-radius:10px;font-size:11px;font-style:normal;font-weight:700}
+.act-tag.remission{background:#e3f5ec;color:#16794c}.act-tag.low{background:#eef7e3;color:#4d8a1f}.act-tag.moderate{background:#fdf1e0;color:#a35a00}.act-tag.high{background:#fbe6e4;color:#b23a31}
+.adverse-status{margin-bottom:12px}
+.adverse-status .status-dot{width:9px;height:9px;margin:0;flex:none}
+.adverse-status .status-dot.bad{background:#d0453b}
+.adverse-status.has-event{border-color:#f0c3bf;background:#fff6f5}
+.adverse-status.has-event strong{color:#b23a31}
+.adverse-status em.sae,.ae-card h3 em.sae{font-style:normal;background:#fbe6e4;color:#b23a31;font-size:11px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle}
