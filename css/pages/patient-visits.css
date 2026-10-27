@@ -156,3 +156,13 @@
   color:#b3261e;
   font-size:var(--fs-sm);
 }
+
+/* 访视时间线：DAS28-CRP 胶囊与标签（方案调整 / 加重诱因 / 末次访视后脱落） */
+.visit-row-status .das-pill{padding:3px 10px;border-radius:999px;background:#f3f6fa;color:#33445a;font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.visit-row-status .das-pill:not(.remission):not(.low):not(.moderate):not(.high){color:#8a98ab;font-weight:500}
+.v-tags{display:inline}
+.v-tag{display:inline-block;max-width:22em;margin-left:6px;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600;line-height:1.6;background:#eef2f7;color:#5d6f86;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.v-tag.change{background:#e8f0fd;color:#1d5bc4}
+.v-tag.warn{background:#fdf1e4;color:#a35a00}
+.visit-row-main small:empty{display:none}
+@media (max-width:600px){.visit-row{flex-wrap:wrap;gap:10px}.visit-row-main{min-width:0}.visit-row-status{padding-left:54px}.v-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.v-tag{margin-left:0;max-width:100%}}

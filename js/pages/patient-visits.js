@@ -70,6 +70,18 @@ function visitsSkeleton(){
  $('#visit-list').innerHTML=Array.from({length:2},()=>`<article class="visit-row visit-skeleton-row"><span class="skeleton skeleton-record"></span><span class="visit-skeleton-copy"><i class="skeleton skeleton-visit-title"></i><i class="skeleton skeleton-visit-sub"></i></span><i class="skeleton skeleton-chevron"></i></article>`).join('');
  $('#visit-total').innerHTML='<span class="skeleton skeleton-visit-total"></span>';
 }
+// DAS28-CRP 活动度：与访视详情（js/pages/visit-detail.js）、病程分析、后端 das28Activity 同一分级：<2.3 缓解；≤2.7 低；≤4.1 中；>4.1 高
+const DAS_ACT={remission:'缓解',low:'低疾病活动',moderate:'中疾病活动',high:'高疾病活动'};
+const dasNum=x=>typeof x==='number'&&Number.isFinite(x)?Math.round(x*100)/100:null;
+const dasAct=d=>d<2.3?'remission':d<=2.7?'low':d<=4.1?'moderate':'high';
+// 时间线右侧的 DAS28 胶囊：本次值 + 较上次有评分访视的变化（|变化| ≥ 0.6 记为升 / 降）；本次没有评分显示「未评估」
+function dasPill(cur,prev){
+ if(cur==null)return '<span class="das-pill" title="本次未记录 DAS28-CRP"><i></i>未评估</span>';
+ const act=dasAct(cur);let trend='';
+ if(prev!=null){const d=Math.round((cur-prev)*100)/100,t=`较上次 ${d<0?'−':d>0?'+':''}${Math.abs(d).toFixed(2)}`;
+  trend=d<=-0.6?`<span class="trend down" title="${t}">↓${Math.abs(d).toFixed(2)}</span>`:d>=0.6?`<span class="trend up" title="${t}">↑${d.toFixed(2)}</span>`:`<span class="trend flat" title="${t}">→</span>`;}
+ return `<span class="das-pill ${act}" title="DAS28-CRP ${cur.toFixed(2)} · ${DAS_ACT[act]}"><i></i>DAS28 ${cur.toFixed(2)}${trend}</span>`;
+}
 // 尚未接入后端的操作：先提示，避免只改了本机演示数据
 const notReady=name=>toast(`「${name}」功能正在开发中`);
 
@@ -87,7 +99,14 @@ function renderVisitPage(){
 
  // 随访时间线：最近的在前；时间最早的一次为基线访视
  const visits=p.visits||[];
- $('#visit-list').innerHTML=visits.length?visits.map(v=>{const href=withFrom(`visit-detail.html?id=${pid}&visit=${encodeURIComponent(v.visitId)}`);return `<article class="visit-row"><a class="visit-row-main" href="${href}"><span class="record-icon">${icon('record')}</span><span><strong>${escapeHTML(v.visitType)}</strong><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>${v.doctorName?`记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?`记录医生 ID ${escapeHTML(v.doctorId)}`:''}</small></span></a><div class="visit-row-status"><a class="visit-chevron-link" aria-label="查看本次随访详情" href="${href}">${icon('chevron','chevron')}</a></div></article>`}).join(''):'<p class="audit-empty">暂无随访记录，点击右上角「＋ 新增随访」录入基线访视。</p>';
+ // 每次访视的 DAS28-CRP 与上一次有评分的访视比较（时间线倒序，按从早到晚累计）
+ const prevDas=new Map();{let last=null;visits.slice().reverse().forEach(v=>{prevDas.set(v,last);const d=dasNum(v.das28Crp);if(d!=null)last=d;});}
+ $('#visit-list').innerHTML=visits.length?visits.map((v,i)=>{const href=withFrom(`visit-detail.html?id=${pid}&visit=${encodeURIComponent(v.visitId)}`);
+  const n=Number.isInteger(v.followUpNumber)&&v.followUpNumber>=0?v.followUpNumber+1:null;
+  const cause=typeof v.cause==='string'&&v.cause.trim()?v.cause.trim():null;
+  const tags=(v.regimenChanged===true?'<span class="v-tag change" title="本次与上次相比调整了治疗方案">方案调整</span>':'')+(cause?`<span class="v-tag warn" title="${escapeHTML('加重诱因：'+cause)}">诱因：${escapeHTML(cause)}</span>`:'')+(lost&&i===0?'<span class="v-tag warn">末次访视后脱落</span>':'');
+  const doctor=v.doctorName?`记录医生 ${escapeHTML(v.doctorName)}`:v.doctorId?`记录医生 ID ${escapeHTML(v.doctorId)}`:'';
+  return `<article class="visit-row"><a class="visit-row-main" href="${href}"><span class="record-icon">${icon('record')}</span><span><strong>${n&&!/^第\s*\d+\s*次/.test(v.visitType||'')?`第 ${n} 次 · `:''}${escapeHTML(v.visitType)}</strong><time>${escapeHTML(v.visitDate||'日期未填')}</time><small>${doctor}${tags?`<span class="v-tags">${tags}</span>`:''}</small></span></a><div class="visit-row-status">${dasPill(dasNum(v.das28Crp),prevDas.get(v))}<a class="visit-chevron-link" aria-label="查看本次随访详情" href="${href}">${icon('chevron','chevron')}</a></div></article>`}).join(''):'<p class="audit-empty">暂无随访记录，点击右上角「＋ 新增随访」录入基线访视。</p>';
  $('#visit-total').textContent=`${visits.length} 次访视`;
 
  const pdfPatient=p,pdfOwner=pdfGeneration;
