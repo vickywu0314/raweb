@@ -116,3 +116,23 @@
   font-weight:600;
   color:#53647b;
 }
+
+/* 更多筛选按钮不换行；排序下拉在操作栏最右侧，窄屏换行后仍靠右 */
+.toolbar .filter-toggle {
+  white-space:nowrap;
+}
+.list-actions-bar .sort-field {
+  margin-left:auto;
+  white-space:nowrap;
+}
+/* DAS28-CRP 较上次的升降箭头（↑ 加重 / ↓ 改善 / → 持平，颜色见 common.css .trend） */
+.das-pill .trend {
+  margin-left:0;
+  cursor:help;
+}
+@media (max-width:700px) {
+  .disease-note .das-pill {
+    flex-wrap:wrap;
+    white-space:normal;
+  }
+}

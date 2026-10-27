@@ -2,11 +2,24 @@
    数据来自后端接口 POST /api/ra/patient/patientsList（raapi，口径见 raapi/docs/API.md）。
    检索、筛选、分页都由后端完成；只显示当前医生名下的患者。 */
 "use strict";shell('patients');
-let state=loadListState('patients',{q:'',status:'',data:'',page:1,perPage:10});
+// 「更多筛选」：页面状态键 → 接口参数（口径见 raapi/docs/API.md §2.1）；取值不在范围内的一律丢弃，避免后端 400
+const ADV_KEYS=['sex','age','act','trend','cm','sero','created'];
+const ADV_PARAM={sex:'sex',age:'ageBand',act:'activity',trend:'trend',cm:'comorbidity',sero:'serology',created:'created'};
+const CM_CODES=['FM','AS','SS','RA-ILD','RA-MS'];
+const ADV_VALID={sex:v=>v==='男'||v==='女',age:v=>{const m=/^(\d{1,3})-(\d{1,3})$/.exec(v);return !!m&&+m[1]<=+m[2]&&+m[2]<=150},act:v=>['remission','low','moderate','high','none'].includes(v),trend:v=>['better','stable','worse','none'].includes(v),cm:v=>['any','none',...CM_CODES].includes(v),sero:v=>['pos','neg','unknown'].includes(v),created:v=>['30','90','365','old'].includes(v)};
+const SORTS=['created','last','das-desc','das-asc','code']; // created = 接口默认，不发送
+const DEFAULTS={q:'',status:'',data:'',page:1,perPage:10,sort:'created',...Object.fromEntries(ADV_KEYS.map(k=>[k,'']))};
+let state=loadListState('patients',{...DEFAULTS});
 if(![10,20,50].includes(+state.perPage))state.perPage=10; // 旧版每页 8 / 16 / 32 条，浏览器里可能还记着
-// 其他页面（如数据看板）带条件进入：?data=missing 待补全、?status=lost 已脱落、?q=关键字 等
+// 其他页面（如数据看板）带条件进入：?data=missing 待补全、?status=lost 已脱落、?q=关键字、?trend=better 病情改善 等；
+// 更多筛选也接受接口参数名（?ageBand= / ?activity= / ?comorbidity= / ?serology=）
 if(queryParam('data'))state.data=queryParam('data');if(queryParam('status'))state.status=queryParam('status');if(queryParam('q'))state.q=queryParam('q').trim();
-if(queryParam('data')||queryParam('status')||queryParam('q'))state.page=1;
+let fromUrl=!!(queryParam('data')||queryParam('status')||queryParam('q'));
+ADV_KEYS.forEach(k=>{const v=queryParam(k)??queryParam(ADV_PARAM[k]);if(v!=null&&v.trim()){state[k]=v.trim();fromUrl=true}});
+if(queryParam('sort')){state.sort=queryParam('sort');fromUrl=true}
+if(fromUrl)state.page=1;
+function sanitizeState(){ADV_KEYS.forEach(k=>{let v=String(state[k]??'').trim();if(k==='cm'&&!['any','none'].includes(v.toLowerCase()))v=v.toUpperCase();else if(k!=='sex')v=v.toLowerCase();state[k]=v&&ADV_VALID[k](v)?v:''});if(!SORTS.includes(state.sort))state.sort='created'}
+sanitizeState();
 const selected=new Set();
 let pageRows=[], loadSeq=0, queryTimer=0;
 
@@ -23,6 +36,19 @@ function patientListSkeleton(){
   $('#empty').hidden=true;
 }
 
+// 其他病史病名与顶栏研究库同一份名称（common.js STUDIES）
+const cmName=c=>((typeof STUDIES!=='undefined'&&STUDIES.find(x=>x.code===c))||{}).name||(COMORBIDITY_INFO[c]||{}).name||c;
+const ADV_LABEL={
+  sex:v=>`性别：${v}`,
+  age:v=>{const [a,b]=v.split('-');return +b>=120?`${a} 岁及以上`:`${a}–${b} 岁`},
+  act:v=>({remission:'临床缓解（DAS28-CRP < 2.3）',low:'低疾病活动度（2.3–2.7）',moderate:'中疾病活动度（> 2.7 且 ≤ 4.1）',high:'高疾病活动度（> 4.1）',none:'无 DAS28-CRP 评分'})[v],
+  trend:v=>({better:'病情改善',stable:'病情稳定',worse:'病情加重',none:'评分不足 2 次'})[v],
+  cm:v=>v==='any'?'有其他病史记录':v==='none'?'无其他病史记录':`其他病史：${v} ${cmName(v)}`,
+  sero:v=>({pos:'血清阳性',neg:'血清阴性',unknown:'分型未提供'})[v],
+  created:v=>({30:'近 30 天建档',90:'近 3 个月建档',365:'近 1 年建档',old:'1 年以前建档'})[v]
+};
+const advCount=()=>ADV_KEYS.filter(k=>state[k]).length;
+
 // 其他病史弹窗沿用 openComorbidity(code, p)，把接口数据转成它需要的结构
 function comorbidPatient(p){
   const comorbid={};
@@ -37,10 +63,18 @@ function birthText(p){return p.birthYear==null?'出生年份未知':`${p.birthYe
 // 鼠标悬停看 RF、CCP 原值、参考上限和化验日期
 function antibodyTitle(name,a){return a&&a.value!=null?`${name} ${a.value}（${a.statusLabel}，参考上限 ${a.uln}，${a.visitDate||'日期未填'}）`:`${name} 未检测`}
 const DAS28_SHORT={remission:'缓解',low:'低活动度',moderate:'中活动度',high:'高活动度'};
+// DAS28-CRP 较上次（das28Prev）变化：≥ 0.6 ↑ 加重 / ≤ −0.6 ↓ 改善 / 其余 → 持平（与病情变化同一 0.6 阈值）
+function dasStep(p){
+ if(p.das28Prev==null||p.latestDas28==null)return '';
+ const cur=Number(p.latestDas28),prev=Number(p.das28Prev);if(!isFinite(cur)||!isFinite(prev))return '';
+ const d=Math.round((cur-prev)*100)/100,txt=`较上次 ${d>0?'+':d<0?'−':'±'}${Math.abs(d).toFixed(2)}（上次 ${prev.toFixed(2)}）`;
+ const [cls,arrow,word]=d>=0.6?['up','↑','加重']:d<=-0.6?['down','↓','改善']:['flat','→','持平'];
+ return `<span class="trend ${cls}" role="img" title="${escapeHTML(txt)}" aria-label="${escapeHTML(word+'，'+txt)}">${arrow}</span>`;
+}
 function diseaseNote(p){
  const t=escapeHTML([antibodyTitle('RF',p.rf),antibodyTitle('抗CCP',p.ccp)].join('\n'));
  const act=DAS28_SHORT[p.das28Activity]?p.das28Activity:'',label=act?DAS28_SHORT[act]:(p.das28ActivityLabel||'');
- const das=p.latestDas28==null?'DAS28-CRP 未提供':`<span class="das-pill${act?' '+act:''}"${p.das28ActivityLabel?` title="${escapeHTML(p.das28ActivityLabel)}"`:''}><i></i>DAS28-CRP ${escapeHTML(p.latestDas28)}${label?`<b>${escapeHTML(label)}</b>`:''}</span>`;
+ const das=p.latestDas28==null?'DAS28-CRP 未提供':`<span class="das-pill${act?' '+act:''}"${p.das28ActivityLabel?` title="${escapeHTML(p.das28ActivityLabel)}"`:''}><i></i>DAS28-CRP ${escapeHTML(p.latestDas28)}${dasStep(p)}${label?`<b>${escapeHTML(label)}</b>`:''}</span>`;
  return `<span class="cell-note disease-note"><span title="${t}">RF ${escapeHTML(p.rf?p.rf.statusLabel:'未检测')} / CCP ${escapeHTML(p.ccp?p.ccp.statusLabel:'未检测')}</span> / ${das}</span>`;
 }
 function card(p){const id=p.patientId;return `<div class="patient-card selectable" data-id="${escapeHTML(id)}"><span class="check-col"><input class="patient-check" type="checkbox" value="${escapeHTML(id)}" aria-label="选择患者 ${escapeHTML(p.name)}" ${selected.has(id)?'checked':''}></span><a class="patient-card-link" href="patient-visits.html?id=${encodeURIComponent(id)}"><span class="patient-identity"><span class="record-icon">${icon('record')}</span><span class="patient-info"><span class="patient-name">${highlight(p.name,state.q)}${p.incomplete?`<span title="${escapeHTML((p.missingItems||[]).join('、'))}">${badge('待补全','warning')}</span>`:''}</span><span class="patient-meta">${escapeHTML(p.sex||'性别未填')} · ${birthText(p)}</span><span class="patient-meta">ID号: ${highlight(id,state.q)}</span></span></span><span class="patient-cell research-cell"><span class="cell-label">研究信息</span><span class="study-code">${p.studyNo?highlight(p.studyNo,state.q):'—'}</span><span class="cell-note">随访（不含基线） ${escapeHTML(p.followUpCount==null?'未提供':p.followUpCount)} 次 · ${cycleLabel(p.followCycle)}</span></span><span class="patient-cell disease-cell"><span class="cell-label">疾病资料</span><span>${p.subtype?badge(p.subtype,p.subtype==='血清阳性'?'warning':'neutral'):'<span class="missing-value">分型未提供</span>'}</span>${diseaseNote(p)}</span><span class="patient-cell history-cell"><span class="cell-label">其他病史</span>${comorbidCell(p)}</span><span class="patient-cell visit-cell"><span class="cell-label">最近随访</span><span class="last-visit">${icon('calendar')}${escapeHTML(p.lastVisitDate||'暂无访视')}</span><span class="cell-note">${p.visitCount?`累计 ${p.visitCount} 次访视`:'待完成基线访视'}</span></span><span class="patient-cell status-cell"><span class="cell-label">随访状态</span>${badge(p.followStatusLabel,STATUS_TONE[p.followStatus]||'')}${p.suspectedLostToFollowUp?badge('疑似失访','warning'):''}</span>${icon('chevron','chevron')}</a></div>`}
@@ -53,6 +87,7 @@ function emptyText(){
   if(state.q)conds.push(`关键字「${state.q}」`);
   if(state.status)conds.push(`随访状态「${$('#visit-status').selectedOptions[0]?.textContent||state.status}」`);
   if(state.data)conds.push(`「${$('#data-status').selectedOptions[0]?.textContent||state.data}」`);
+  ADV_KEYS.forEach(k=>{if(state[k])conds.push(`「${ADV_LABEL[k](state[k])}」`)});
   if(!conds.length)return '暂无患者';
   return `没有符合条件的患者：${conds.join(' + ')}。${STATUS_HINT[state.status]?STATUS_HINT[state.status]+'。':''}可修改条件或点「重置」查看全部`;
 }
@@ -71,6 +106,8 @@ function render(d){
   $('#pagination').innerHTML=pagerHTML(d.page,pages);
   updateSelectionUI();
 }
+// 更多筛选面板底部：显示后端按当前全部条件算出的匹配人数
+function advPreview(total){const n=typeof fmtN==='function'?fmtN(total):String(total);$('#adv-preview').textContent=advCount()?`当前条件匹配 ${n} 位患者`:`未设置更多筛选 · 当前 ${n} 位患者`}
 function renderError(msg){
   pageRows=[];
   $('#patient-summary').textContent='';$('#patients').innerHTML='';$('#result-count').textContent='';$('#pagination').innerHTML='';
@@ -81,10 +118,15 @@ function renderError(msg){
 // 当前生效的检索条件（关键字 / 随访状态 / 数据完整性），每个可单独 × 移除
 function renderChips(){
   const label={q:v=>`关键字：${v}`,status:v=>`随访状态：${$('#visit-status').selectedOptions?.[0]?.textContent||v}`,data:v=>$('#data-status').selectedOptions?.[0]?.textContent||v};
-  const keys=['q','status','data'].filter(k=>state[k]);
+  ADV_KEYS.forEach(k=>label[k]=ADV_LABEL[k]);
+  const keys=['q','status','data',...ADV_KEYS].filter(k=>state[k]);
+  const n=advCount(),c=$('#filter-count');c.hidden=!n;c.textContent=n?String(n):'';
   $('#active-chips').innerHTML=keys.map(k=>`<span class="chip">${escapeHTML(label[k](state[k]))}<button type="button" data-clear="${k}" aria-label="移除条件">×</button></span>`).join('')+(keys.length>1?'<button type="button" class="chip-clear" data-clear="*">清除全部</button>':'');
 }
-function syncInputs(){$('#query').value=state.q;$('#visit-status').value=state.status;$('#data-status').value=state.data;$('#page-size').value=state.perPage}
+function syncInputs(){$('#query').value=state.q;$('#visit-status').value=state.status;$('#data-status').value=state.data;$('#page-size').value=state.perPage;$('#sort').value=state.sort;ADV_KEYS.forEach(k=>{$('#f-'+k).value=state[k]})}
+// 年龄段来自地址栏、不在下拉里时，临时补一个选项，让下拉与条件一致
+function ensureOption(k){const el=$('#f-'+k),v=state[k];if(!v||!el.options||[...el.options].some(o=>o.value===v)||typeof document==='undefined')return;const o=document.createElement('option');o.value=v;o.textContent=ADV_LABEL[k](v);el.appendChild(o)}
+function setAdvOpen(open){const p=$('#adv-filters'),b=$('#filter-toggle');p.hidden=!open;if(b.setAttribute)b.setAttribute('aria-expanded',String(open))}
 
 // 按当前 state 请求接口；只渲染最后一次请求的结果
 async function load(){
@@ -94,6 +136,9 @@ async function load(){
   if(state.q)params.keyword=state.q;
   if(state.status)params.followStatus=STATUS_PARAM[state.status];
   if(state.data)params.completeness=state.data;
+  ADV_KEYS.forEach(k=>{if(state[k])params[ADV_PARAM[k]]=state[k]});
+  if(state.sort&&state.sort!=='created')params.sort=state.sort;
+  $('#adv-preview').textContent='正在统计匹配人数…';
   try{
     const d=await apiPost('/api/ra/patient/patientsList',params);
     if(seq!==loadSeq)return;
@@ -105,9 +150,9 @@ async function load(){
     // 筛选后当前页超出总页数（如删除数据后返回列表）：回到最后一页
     const pages=Math.max(1,Math.ceil(d.total/d.size));
     if(d.page>pages){state.page=pages;return load();}
-    render(d);
+    render(d);advPreview(d.total);
     if(!d.total)$('#empty').querySelector('h2').textContent=emptyText();
-  }catch(e){if(seq===loadSeq){console.error(e);renderError(e.message)}}
+  }catch(e){if(seq===loadSeq){console.error(e);renderError(e.message);$('#adv-preview').textContent='匹配人数暂不可用'}}
 }
 
 const chipOpen=e=>{const c=e.target.closest('.comorbid-chip');if(!c)return false;e.preventDefault();e.stopPropagation();const p=pageRows.find(x=>String(x.patientId)===c.dataset.pid);openComorbidity(c.dataset.comorbid,p?comorbidPatient(p):null);return true};
@@ -124,6 +169,8 @@ function exportParams(extra){
  return p;
 }
 async function openExportDialog(){
+ // 导出接口（listPatientIds）暂只接收关键字 / 随访状态 / 数据完整性，带「更多筛选」时会导出比列表更多的患者，先拦下
+ if(!selected.size&&advCount()){toast('数据导出暂不支持「更多筛选」条件：请勾选要导出的患者，或先清空更多筛选后再导出');return}
  try{exportRange=exportRange||await apiPost('/api/ra/export/range',{})}catch(e){toast(`数据导出暂不可用：${e.message}`);return}
  let d=document.getElementById('export-dialog');
  if(!d){d=document.createElement('dialog');d.id='export-dialog';d.className='export-dialog';document.body.appendChild(d)}
@@ -175,11 +222,20 @@ $('#search-form').addEventListener('submit',e=>{e.preventDefault();clearTimeout(
 $('#query').addEventListener('input',e=>{clearTimeout(queryTimer);queryTimer=setTimeout(()=>{const v=e.target.value.trim();if(v===state.q)return;state.q=v;state.page=1;load()},320)});
 $('#visit-status').addEventListener('change',e=>{state.status=e.target.value;state.page=1;load()});
 $('#data-status').addEventListener('change',e=>{state.data=e.target.value;state.page=1;load()});
-$('#active-chips').addEventListener('click',e=>{const b=e.target.closest('[data-clear]');if(!b)return;const k=b.dataset.clear;if(k==='*')Object.assign(state,{q:'',status:'',data:''});else state[k]='';state.page=1;syncInputs();load()});
-$('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};syncInputs();load()});
+const clearAdv=()=>ADV_KEYS.forEach(k=>state[k]='');
+$('#active-chips').addEventListener('click',e=>{const b=e.target.closest('[data-clear]');if(!b)return;const k=b.dataset.clear;if(k==='*'){Object.assign(state,{q:'',status:'',data:''});clearAdv()}else state[k]='';state.page=1;syncInputs();load()});
+$('#patient-summary').addEventListener('click',e=>{if(!e.target.closest('#show-incomplete'))return;state={...state,q:'',status:'',data:'missing',page:1};clearAdv();syncInputs();load()});
+// 更多筛选：改了立即查询（回到第 1 页）；排序同理
+ADV_KEYS.forEach(k=>$('#f-'+k).addEventListener('change',e=>{state[k]=e.target.value;state.page=1;load()}));
+$('#sort').addEventListener('change',e=>{state.sort=SORTS.includes(e.target.value)?e.target.value:'created';state.page=1;load()});
+$('#filter-toggle').addEventListener('click',()=>setAdvOpen($('#adv-filters').hidden));
+$('#adv-clear').addEventListener('click',()=>{if(!advCount())return;clearAdv();state.page=1;syncInputs();load()});
 $('#export-data').onclick=openExportDialog;
 $('#ocr-entry').onclick=()=>openOcrImport({mode:'patient'});
 bindPager($('#pagination'),n=>{state.page=n;load()});
 $('#page-size').addEventListener('change',e=>{state.perPage=+e.target.value;state.page=1;load()});
-$('#reset').onclick=()=>{state={q:'',status:'',data:'',page:1,perPage:state.perPage};syncInputs();load()};
-syncInputs();load();
+$('#reset').onclick=()=>{state={...DEFAULTS,perPage:state.perPage,sort:state.sort};syncInputs();load()};
+// 其他病史下拉：any / none + 后端支持的 5 个病种
+$('#f-cm').innerHTML='<option value="">不限</option><option value="any">有其他病史记录</option><option value="none">无其他病史记录</option>'+CM_CODES.map(c=>`<option value="${c}">${c} ${escapeHTML(cmName(c))}</option>`).join('');
+ADV_KEYS.forEach(ensureOption);
+syncInputs();if(advCount())setAdvOpen(true);load();
