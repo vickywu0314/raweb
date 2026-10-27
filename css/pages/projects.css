@@ -132,3 +132,6 @@
 .project-overview-cards article::before { border-radius:inherit; border-bottom-left-radius:0; border-bottom-right-radius:0; }
 .project-overview-cards article:hover, .project-overview-cards article:focus-within { z-index:30; }
 .project-overview-cards .kpi-info::after { width:280px; box-shadow:0 8px 24px rgba(20,30,45,.18); }
+
+/* 数字增长动画时等宽数字，避免抖动 */
+[data-count]{font-variant-numeric:tabular-nums}
