@@ -11,7 +11,7 @@ let entryFlight=null,entryToken=0;
 function identityKey(){return JSON.stringify(currentUser());}
 function waiting(){ $('#cancel-analysis').hidden=!(flight||pageFlight); }
 function invalidate(error=null) {
-  endComparison(error?.code||'ANALYSIS_CHANGED');comparisonState('idle','当前条件或分析已变化，请重新比较');renderComparisonSources();
+  const cause=error?.code||'ANALYSIS_CHANGED';endExport(cause);endParse(cause);
   generation++;const previous=[flight,pageFlight];flight=null;pageFlight=null;
   for(const operation of previous)if(operation){if(!operation.terminal)operation.terminal=error?.code||'SUPERSEDED';clearTimeout(operation.timer);}
   clearResults();waiting();lockControls();updateChatEntry();
@@ -142,7 +142,7 @@ function clearResults() {
   $('#clinical-panels').hidden=true;$('#analysis-policy').hidden=true;if($('#insights'))$('#insights').replaceChildren();if($('#discoveries'))$('#discoveries').hidden=true;
   $('#results').hidden = true; $('#no-result').hidden = true; $('#analysis-error').hidden = true;
   $('#login-return').hidden = true; $('#more').hidden = true; $('#more').disabled=true;
-  $('#export').disabled=true;resource=null;delete $('#results').dataset.analysisId;$('#private-open-meta').textContent='';delete $('#private-open-meta').dataset.cohortId;
+  $('#export').disabled=true;resource=null;delete $('#results').dataset.analysisId;
 }
 function state(name, message) {
   $('#cohort-state').dataset.state = name; $('#cohort-state').textContent = message;
@@ -301,13 +301,11 @@ function finish(operation, result, error) {
   if(!isCurrent(operation,'cohort'))return;
   if(operation.identity!==identityKey()){checkIdentity();return;}
   if(error){endOperation(operation,'cohort',error.code||'REQUEST_FAILED');showError(error);return;}
-  const outer=result.data,data=operation.cohortId?outer?.analysis:outer;
-  const normalized=operation.cohortId&&validPrivateItem(outer?.cohort)&&outer.cohort.cohortId===operation.cohortId?privateFilters(outer.cohort.filters):null;
-  if ((operation.cohortId&&(!normalized||!validPrivateMeta(outer,result.traceId))) || !data || !Number.isInteger(data.n) || !Number.isInteger(data.studyTotal) || data.n<0 || data.studyTotal<data.n || typeof data.analysisId!=='string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(data.analysisId) || !validPatients(data.patients,data.n,0,10) || !validProjection(data)) {
+  const data=result.data;
+  if (!data || !Number.isInteger(data.n) || !Number.isInteger(data.studyTotal) || data.n<0 || data.studyTotal<data.n || typeof data.analysisId!=='string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(data.analysisId) || !validPatients(data.patients,data.n,0,10) || !validProjection(data)) {
     endOperation(operation,'cohort','INVALID_RESPONSE');showError({status:result.status,code:'INVALID_RESPONSE',message:'队列响应不完整',traceId:result.traceId});return;
   }
   endOperation(operation,'cohort','SUCCESS');
-  if(operation.cohortId){applyPrivateFilters(normalized);$('#private-open-meta').textContent=privateDeleted.has(outer.cohort.cohortId)?'该私有定义已删除；本次已开始的分析仍遵循原有效期和授权范围。':privateItemText(outer.cohort);$('#private-open-meta').dataset.cohortId=outer.cohort.cohortId;}
   resource={generation,analysisId:data.analysisId,cursor:data.patients.nextCursor,n:data.n,loaded:data.patients.items.length,consumed:new Set()};
   $('#results').dataset.analysisId=data.analysisId;$('#export').disabled=false;
   $('#cohort-n').textContent = String(data.n); $('#study-total').textContent = String(data.studyTotal);
@@ -348,7 +346,7 @@ function loadMore() {
 $('#more').addEventListener('click',loadMore);
 function analyze(completeFilters=null) {
   if (disposed) return;
-  checkIdentity();saveParametersChanged();invalidate();identity=identityKey();renderChips();
+  checkIdentity();invalidate();identity=identityKey();renderChips();
   if (blockedEntry) {
     showError(blockedEntry); return;
   }
@@ -574,19 +572,17 @@ function endExport(cause='SUPERSEDED'){
  if(old)old.controller.abort();
 }
 function exportReferenceCurrent(selection){
- const current=selection.source==='COMPARE'?comparisonResource:resource;
- const currentGeneration=selection.source==='COMPARE'?comparisonGeneration:generation;
- const currentId=current&&(selection.source==='COMPARE'?current.compareResultId:current.analysisId);
- return current===selection.resource&&currentId===selection.referenceId&&currentGeneration===selection.generation&&identity===selection.identity&&identityKey()===selection.identity;
+ const current=resource,currentId=current&&current.analysisId;
+ return current===selection.resource&&currentId===selection.referenceId&&generation===selection.generation&&identity===selection.identity&&identityKey()===selection.identity;
 }
 function exportMayPublish(operation){
  return !disposed&&!operation.terminal&&exportFlight===operation&&exportReferenceCurrent(operation);
 }
 function openExport(source='COHORT'){
  if(disposed||checkIdentity()||exportFlight)return;
- const current=source==='COMPARE'?comparisonResource:resource;
- if(!current||(source==='COHORT'&&current.generation!==generation))return;
- exportSelection={source,resource:current,referenceId:source==='COMPARE'?current.compareResultId:current.analysisId,generation:source==='COMPARE'?comparisonGeneration:generation,identity};
+ const current=resource;
+ if(!current||current.generation!==generation)return;
+ exportSelection={source,resource:current,referenceId:current.analysisId,generation,identity};
  $('#export-dialog').hidden=false;$('#export-decision').hidden=true;$('#export-eligible').hidden=true;$('#application-open').hidden=true;
  $('#export-content-kind').textContent=source==='COMPARE'?'比较指标：默认包含完整12项；明确选择仍保留原A/B统计。':'队列字段：默认包含完整15字段；明确选择仍导出完整队列。';
  showExportFields();exportButtons(false);exportState('selecting',source==='COMPARE'?'请明确确认比较的默认或所选指标':'请明确确认队列的默认或所选字段');
@@ -701,174 +697,12 @@ $('#application-cancel').addEventListener('click',()=>{const old=applicationFlig
 $('#application-form').addEventListener('input',()=>{if(applicationSession?.sent&&!applicationSession.receipt)$('#application-change-note').hidden=false;});
 $('#export-fields').addEventListener('change',()=>{if(!exportFlight&&exportSelection){exportSelection.decision=null;exportSelection.explicitCommand=null;applicationDraft=null;$('#application-open').hidden=true;$('#application-form').hidden=true;}});
 $('#export').addEventListener('click',()=>openExport('COHORT'));
-$('#compare-export').addEventListener('click',()=>openExport('COMPARE'));
 $('#export-default').addEventListener('click',()=>requestExport());
 $('#export-confirm').addEventListener('click',()=>requestExport([...$('#export-fields').querySelectorAll('input:checked')].map(input=>input.value)));
 $('#export-eligible').addEventListener('click',()=>{if(!exportFlight&&exportSelection?.eligible){showExportFields(exportSelection.eligible);exportState('selecting','建议字段已选，请明确确认后请求');}});
 $('#export-cancel').addEventListener('click',()=>{endExport('REQUEST_CANCELLED');exportState('cancelled','已取消本次文件等待，不能确定服务器是否已写出');});
 $('#cancel-analysis').addEventListener('click',()=>{if(flight||pageFlight)invalidate({code:'REQUEST_CANCELLED',message:'请求已取消，请重新分析'});});
-// 比较拥有独立operation/代次与保留资源，原分析owner不参与发布。
-let comparisonSlots={a:null,b:null},comparisonResource=null,comparisonFlight=null,comparisonGeneration=0;
-const COMPARISON_ROWS=[['n','COUNT'],['age','CONTINUOUS'],['duration','CONTINUOUS'],['das28At','CONTINUOUS'],['crpAt','CONTINUOUS'],['haqAt','CONTINUOUS'],['female','BINARY'],['sero','BINARY'],['target','BINARY'],['complete','BINARY'],['activity','DISTRIBUTION'],['line','DISTRIBUTION']];
-const COMPARISON_POLICIES=['statistics','descriptive','qc','crp','now','clinical','serology','treatment','visitMatcher','drugDictionary','comparison'];
-const comparisonClone=value=>JSON.parse(JSON.stringify(value));
-function comparisonState(name,message){$('#compare-state').dataset.state=name;$('#compare-state').textContent=message;}
-function clearComparisonResult(){comparisonResource=null;$('#compare-export').disabled=true;$('#compare-export').hidden=true;$('#compare-read').hidden=true;$('#compare-read').disabled=true;$('#compare-rows').replaceChildren();$('#compare-result').hidden=true;delete $('#compare-result').dataset.compareResultId;for(const id of ['compare-summary','compare-side-a','compare-side-b','compare-policy','compare-definition-note'])$('#'+id).textContent='';}
-function endComparison(cause,clear=true){
- endExport(cause);
- endParse(cause);
- comparisonGeneration++;const old=comparisonFlight;
- if(old&&!old.terminal)old.terminal=cause;
- comparisonFlight=null;if(old)clearTimeout(old.timer);
- if(clear)clearComparisonResult();$('#compare-cancel').hidden=true;
- if(old)old.controller.abort();
-}
-function resetComparison(cause='IDENTITY_ENDED'){endComparison(cause);comparisonSlots={a:null,b:null};renderComparisonSources();comparisonState('idle','请选择 A/B 来源');}
-function comparisonAt(slot){return slot?.source==='SAVED'?slot.item.filters.at:slot?.filters.at;}
-function renderComparisonSources(){
- for(const side of ['a','b']){const slot=comparisonSlots[side];$('#compare-source-'+side).textContent=!slot?'尚未选择':slot.source==='FILTERS'?`已选条件 · ${ui.conditions(slot.filters)}`:`已选保存条件 · 条件编号 ${slot.cohortId} · ${privateItemText(slot.item)}`;}
- const mismatch=comparisonSlots.a&&comparisonSlots.b&&comparisonAt(comparisonSlots.a)!==comparisonAt(comparisonSlots.b);
- $('#compare-start').disabled=!comparisonSlots.a||!comparisonSlots.b||Boolean(mismatch);
- if(mismatch)comparisonState('error','A/B评估时点须相同，请重新选择来源');
-}
-function selectComparison(side,slot){
- if(disposed||checkIdentity()||blockedEntry)return;
- endComparison('SOURCE_CHANGED');comparisonSlots[side]=slot;comparisonState('idle','来源已选择，请比较');renderComparisonSources();
-}
-for(const side of ['a','b'])$('#compare-current-'+side).addEventListener('click',()=>selectComparison(side,{source:'FILTERS',filters:{...currentFilters(),ids:entryIds===null?null:[...entryIds]}}));
-function selectSavedComparison(side,cohortId){const item=privateItems.get(cohortId);if(!item)return;selectComparison(side,{source:'SAVED',cohortId,item:comparisonClone(item)});}
-function comparisonBody(){const side=slot=>slot.source==='SAVED'?{source:'SAVED',cohortId:slot.cohortId}:{source:'FILTERS',filters:comparisonClone(slot.filters)};return {a:side(comparisonSlots.a),b:side(comparisonSlots.b),excludeOverlap:$('#compare-exclude').checked};}
-function normalizedComparisonFilters(filters){
- const normalized=privateFilters(filters);if(!normalized)return null;
- const result={studyCode:'RA'};for(const key of Object.keys(SELECTS))result[key]=normalized[key]||null;result.at=normalized.at;
- result.ids=normalized.ids===null?null:[...new Set(normalized.ids)].sort((a,b)=>a.length-b.length||a.localeCompare(b));
- if(result.age){const [min,max]=result.age.split('-');result.age=String(Number(min))+'-'+(max===''?'':String(Number(max)));}
- return result;
-}
-function sameComparisonFilters(a,b){const x=normalizedComparisonFilters(a),y=normalizedComparisonFilters(b);return x&&y&&JSON.stringify(x)===JSON.stringify(y);}
-function validComparisonRow(row){
- const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value),count=value=>Number.isSafeInteger(value)&&value>=0,number=value=>typeof value==='number'&&Number.isFinite(value),nullable=value=>value===null||number(value);
- if(!nullable(row.difference))return false;
- for(const side of ['a','b']){
-  const value=row[side];
-  if(row.kind==='COUNT'){if(!count(value.n)||row.difference!==null||row.test!==null)return false;continue;}
-  if(!['OK','NO_DATA'].includes(value.status))return false;
-  if(row.kind==='CONTINUOUS'){if(!['validN','unknownN'].every(key=>count(value[key]))||!['q1','median','q3','iqr'].every(key=>nullable(value[key])))return false;}
-  else if(row.kind==='BINARY'){if(!['numerator','denominator','knownN','unknownN'].every(key=>count(value[key]))||!number(value.value))return false;}
-  else{
-   const categories=row.metric==='activity'?['remission','low','moderate','high']:['1','2','3'];
-   if(row.difference!==null||!['denominator','knownN','unknownN'].every(key=>count(value[key]))||!Array.isArray(value.groups)||value.groups.length!==categories.length||!value.groups.every((group,index)=>object(group)&&group.category===categories[index]&&count(group.count)&&number(group.value)))return false;
-  }
- }
- if(row.kind==='COUNT')return true;
- const t=row.test;
- if(!['OK','OVERLAP','INSUFFICIENT_SAMPLE','DEGENERATE'].includes(t.status)||!count(t.nA)||!count(t.nB)||!nullable(t.pValue)||typeof t.displayP!=='string'||!t.displayP||!(t.significant===null||typeof t.significant==='boolean')||!(t.reason===null||['COHORTS_OVERLAP','VALID_N_LT_5','ZERO_RANK_VARIANCE','ZERO_MARGIN'].includes(t.reason))||!Array.isArray(t.warnings)||!t.warnings.every(value=>['SMALL_SAMPLE_TIES','SPARSE_EXPECTED_COUNTS'].includes(value))||typeof t.policyVersion!=='string'||!t.policyVersion)return false;
- const denominator=row.kind==='CONTINUOUS'?'NON_MISSING_METRIC':row.metric==='target'?'EVALUABLE_TARGET':row.metric==='activity'?'EVALUABLE_ACTIVITY':row.metric==='line'?'KNOWN_LINE':'KNOWN_CATEGORY';
- if(t.testDenominator!==denominator)return false;
- if(t.status==='OK'){if(!['FISHER_EXACT','CHI_SQUARE','MANN_WHITNEY_EXACT','MANN_WHITNEY_ASYMPTOTIC'].includes(t.method)||!number(t.pValue)||typeof t.significant!=='boolean')return false;}
- else if(t.method!==null||t.pValue!==null||t.significant!==null||t.displayP!=='—'||t.reason===null)return false;
- if(row.kind!=='CONTINUOUS'&&!['expectedBelow5Cells','expectedCellCount'].every(key=>t[key]===null||count(t[key])))return false;
- return true;
-}
-
-function validComparison(data,operation,trace){
- const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value),count=value=>Number.isSafeInteger(value)&&value>=0;
- const instant=value=>typeof value==='string'&&/Z$/.test(value)&&Number.isFinite(Date.parse(value));
- if(!object(data)||typeof data.compareResultId!=='string'||!PRIVATE_UUID.test(data.compareResultId)||!count(data.studyTotal)||!count(data.overlapN)||typeof data.excludeOverlap!=='boolean'||data.excludeOverlap!==operation.body.excludeOverlap||!Array.isArray(data.rows)||data.rows.length!==12||!object(data.meta))return false;
- for(const side of ['a','b']){
-  const value=data[side],sent=operation.body[side];
-  if(!object(value)||value.source!==sent.source||!normalizedComparisonFilters(value.filters)||!['nBeforeExclusion','n','evalN'].every(key=>count(value[key]))||value.n>value.nBeforeExclusion||value.nBeforeExclusion>data.studyTotal||value.evalN>value.n||data.overlapN>value.nBeforeExclusion||!['submittedUniqueIdsN','effectiveIdsN'].every(key=>value[key]===null||count(value[key])))return false;
-  if(sent.source==='FILTERS'){
-   if(value.cohortId!==null||value.cohortVersion!==null||!sameComparisonFilters(value.filters,sent.filters))return false;
-  }else if(value.cohortId!==sent.cohortId||!Number.isInteger(value.cohortVersion)||value.cohortVersion<1)return false;
- }
- for(let i=0;i<COMPARISON_ROWS.length;i++){
-  const row=data.rows[i],[metric,kind]=COMPARISON_ROWS[i];if(!object(row)||row.metric!==metric||row.kind!==kind||!object(row.a)||!object(row.b)||!Object.hasOwn(row,'difference')||(kind==='COUNT'?row.test!==null:!object(row.test))||!validComparisonRow(row))return false;
- }
- const meta=data.meta;
- if(meta.at!==data.a.filters.at||meta.at!==data.b.filters.at||meta.at!==operation.at||typeof meta.asOfDate!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(meta.asOfDate)||!['readStartedAt','readCompletedAt','computedAt','expiresAt'].every(key=>instant(meta[key]))||typeof meta.traceId!=='string'||!meta.traceId||Boolean(trace&&meta.traceId!==trace)||meta.completion!=='P04_COMPARE'||!object(meta.policyVersions)||!COMPARISON_POLICIES.every(key=>typeof meta.policyVersions[key]==='string'&&meta.policyVersions[key].length>0)||typeof meta.statisticalDisclosure!=='string'||!meta.statisticalDisclosure||!object(meta.sourceDateCoverage))return false;
- for(const side of ['a','b']){
-  const coverage=meta.sourceDateCoverage[side];if(!object(coverage))return false;
-  for(const [metric] of COMPARISON_ROWS.slice(1)){
-   const value=coverage[metric];if(!object(value)||!['validN','datedN','undatedN','missingN'].every(key=>count(value[key]))||!['KNOWN','PARTIAL','UNKNOWN','NO_DATA'].includes(value.status)||!['minDate','maxDate'].every(key=>value[key]===null||(typeof value[key]==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value[key]))))return false;
-  }
- }
- return true;
-}
-const COMPARISON_LABELS={n:'人数',age:'年龄（岁）',duration:'病程（年）',das28At:'DAS28-CRP',crpAt:'CRP（mg/L）',haqAt:'HAQ',female:'女性',sero:'血清学阳性',target:'DAS28 达标',complete:'资料完整',activity:'活动分布',line:'治疗线数'};
-function renderComparisonRows(data){
- const rows=$('#compare-rows');rows.replaceChildren();
- for(const row of data.rows){
-  const tr=textNode('tr','');tr.dataset.metric=row.metric;tr.dataset.kind=row.kind;tr.append(textNode('th',COMPARISON_LABELS[row.metric]));
-  for(const side of ['a','b']){const cell=textNode('td','');cell.dataset.side=side;const keys=row.kind==='COUNT'?['n']:row.kind==='CONTINUOUS'?['q1','median','q3','iqr','validN','unknownN','status']:row.kind==='BINARY'?['numerator','denominator','value','knownN','unknownN','status']:['denominator','knownN','unknownN','status'];const fields=keys.map(key=>`${ui.label(key)}：${key==='status'?ui.code(row[side][key]):row[side][key]===null?'缺失':row[side][key]}`);for(const group of row[side].groups||[])fields.push(`${ui.code(group.category,group.category)}：${group.count} 人 · 比例 ${group.value}`);cell.textContent=fields.join(' · ');if(row.kind!=='COUNT'){const coverage=data.meta.sourceDateCoverage[side][row.metric];cell.append(textNode('small','来源覆盖 · '+['validN','datedN','undatedN','missingN','minDate','maxDate','status'].map(key=>`${ui.label(key)}：${key==='status'?(coverage[key]==='PARTIAL'?'部分来源日期缺失':ui.code(coverage[key])):coverage[key]===null?'未提供':coverage[key]}`).join(' · '),'comparison-coverage'));}tr.append(cell);}
-  const difference=textNode('td',row.difference===null?'不适用':`${row.difference}${row.kind==='BINARY'?' 百分点':''}`);difference.dataset.difference='';tr.append(difference);
-  const test=textNode('td','不适用');test.dataset.test='';if(row.test){test.textContent=testText(row.test)+(row.kind==='CONTINUOUS'?'':` · 期望频数低于5的单元数 ${row.test.expectedBelow5Cells??'不适用'} · 单元总数 ${row.test.expectedCellCount??'不适用'}`);if(row.test.significant===true)test.append(textNode('strong',' 显著','stat-significant'));}tr.append(test);rows.append(tr);
- }
-}
-
-function sameRetainedComparison(data,operation){
- if(data.compareResultId!==operation.snapshot.compareResultId||data.meta.comparisonTraceId!==operation.creationTrace)return false;
- // 只允许本次读取trace变化；比较资源的完整原值、范围、时间和政策逐字段保持。
- const retained=value=>{const copy=comparisonClone(value);delete copy.meta.traceId;delete copy.meta.comparisonTraceId;return copy;};
- const equal=(a,b)=>{if(a===b)return true;if(a===null||b===null||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false;const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(key=>Object.hasOwn(b,key)&&equal(a[key],b[key]));};
- return equal(retained(data),retained(operation.snapshot));
-}
-function startComparisonRead(){
- if(disposed||checkIdentity()||!comparisonResource)return;
- const snapshot=comparisonClone(comparisonResource),creationTrace=snapshot.meta.comparisonTraceId||snapshot.meta.traceId;
- const side=value=>value.source==='SAVED'?{source:'SAVED',cohortId:value.cohortId}:{source:'FILTERS',filters:comparisonClone(value.filters)};
- endComparison('SUPERSEDED');
- const operation={kind:'read',snapshot,creationTrace,generation:comparisonGeneration,identity,at:snapshot.meta.at,body:{a:side(snapshot.a),b:side(snapshot.b),excludeOverlap:snapshot.excludeOverlap},controller:new AbortController(),timer:null,terminal:null};
- comparisonFlight=operation;$('#compare-cancel').hidden=false;comparisonState('loading','正在验证并重读原ID保留结果');
- operation.timer=setTimeout(()=>{finishComparison(operation,null,{code:'REQUEST_TIMEOUT',message:'保留重读超过30秒'});operation.controller.abort();},30000);
- window.RACohortAPI.compareResult(snapshot.compareResultId,{signal:operation.controller.signal}).then(result=>finishComparison(operation,result),error=>finishComparison(operation,null,error));
-}
-
-function publishComparison(data){
- renderComparisonRows(data);
- comparisonResource=comparisonClone(data);$('#compare-export').disabled=false;$('#compare-export').hidden=false;$('#compare-read').hidden=false;$('#compare-read').disabled=false;$('#compare-result').dataset.compareResultId=data.compareResultId;$('#compare-result').hidden=false;
- $('#compare-summary').textContent=`研究库 ${data.studyTotal} 人 · 两组重叠 ${data.overlapN} 人`;
- for(const side of ['a','b']){const q=data[side];$('#compare-side-'+side).textContent=`${side.toUpperCase()}组 · ${q.source==='SAVED'?'已保存条件':'当前筛选条件'} · ${ui.conditions(q.filters)}${q.source==='SAVED'?` · 条件编号 ${q.cohortId} · 版本 ${Number.isSafeInteger(q.cohortVersion)?q.cohortVersion:'超出安全显示范围'}`:''} · 排重前 ${q.nBeforeExclusion} 人 · 本组 ${q.n} 人 · 可评估 ${q.evalN} 人 · 指定患者 ${q.submittedUniqueIdsN??'未指定'} 人 · 其中有效 ${q.effectiveIdsN??'未指定'} 人`; }
- const meta=data.meta;$('#compare-policy').textContent=`${data.excludeOverlap?'双方均排除重叠患者':'保留重叠患者；交集存在时不能进行独立组检验'} · 评估时点 ${ui.time(meta.at)} · 数据截至 ${meta.asOfDate} · 读取 ${meta.readStartedAt} 至 ${meta.readCompletedAt} · 计算 ${meta.computedAt} · 有效期至 ${meta.expiresAt} · ${meta.statisticalDisclosure}`;comparisonState('success',meta.comparisonTraceId?'已重新读取原结果，数值和有效期保持不变':'比较完成，12项指标来自同次分析');
-}
-function isCurrentComparison(operation){return !disposed&&!operation.terminal&&comparisonFlight===operation&&comparisonGeneration===operation.generation;}
-function finishComparison(operation,result,error){
- if(!isCurrentComparison(operation))return;
- if(operation.identity!==identityKey()){checkIdentity();return;}
- if(!error&&(!validComparison(result?.data,operation,result?.traceId)||result?.success!==true||result?.code!=='200'||(operation.kind==='read'&&!sameRetainedComparison(result.data,operation))))error={status:result?.status,code:'INVALID_RESPONSE',message:'比较响应不完整',traceId:result?.traceId};
- operation.terminal=error?.code||'SUCCESS';comparisonFlight=null;clearTimeout(operation.timer);$('#compare-cancel').hidden=true;
- if(error){
-  clearComparisonResult();
-  if(error.status===401){clearPrivate();invalidate(error);}
-  if(operation.kind==='read'){const reason=error.status===404?'保留比较不存在':error.status===410?'保留比较已过期':error.status===409&&error.code==='SCOPE_CHANGED'?'授权研究库范围已变化':'无法验证保留结果';comparisonState('error',`${ui.error(error)}：${reason}，引用已清除，请重新比较`);return;}
-  const unknown=error.status>=500||['NETWORK_ERROR','INVALID_RESPONSE','REQUEST_TIMEOUT','REQUEST_CANCELLED'].includes(error.code);
-  comparisonState('error',`${ui.error(error,'比较未完成')}${unknown?'；结果尚未确认，不能确定是否已提交。再次比较会生成一条新结果。':''}`);return;
- }
- publishComparison(result.data);
-}
-function startComparison(){
- if(disposed||checkIdentity()||!comparisonSlots.a||!comparisonSlots.b)return;
- if(comparisonAt(comparisonSlots.a)!==comparisonAt(comparisonSlots.b)){renderComparisonSources();return;}
- endComparison('SUPERSEDED');
- const operation={kind:'compare',generation:comparisonGeneration,identity,at:comparisonAt(comparisonSlots.a),body:comparisonBody(),controller:new AbortController(),timer:null,terminal:null};comparisonFlight=operation;$('#compare-cancel').hidden=false;comparisonState('loading','正在比较，请稍候');
- operation.timer=setTimeout(()=>{finishComparison(operation,null,{code:'REQUEST_TIMEOUT',message:'比较请求超过30秒'});operation.controller.abort();},30000);
- window.RACohortAPI.compare(operation.body,{signal:operation.controller.signal}).then(result=>finishComparison(operation,result),error=>finishComparison(operation,null,error));
-}
-function removeComparisonDefinition(cohortId){
- const affected=['a','b'].some(side=>comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===cohortId);
- if(comparisonFlight?.kind==='compare'&&['a','b'].some(side=>comparisonFlight.body[side].source==='SAVED'&&comparisonFlight.body[side].cohortId===cohortId)){endComparison('SOURCE_DELETED');comparisonState('error','来源定义已删除，请重选来源');}
- for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===cohortId)comparisonSlots[side]=null;
- if(affected)renderComparisonSources();
- if(comparisonResource&&['a','b'].some(side=>comparisonResource[side].source==='SAVED'&&comparisonResource[side].cohortId===cohortId))$('#compare-definition-note').textContent='来源定义已删除，当前为已保留结果；原ID、数值和有效期保持。';
-}
-$('#compare-start').addEventListener('click',startComparison);
-$('#compare-read').addEventListener('click',startComparisonRead);
-$('#compare-swap').addEventListener('click',()=>{if(disposed||checkIdentity())return;endComparison('SWAPPED');[comparisonSlots.a,comparisonSlots.b]=[comparisonSlots.b,comparisonSlots.a];comparisonState('idle','A/B已交换，请新比较');renderComparisonSources();});
-$('#compare-exclude').addEventListener('change',()=>{if(disposed||checkIdentity())return;endComparison('EXCLUSION_CHANGED');comparisonState('idle','排重选择已改变，请新比较');renderComparisonSources();});
-$('#compare-cancel').addEventListener('click',()=>{if(!comparisonFlight)return;const read=comparisonFlight.kind==='read';endComparison('REQUEST_CANCELLED');comparisonState('error',read?'已取消保留重读，引用已清除，请重新比较。':'已取消等待，结果尚未确认，不能确定是否已提交；重新比较会生成一条新结果。');});
-window.RACohortComparison=Object.freeze({getResource:()=>comparisonResource===null?null:comparisonClone(comparisonResource)});
-// 私有定义只读元信息；列表与保存独立于分析owner，不自动统计人数。
-let listFlight=null,listToken=0,listPage=1,listTotal=null,privateItems=new Map(),privateDeleted=new Set();
+// 条件校验与回填：解析候选、相似入口共用。
 const PRIVATE_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 function privateFilters(filters){
   if(!filters||typeof filters!=='object'||Array.isArray(filters)||Object.keys(filters).length!==10||!['studyCode',...Object.keys(SELECTS),'ids'].every(key=>Object.hasOwn(filters,key))||filters.studyCode!=='RA'||!['now','6m'].includes(filters.at))return null;
@@ -876,11 +710,6 @@ function privateFilters(filters){
   for(const key of Object.keys(SELECTS)){if(filters[key]!==null&&typeof filters[key]!=='string')return null;values[key]=filters[key]??'';}
   try{return window.RACohortConditions.decode(window.RACohortConditions.encode(values));}catch{return null;}
 }
-function validPrivateItem(item){
-  return item&&typeof item==='object'&&!Array.isArray(item)&&typeof item.cohortId==='string'&&PRIVATE_UUID.test(item.cohortId)&&typeof item.name==='string'&&item.name.length>0&&(item.note===null||typeof item.note==='string')&&Number.isInteger(item.version)&&item.version>0&&['createdAt','updatedAt'].every(key=>typeof item[key]==='string'&&/Z$/.test(item[key])&&Number.isFinite(Date.parse(item[key])))&&item.currentN===null&&privateFilters(item.filters)!==null;
-}
-function validPrivateMeta(data,trace){return data?.meta&&typeof data.meta.traceId==='string'&&(!trace||data.meta.traceId===trace);}
-function privateItemText(item){return `${item.name} · 备注：${item.note===null?'未填写':item.note} · 版本 ${Number.isSafeInteger(item.version)?item.version:'超出安全显示范围'} · 创建 ${item.createdAt} · 更新 ${item.updatedAt} · 条件 ${ui.conditions(item.filters)} · 打开后计算`;}
 function applyPrivateFilters(filters){
   for(const [key,selector] of Object.entries(SELECTS)){
     const select=$(selector);
@@ -888,172 +717,12 @@ function applyPrivateFilters(filters){
     select.value=filters[key];
   }
   entryIds=filters.ids===null?null:[...filters.ids];blockedEntry=false;
-  history.replaceState(null,'',location.pathname+window.RACohortConditions.encode(filters)+location.hash);renderChips();saveParametersChanged();
+  history.replaceState(null,'',location.pathname+window.RACohortConditions.encode(filters)+location.hash);renderChips();
 }
-function privatePagination(){
-  $('#private-prev').disabled=Boolean(listFlight)||listPage<=1;
-  $('#private-next').disabled=Boolean(listFlight)||listTotal===null||listPage>=Math.max(1,Math.ceil(listTotal/20));
-  const pager=$('#private-prev').parentElement;
-  if(pager)pager.hidden=listTotal===null||listTotal<=20;
-}
-function listState(name,message){$('#private-list-state').dataset.state=name;$('#private-list-state').textContent=message;}
 function clearPrivate(){
-  revokeApplication();
-  resetComparison();
-  cancelSave();cancelPrivateCommand();privateItems.clear();privateDeleted.clear();const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='IDENTITY_ENDED';clearTimeout(previous.timer);previous.controller.abort();}
-  $('#private-edit-name').value='';$('#private-edit-note').value='';$('#private-edit-note-mode').value='preserve';$('#private-command-target').textContent='';listPage=1;listTotal=null;privatePagination();$('#private-items').replaceChildren();$('#private-page').textContent='';$('#private-prev').disabled=true;$('#private-open-meta').textContent='';$('#private-name').value='';$('#private-note').value='';listState('idle','尚未加载');
+  // 身份结束：撤销申请，结束导出与解析等待。
+  revokeApplication();endExport('IDENTITY_ENDED');endParse('IDENTITY_ENDED');
 }
-function loadPrivateList(page=listPage,refreshEdit=false,fallbackRemaining=1){
-  if(disposed||checkIdentity()||!Number.isSafeInteger(page)||page<1)return;
-  const editing=refreshEdit?privateEdit:null;
-  if(editing){endPrivateCommand('REFRESHED');privateCommand=null;}else cancelPrivateCommand();
-  const previous=listFlight;listFlight=null;listToken++;if(previous){previous.terminal='SUPERSEDED';clearTimeout(previous.timer);previous.controller.abort();}
-  listPage=page;const operation={token:listToken,identity,page,controller:new AbortController(),timer:null,terminal:null};listFlight=operation;
-  privateItems.clear();$('#private-items').replaceChildren();privatePagination();$('#private-page').textContent=`第 ${page} 页 · 每页 20 条 · 总数待确认`;listState('loading','正在读取私有条件定义');
-  const finishList=(result,error)=>{
-    if(disposed||operation.terminal||listFlight!==operation||operation.token!==listToken)return;
-    if(operation.identity!==identityKey()){checkIdentity();return;}
-    const data=result?.data;
-    if(!error&&(!data||!validPrivateMeta(data,result.traceId)||data.page!==operation.page||data.size!==20||!Number.isSafeInteger(data.total)||data.total<0||!Array.isArray(data.items)||data.items.length>20||data.items.length>data.total||!data.items.every(validPrivateItem)||new Set(data.items.map(item=>item.cohortId)).size!==data.items.length))error={status:result?.status,code:'INVALID_RESPONSE',message:'私有定义列表响应不完整',traceId:result?.traceId};
-    operation.terminal=error?.code||'SUCCESS';listFlight=null;clearTimeout(operation.timer);privatePagination();
-    if(error){if(error.status===401){clearPrivate();invalidate(error);return;}if(editing&&privateEdit===editing){$('#private-version-refresh').hidden=false;$('#private-command-confirm').disabled=true;commandState('error',`元信息刷新失败：${ui.error(error)} ；原输入已保留，请再次刷新。`);}listState('error',`${ui.error(error)} `);return;}
-    listTotal=data.total;
-    const lastPage=Math.max(1,Math.ceil(listTotal/20));
-    if(operation.page>lastPage){if(fallbackRemaining>0)loadPrivateList(lastPage,refreshEdit,fallbackRemaining-1);else{privatePagination();listState('error','列表在读取时发生变化，请重新加载');}return;}
-    privatePagination();
-    $('#private-page').textContent=`第 ${data.page} 页 · 每页 ${data.size} 条 · 共 ${data.total} 条`;
-    for(const item of data.items){privateItems.set(item.cohortId,item);for(const side of ['a','b'])if(comparisonSlots[side]?.source==='SAVED'&&comparisonSlots[side].cohortId===item.cohortId)comparisonSlots[side].item=comparisonClone(item);const row=textNode('div',privateItemText(item),'private-item');row.dataset.privateCohort=item.cohortId;row.setAttribute('role','listitem');const button=textNode('button','打开并重新分析','button');button.type='button';button.dataset.openCohort=item.cohortId;row.append(button);const edit=textNode('button','修改名称/备注','button');edit.type='button';edit.dataset.editCohort=item.cohortId;edit.disabled=!Number.isSafeInteger(item.version);row.append(edit);const remove=textNode('button','删除','button');remove.type='button';remove.dataset.deleteCohort=item.cohortId;remove.disabled=!Number.isSafeInteger(item.version);row.append(remove);for(const side of ['a','b']){const choose=textNode('button','设为'+side.toUpperCase(),'button');choose.type='button';choose.dataset.compareSide=side;choose.dataset.compareCohort=item.cohortId;row.append(choose);}if(!Number.isSafeInteger(item.version))row.append(textNode('small','版本超出安全整数范围，只能读取或打开'));$('#private-items').append(row);}
-    renderComparisonSources();
-    if(editing&&privateEdit===editing){const item=privateItems.get(editing.item.cohortId);if(item){editing.item=item;editing.versionConflict=false;$('#private-command-target').textContent=privateItemText(item);$('#private-command-confirm').disabled=!Number.isSafeInteger(item.version);commandState('idle',Number.isSafeInteger(item.version)?'元信息已刷新，请核对输入后确认新命令':'版本超出安全整数范围，只能读取或打开');}else{cancelPrivateCommand();commandState('error','当前页未找到该定义，请加载对应页后重新选择。');}}
-    listState(data.items.length?'success':'empty',data.items.length?'列表已读取，人数在打开后计算':'当前页没有私有定义');
-  };
-  operation.timer=setTimeout(()=>{finishList(null,{code:'REQUEST_TIMEOUT',message:'列表请求超过30秒，请重试'});operation.controller.abort();},30000);
-  window.RACohortAPI.list({page,size:20},{signal:operation.controller.signal}).then(result=>finishList(result),error=>finishList(null,error));
-}
-function openPrivate(cohortId){
-  if(disposed||checkIdentity()||!PRIVATE_UUID.test(cohortId))return;
-  invalidate();const operation={controller:new AbortController(),timer:null,terminal:null,identity,generation,cohortId};flight=operation;waiting();state('loading','正在打开私有条件并重新分析');
-  operation.timer=setTimeout(()=>{finish(operation,null,{code:'REQUEST_TIMEOUT',message:'打开请求超过30秒，请重试'});operation.controller.abort();},30000);
-  window.RACohortAPI.open({cohortId},{signal:operation.controller.signal}).then(result=>finish(operation,result),error=>finish(operation,null,error));
-}
-$('#private-list-load').addEventListener('click',()=>loadPrivateList(listPage));
-$('#private-prev').addEventListener('click',()=>{if(!listFlight&&listPage>1)loadPrivateList(listPage-1);});
-$('#private-next').addEventListener('click',()=>{if(!listFlight&&listTotal!==null&&listPage<Math.ceil(listTotal/20))loadPrivateList(listPage+1);});
-privatePagination();
-$('#private-items').addEventListener('click',event=>{const source=event.target.closest('[data-compare-cohort]');if(source)selectSavedComparison(source.dataset.compareSide,source.dataset.compareCohort);const button=event.target.closest('[data-open-cohort]');if(button)openPrivate(button.dataset.openCohort);const edit=event.target.closest('[data-edit-cohort]');if(edit)beginPrivateEdit(edit.dataset.editCohort);const remove=event.target.closest('[data-delete-cohort]');if(remove)beginPrivateEdit(remove.dataset.deleteCohort,'delete');});
-// 元信息命令只依据实际列表条目；回执从不组装或恢复列表。
-let privateEdit=null,privateCommand=null,privateCommandFlight=null,privateCommandToken=0;
-function commandState(name,message){$('#private-command-state').dataset.state=name;$('#private-command-state').textContent=message;}
-function endPrivateCommand(cause){
-  privateCommandToken++;const old=privateCommandFlight;privateCommandFlight=null;
-  if(old){old.terminal=cause;clearTimeout(old.timer);}
-  $('#private-command-confirm').disabled=Boolean(privateEdit?.versionConflict);$('#private-command-retry').hidden=true;$('#private-version-refresh').hidden=!privateEdit?.versionConflict;
-  if(old)old.controller.abort();
-}
-function cancelPrivateCommand(){privateCommand=null;privateEdit=null;$('#private-command-dialog').hidden=true;commandState('idle','');endPrivateCommand('CANCELLED');}
-function beginPrivateEdit(cohortId,action='rename'){
-  if(disposed||checkIdentity())return;const item=privateItems.get(cohortId);if(!item||!Number.isSafeInteger(item.version))return;
-  cancelPrivateCommand();privateEdit={action,item};$('#private-command-dialog').hidden=false;$('#private-command-title').textContent=action==='delete'?'确认删除私有定义':'修改名称/备注';$('#private-edit-fields').hidden=action==='delete';$('#private-command-confirm').textContent=action==='delete'?'确认删除':'确认修改';$('#private-command-target').textContent=privateItemText(item);$('#private-edit-name').value=item.name;$('#private-edit-note').value=item.note??'';$('#private-edit-note-mode').value='preserve';
-}
-function privateCommandFields(){
-  if(!privateEdit)return null;const item=privateEdit.item,fields={cohortId:item.cohortId,version:item.version};
-  if(privateEdit.action==='delete')return fields;
-  if($('#private-edit-name').value!==item.name)fields.name=$('#private-edit-name').value;
-  const mode=$('#private-edit-note-mode').value;
-  if(mode==='clear'&&item.note!==null)fields.note=null;
-  if(mode==='value'&&$('#private-edit-note').value!==item.note)fields.note=$('#private-edit-note').value;
-  return fields;
-}
-function privateParametersChanged(){
-  if(!privateEdit)return;
-  if(privateCommand&&JSON.stringify(privateCommandFields())===JSON.stringify(privateCommand.fields))return;
-  endPrivateCommand('PARAMETERS_CHANGED');privateCommand=null;commandState('idle','输入已变化，下次确认将使用新命令');
-}
-function confirmPrivateCommand(retry=false){
-  if(disposed||checkIdentity()||!privateEdit)return;
-  privateParametersChanged();if(privateEdit.versionConflict){commandState('error','记录已更新，请先刷新并核对输入，再确认修改');$('#private-version-refresh').hidden=false;return;}if(retry&&!privateCommand)return;
-  const fields=privateCommandFields();if(!Number.isSafeInteger(fields.version)||fields.version<1){commandState('error','版本超出安全整数范围，只能读取或打开');return;}
-  if(!retry&&privateEdit.action==='rename'&&!Object.hasOwn(fields,'name')&&!Object.hasOwn(fields,'note')){commandState('idle','名称和备注未变化，无需提交');return;}
-  const pending=privateCommand||{action:privateEdit.action,fields,body:{...fields,requestId:crypto.randomUUID()}};
-  endPrivateCommand('SUPERSEDED');privateCommand=pending;
-  const operation={token:privateCommandToken,identity,edit:privateEdit,pending,controller:new AbortController(),timer:null,terminal:null};privateCommandFlight=operation;
-  $('#private-command-confirm').disabled=true;commandState('loading',retry?'正在重试原命令':'正在提交元信息命令');
-  const finishCommand=(result,error)=>{
-    if(disposed||operation.terminal||privateCommandFlight!==operation||operation.token!==privateCommandToken||privateCommand!==pending||privateEdit!==operation.edit)return;
-    if(operation.identity!==identityKey()){checkIdentity();return;}
-    const data=result?.data;
-    if(!error&&(!data||data.cohortId!==pending.body.cohortId||!Number.isInteger(data.version)||data.version<1||!validPrivateMeta(data,result.traceId)))error={status:result?.status,code:'INVALID_RESPONSE',message:'元信息回执不完整',traceId:result?.traceId};
-    operation.terminal=error?.code||'SUCCESS';privateCommandFlight=null;clearTimeout(operation.timer);$('#private-command-confirm').disabled=false;
-    if(error){
-      if(error.status===401){clearPrivate();invalidate(error);return;}
-      const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
-      const instruction=unknown?'结果尚未确认，不能确定是否已提交。可点重试。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新确认。':error.code==='VERSION_CONFLICT'?'版本冲突，请刷新元信息，再核对输入并确认新命令。':error.code==='IDEMPOTENCY_CONFLICT'?'原请求标识对应不同参数，请核对输入；不要盲目重试。':error.status===404?'定义不存在、已删除或不属于当前身份，请重新加载列表。':'';
-      if(error.status===404){removeComparisonDefinition(pending.body.cohortId);privateItems.delete(pending.body.cohortId);$(`[data-private-cohort="${pending.body.cohortId}"]`)?.remove();listState('error','条目已不可用，请重新加载列表');}
-      if(error.code==='VERSION_CONFLICT'){privateEdit.versionConflict=true;$('#private-command-confirm').disabled=true;}
-      $('#private-command-retry').hidden=!unknown;$('#private-version-refresh').hidden=error.code!=='VERSION_CONFLICT';if(!unknown)privateCommand=null;
-      commandState('error',`${ui.error(error)} ${instruction} `);return;
-    }
-    if(pending.action==='delete'){privateDeleted.add(pending.body.cohortId);privateItems.delete(pending.body.cohortId);removeComparisonDefinition(pending.body.cohortId);}
-    if(pending.action==='delete'&&$('#private-open-meta').dataset.cohortId===pending.body.cohortId){$('#private-open-meta').textContent='该私有定义已删除；当前已保留分析仍遵循原有效期和授权范围。';delete $('#private-open-meta').dataset.cohortId;}
-    privateCommand=null;privateEdit=null;$('#private-command-dialog').hidden=true;
-    loadPrivateList(listPage);commandState('success',Number.isSafeInteger(data.version)?'元信息命令已确认，按当前列表读取结果':'命令已确认；回执版本超出安全整数范围，刷新后只按安全列表版本操作');
-  };
-  operation.timer=setTimeout(()=>{finishCommand(null,{code:'REQUEST_TIMEOUT',message:'元信息请求超过30秒'});operation.controller.abort();},30000);
-  window.RACohortAPI[pending.action](pending.body,{signal:operation.controller.signal}).then(result=>finishCommand(result),error=>finishCommand(null,error));
-}
-$('#private-command-confirm').addEventListener('click',()=>confirmPrivateCommand());
-$('#private-command-retry').addEventListener('click',()=>confirmPrivateCommand(true));
-$('#private-command-cancel').addEventListener('click',cancelPrivateCommand);
-$('#private-version-refresh').addEventListener('click',()=>loadPrivateList(listPage,true));
-$('#private-edit-name').addEventListener('input',privateParametersChanged);
-$('#private-edit-note').addEventListener('input',()=>{$('#private-edit-note-mode').value='value';privateParametersChanged();});
-$('#private-edit-note-mode').addEventListener('change',privateParametersChanged);
-// 保存命令拥有独立身份；分析代次不改变点击时的冻结参数。
-let saveFlight=null,saveCommand=null,saveToken=0;
-function saveState(name,message){$('#private-save-state').dataset.state=name;$('#private-save-state').textContent=message;}
-function cancelSave(){
-  saveToken++;const old=saveFlight;saveFlight=null;saveCommand=null;
-  if(old){old.terminal='CANCELLED';clearTimeout(old.timer);old.controller.abort();}
-  $('#private-save').disabled=false;$('#private-retry').hidden=true;$('#private-save-dialog').hidden=true;saveState('idle','');
-}
-function saveParametersChanged(){
-  if(!saveCommand)return;
-  const signature=command=>JSON.stringify({name:command.name,note:command.note,filters:command.filters});
-  if(signature(saveCommand)===signature({name:$('#private-name').value,note:$('#private-note').value,filters:currentFilters()}))return;
-  saveToken++;const old=saveFlight;saveFlight=null;saveCommand=null;
-  if(old){old.terminal='PARAMETERS_CHANGED';clearTimeout(old.timer);old.controller.abort();}
-  $('#private-save').disabled=false;$('#private-retry').hidden=true;saveState('idle','参数已变化，下次保存将使用新命令');
-}
-function saveCurrent(retry=false){
-  if(disposed||checkIdentity()||blockedEntry)return;
-  saveParametersChanged();if(retry&&!saveCommand)return;
-  const command=retry?saveCommand:{name:$('#private-name').value,note:$('#private-note').value,filters:currentFilters(),requestId:crypto.randomUUID()};
-  saveToken++;const previous=saveFlight;saveFlight=null;if(previous){previous.terminal='SUPERSEDED';clearTimeout(previous.timer);previous.controller.abort();}
-  saveCommand=command;const operation={token:saveToken,identity,command,controller:new AbortController(),timer:null,terminal:null};saveFlight=operation;
-  saveState('loading',retry?'正在重试原保存命令':'正在保存条件，请稍候');$('#private-save').disabled=true;$('#private-retry').hidden=true;
-  const finishSave=(result,error)=>{
-    if(disposed||operation.terminal||saveFlight!==operation||operation.token!==saveToken||saveCommand!==operation.command)return;
-    if(operation.identity!==identityKey()){checkIdentity();return;}
-    const data=result?.data;
-    if(!error&&(!data||typeof data.cohortId!=='string'||!PRIVATE_UUID.test(data.cohortId)||data.version!==1||!validPrivateMeta(data,result.traceId)))error={status:result?.status,code:'INVALID_RESPONSE',message:'保存回执不完整',traceId:result?.traceId};
-    operation.terminal=error?.code||'SUCCESS';saveFlight=null;clearTimeout(operation.timer);$('#private-save').disabled=false;
-    if(error){
-      if(error.status===401){clearPrivate();invalidate(error);return;}
-      const unknown=error.status>=500||['NETWORK_ERROR','REQUEST_TIMEOUT','REQUEST_CANCELLED','INVALID_RESPONSE'].includes(error.code);
-      const instruction=unknown?'保存结果尚未确认，不能确定是否已提交。可点重试。':error.code==='NAME_CONFLICT'?'名称冲突，请修改名称后重新保存。':error.code==='IDEMPOTENCY_CONFLICT'?'请求标识对应不同参数，请核对输入后发起新命令。':'';
-      $('#private-retry').hidden=!unknown;if(!unknown)saveCommand=null;
-      saveState('error',`${ui.error(error)} ${instruction} `);return;
-    }
-    saveCommand=null;$('#private-retry').hidden=true;saveState('success','私有条件已保存');loadPrivateList(listPage);
-  };
-  operation.timer=setTimeout(()=>{finishSave(null,{code:'REQUEST_TIMEOUT',message:'保存请求超过30秒'});operation.controller.abort();},30000);
-  window.RACohortAPI.save(command,{signal:operation.controller.signal}).then(result=>finishSave(result),error=>finishSave(null,error));
-}
-$('#save-cohort').addEventListener('click',()=>{if(disposed||checkIdentity())return;if(blockedEntry){showError(blockedEntry);return;}cancelSave();const dialog=$('#private-save-dialog');dialog.hidden=false;dialog.scrollIntoView?.({block:'center',behavior:'smooth'});$('#private-name').focus?.();});
-$('#private-cancel').addEventListener('click',cancelSave);
-$('#private-save').addEventListener('click',()=>saveCurrent());
-$('#private-retry').addEventListener('click',()=>saveCurrent(true));
-for(const selector of ['#private-name','#private-note'])$(selector).addEventListener('input',saveParametersChanged);
 window.addEventListener('pagehide',()=>{disposed=true;clearPrivate();invalidate({code:'REQUEST_CANCELLED',message:'已离开页面，请重新分析'});});
 window.addEventListener('pageshow',event=>{if(event.persisted){disposed=false;startEntry();}});
 window.addEventListener('popstate',()=>{if(!disposed)startEntry();});

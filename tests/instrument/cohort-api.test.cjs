@@ -126,13 +126,6 @@ test('cohort:api-contract', async () => {
     assert.equal(clock.get('#cohort-state').dataset.state,'success');assert.equal(clock.get('#patient-rows').children[0].children.find(n=>n.className==='patient-comorbidity').textContent,'FM '+expected+' · AS 未知');assert.equal(decoded.patients.items[0].clinical.fm,raw);assert.deepEqual(decoded,before,'真实API解析、guard及患者renderer不得改写源对象');assert.deepEqual(decoded.fm,{nFM:3,nOther:0,unknownN:3,status:'INSUFFICIENT_SAMPLE',reason:'GROUP_SIZE_LT_3',rows:[]});assert.equal(clock.get('#fm-summary').textContent,'FM 3 · 明确无FM 0 · 未知 3 · 样本不足 · 每组样本少于3人');clock.listeners.pagehide();
   }
 
-  const sourceClock=pageClock(),selectedDefinition=require('../fixtures/cohort-comparison.json').definition;
-  sourceClock.context.selectComparison('b',{source:'SAVED',cohortId:selectedDefinition.cohortId,item:selectedDefinition});assert.ok(sourceClock.get('#compare-source-b').textContent.includes(selectedDefinition.cohortId),'显式SAVED来源摘要须标明选中的独立定义ID');assert.equal(sourceClock.pending.length,1,'选择来源不能暗open或计数');
-  const comparisonClock=pageClock(),comparisonFixture=require('../fixtures/cohort-comparison.json').before;
-  comparisonClock.context.selectComparison('a',{source:'FILTERS',filters:comparisonFixture.a.filters});comparisonClock.context.selectComparison('b',{source:'FILTERS',filters:comparisonFixture.b.filters});comparisonClock.get('#compare-exclude').checked=false;comparisonClock.context.startComparison();
-  assert.equal(comparisonClock.pending.length,2);assert.equal(comparisonClock.pending[1].url,'/api/ra/ai/compare');assert.equal(comparisonClock.get('#compare-state').dataset.state,'loading');
-  comparisonClock.pending[1].resolve(new Response('non-json',{status:200,headers:{'Content-Type':'text/html','X-Trace-Id':'compare-unknown'}}));await new Promise(setImmediate);
-  assert.equal(comparisonClock.get('#compare-state').dataset.state,'error');assert.match(comparisonClock.get('#compare-state').textContent,/返回的数据不完整或无法识别/);assert.ok(comparisonClock.get('#compare-state').textContent.includes('不能确定是否已提交'));assert.equal(comparisonClock.context.window.RACohortComparison.getResource(),null);assert.equal(comparisonClock.pending.length,2,'未知提交不能隐藏重发');assert.equal(comparisonClock.timers.size,1,'比较结束不能释放仍合法的独立分析等待');
   const clock = pageClock();
   assert.equal(clock.pending.length,1);assert.equal(clock.get('#cohort-state').dataset.state,'loading');assert.equal(clock.get('#f-sex').disabled,false);
   const timer = [...clock.timers.values()][0];assert.equal(timer.ms,30000);

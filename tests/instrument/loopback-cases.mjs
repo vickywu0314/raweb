@@ -10,11 +10,9 @@ import {overviewBrowser} from './ai-overview-browser.mjs';
 import {patientFollowUpPolicyBrowser,trustedPatientBrowser,trustedPatientInteractionsBrowser,patientBrowser} from './cohort-patient-browser.mjs';
 import {applicationBrowser} from './cohort-application-browser.mjs';
 import {entryBrowser} from './cohort-entry-browser.mjs';
-import {exportBrowser,exportComparisonBrowser} from './cohort-export-browser.mjs';
+import {exportBrowser} from './cohort-export-browser.mjs';
 import {applyBrowser} from './cohort-apply-browser.mjs';
 import {parseBrowser} from './cohort-parse-browser.mjs';
-import {comparisonBrowser,statisticsComparisonBrowser,retainedComparisonBrowser,invalidatedComparisonBrowser} from './cohort-comparison-browser.mjs';
-import {privateBrowser,dynamicPrivateBrowser,commandsPrivateBrowser} from './cohort-private-browser.mjs';
 import {clinicalBrowser} from './cohort-clinical-browser.mjs';
 import {statisticsBrowser,literalStatistics} from './cohort-statistics-browser.mjs';
 import {paginationBrowser} from './cohort-pagination-browser.mjs';
@@ -131,44 +129,6 @@ browserRegistry['cohort:browser-clinical-source']=async owner=>{
  for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
 };
 
-// P03仅三路私有Controller的真实37人浏览器消费，仍由原唯一owner关闭全部资源。
-browserRegistry['cohort:browser-private-open']=async owner=>{
- const r=await owner.fixture(['--identity=synthetic','--scenario=p03']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
- const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>privateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-open',r));
- for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
-};
-
-browserRegistry['cohort:browser-private-dynamic']=async owner=>{
- const r=await owner.fixture(['--identity=synthetic','--scenario=p03']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
- const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>dynamicPrivateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-dynamic',r));
- for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
-};
-
-// P03b使用同一个registry/owner，仅扩真实元信息与删除消费者。
-browserRegistry['cohort:browser-private-commands']=async owner=>{
- const r=await owner.fixture(['--identity=synthetic','--scenario=p03']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
- const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>commandsPrivateBrowser(context,port,identity,owner,probe,pid,'cohort:browser-private-commands',r));
- for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
-};
-
-// P04普通14人同源比较；P04b按原owner准入保留重读。
-browserRegistry['cohort:browser-comparison-create']=async owner=>{
- const r=await owner.fixture(['--identity=synthetic','--scenario=p04']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,14);assert.equal(ready.json.data.studyTotal,14);
- assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run']);
- const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>comparisonBrowser(context,port,identity,owner,probe,pid,'cohort:browser-comparison-create',r));
- for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
-};
-
-// P04b仅扩原真实browser registry；默认五项、owner和seed机制不变。
-for(const [id,callback] of [['cohort:browser-comparison-statistics',statisticsComparisonBrowser],['cohort:browser-comparison-retained',retainedComparisonBrowser],['cohort:browser-comparison-invalidated',invalidatedComparisonBrowser]]){
- browserRegistry[id]=async owner=>{
-  const r=await owner.fixture(['--identity=synthetic','--scenario=p04']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,14);assert.equal(ready.json.data.studyTotal,14);
-  assert.deepEqual(r.events.filter(e=>e.type==='table-owned').map(e=>e.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run']);
-  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>callback(context,port,identity,owner,probe,pid,id,r));
-  for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
- };
-}
-
 // P05只开放parse，普通37人分析/页保留，合成peer与审计仍归既有owner。
 for(const id of ['cohort:browser-parse-rule','cohort:browser-parse-safety']){
  browserRegistry[id]=async owner=>{
@@ -208,13 +168,6 @@ browserRegistry['cohort:browser-export-cohort']=async owner=>{
  const r=await owner.fixture(['--identity=synthetic','--scenario=p06-cohort']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,37);assert.equal(ready.json.data.studyTotal,37);
  const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,exportBrowser);
  for(const event of r.events.filter(e=>e.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
-};
-
-browserRegistry['cohort:browser-export-comparison']=async owner=>{
- const r=await owner.fixture(['--identity=synthetic','--scenario=p06-comparison']);const ready=await owner.ready(r,200);assert.equal(ready.json.data.n,14);assert.equal(ready.json.data.studyTotal,14);
- assert.deepEqual(r.events.filter(event=>event.type==='table-owned').map(event=>event.table),['patient_basic_info','patient_relation_doctor','patient_follow_up_history','patient_comorbidity','ra_ai_analysis_run','ra_private_cohort_definition','ra_private_cohort_command','ra_ai_compare_run','ra_ai_export_audit']);
- const port=await owner.proxy(r);await owner.browserScenario(port,'synthetic',undefined,(context,port,identity,owner,probe,pid)=>exportComparisonBrowser(context,port,identity,owner,probe,pid,r));
- for(const event of r.events.filter(event=>event.type==='http-observation')){assert.equal(event.active,0);assert.equal(event.borrowed,event.returned);}
 };
 
 // P06c 每case真实两表/SMTP独立fixture，owner不复用上一case的资源。

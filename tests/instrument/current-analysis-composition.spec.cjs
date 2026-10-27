@@ -4,7 +4,7 @@ const {writeFile}=require('node:fs/promises');
 const f=require('./current-analysis-fixture.cjs');
 test('cohort:current-composition',async({page,context,browser})=>{
  test.setTimeout(90000);
- const origin=process.env.RA_STATIC_URL,requests=[],blocked=[],errors=[];let serial=1,saved=null;
+ const origin=process.env.RA_STATIC_URL,requests=[],blocked=[],errors=[];let serial=1;
  const auth=await installAuthBootstrap(context);page.on('pageerror',error=>errors.push(error.message));
  await context.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url());if(url.origin!==origin){blocked.push(req.url());return route.abort('blockedbyclient');}if(await auth.handle(route))return;if(!url.pathname.startsWith('/api/'))return route.continue();
@@ -21,10 +21,6 @@ test('cohort:current-composition',async({page,context,browser})=>{
    case '/api/ra/ai/patientInsight':data=f.insight();break;
    case '/api/ra/ai/resolveEntry':data=f.entry();break;
    case '/api/ra/ai/chat':data=f.chat(body.scope.kind,body.scope.filters,body.scope.visitId??null);break;
-   case '/api/ra/cohort/save':saved={cohortId:'00000000-0000-4000-8000-000000000700',name:body.name,note:body.note??null,filters:f.filters({sex:'F'}),version:1,createdAt:'2026-10-07T02:00:00Z',updatedAt:'2026-10-07T02:00:00Z',currentN:null};data={cohortId:saved.cohortId,version:1,meta:{traceId:f.TRACE}};break;
-   case '/api/ra/cohort/list':data={page:body.page,size:20,total:saved?1:0,items:saved?[saved]:[],meta:{traceId:f.TRACE}};break;
-   case '/api/ra/cohort/open':data={cohort:saved,analysis:f.cohort('F',serial++),meta:{traceId:f.TRACE}};break;
-   case '/api/ra/ai/compare':data=f.comparison(body,saved);break;
    default:throw Error('Unexpected current journey path '+path);
   }
   return route.fulfill({status:200,contentType:'application/json',headers:{'X-Trace-Id':f.TRACE},body:JSON.stringify({success:true,code:'200',message:'成功',data})});

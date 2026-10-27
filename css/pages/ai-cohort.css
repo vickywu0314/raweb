@@ -215,18 +215,6 @@ a.ai-row:hover {
 .patient-read-time { color:#52606f; font-size:var(--fs-sm); overflow-wrap:anywhere; }
 @media (max-width:600px) { .patient-sources { grid-template-columns:minmax(0,1fr); } }
 
-.private-cohorts{margin-top:20px}.private-cohorts header,.private-actions{display:flex;gap:12px;align-items:center;justify-content:space-between}.private-cohorts label{display:block;margin:12px 0}.private-cohorts input,.private-cohorts textarea{display:block;width:100%;max-width:600px;padding:10px;border:1px solid var(--border,#dce1e8);border-radius:6px}#private-save-dialog{border-top:1px solid #dce1e8;padding-top:12px}#private-save-state[data-state="error"]{color:#a12b20}
-
-.private-item{padding:14px 0;border-bottom:1px solid #dce1e8;overflow-wrap:anywhere}.private-item button{display:block;margin-top:10px}.private-cohorts [data-state="error"]{color:#a12b20}#private-open-meta{overflow-wrap:anywhere}
-
-#private-command-dialog{border-top:1px solid #dce1e8;padding-top:12px}#private-command-target{overflow-wrap:anywhere;white-space:pre-wrap}.private-cohorts select{padding:8px;max-width:100%}.private-cohorts [hidden]{display:none}
-
-.comparison-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.comparison-slots p,#compare-result p{overflow-wrap:anywhere;white-space:pre-wrap}#comparison input[type="checkbox"]{width:auto}@media(max-width:700px){.comparison-slots{grid-template-columns:1fr}}
-
-#compare-table{width:100%;min-width:900px;border-collapse:collapse}#compare-table th,#compare-table td{padding:10px;vertical-align:top;border-bottom:1px solid #d9e2ec;text-align:left;overflow-wrap:anywhere}#compare-table th:first-child{min-width:100px}#compare-table td{min-width:150px}.stat-significant{display:block;color:#6b3f12}
-
-.comparison-coverage{display:block;margin-top:6px;color:#536579;font-size:12px}
-
 .parse-panel{margin:12px 0;padding:12px;border:1px solid #dbe4ef;border-radius:8px;background:#f7faff}.parse-panel [data-state="error"]{color:#a12622}
 .parse-panel[data-parse-status="PARTIAL"]{border-color:#aa7614;background:#fff9e9}.parse-panel[data-parse-status="PARTIAL"] #parse-state{font-weight:600;color:#755108}
 
@@ -244,9 +232,6 @@ a.ai-row:hover {
 #cohort-state { margin-block:16px; }
 #reanalyze { margin-top:12px; }
 .export-panel #export-state { margin-top:10px; }
-.private-cohorts > p { margin:12px 0; }
-#comparison > * + * { margin-top:12px; }
-#comparison > label { display:flex; align-items:center; gap:8px; }
 
 /* 2026-10-20 按原型（10/02 静态页）对齐样式：只改外观，不改文字与数据属性 */
 .builder #reanalyze { margin-top:10px; }
@@ -316,10 +301,6 @@ a.ai-row:hover {
 .patient-provenance summary { color:#8a98ab; }
 .more { display:block; margin:14px 0 0; }
 
-/* 私有条件、两队列比较放在名单之后 */
-.private-cohorts,
-#comparison { margin:16px 0; }
-.private-cohorts > p { color:#8a98ab; font-size:var(--fs-sm); }
 /* 名单单元格过长时收成 3 行，鼠标移到该行显示全部；完整来源仍在「临床来源与质量」 */
 #patient-rows .ai-row > .patient-treatment,
 #patient-rows .ai-row > .patient-duration,

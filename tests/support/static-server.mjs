@@ -4,7 +4,7 @@ import { resolve, extname, sep } from 'node:path';
 const root = resolve(process.argv[2]);
 const probe = process.argv[3];
 const fileCase=process.argv[4];
-const fileControl=['cohort:export-binary-errors','cohort:export-terminal','cohort:export-comparison'].includes(fileCase);
+const fileControl=['cohort:export-binary-errors','cohort:export-terminal'].includes(fileCase);
 let fileMode='hold',filePending=null,fileRequests=0;
 if (probe === 'server-start-fail') throw new Error('Controlled server startup failure');
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.json': 'application/json' };
@@ -26,7 +26,7 @@ const server = http.createServer(async (req, res) => {
     }
     if(fileControl&&pathname==='/api/ra/export/xlsx'&&req.method==='POST'){
       const chunks=[];for await(const chunk of req)chunks.push(chunk);
-      const command=JSON.parse(Buffer.concat(chunks));if(command.source!=='COHORT'&&!(fileCase==='cohort:export-comparison'&&command.source==='COMPARE')){res.writeHead(400).end();return;}
+      const command=JSON.parse(Buffer.concat(chunks));if(command.source!=='COHORT'){res.writeHead(400).end();return;}
       if(filePending&&!filePending.res.destroyed){res.writeHead(409).end();return;}
       const bytes=await readFile(resolve(root,'tests/fixtures/cohort-export.xlsx'));
       const headers={'Content-Type':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','Content-Length':bytes.length+(fileMode==='partial'?64:0),'Content-Disposition':'attachment; filename="controlled-cohort.xlsx"','Cache-Control':'no-store','X-Trace-Id':'trace-controlled-file'};

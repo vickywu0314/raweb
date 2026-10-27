@@ -59,7 +59,7 @@ test('cohort:parse-preserve-errors',async({page,context,browser})=>{
   for(const [fault,code] of [[[400,'INVALID_REQUEST'],'INVALID_REQUEST'],[[400,'INVALID_FILTER'],'INVALID_FILTER'],[[413,'LIMIT_EXCEEDED'],'LIMIT_EXCEEDED'],[[503,'SERVICE_UNAVAILABLE'],'SERVICE_UNAVAILABLE'],['network','NETWORK_ERROR'],['nonjson','INVALID_RESPONSE'],['invalid','INVALID_RESPONSE']]){
    mode='ok';await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-state')).toHaveAttribute('data-state','success');mode=fault;const n=o.requests.length;await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-state')).toHaveAttribute('data-state','error');await expect(page.locator('#parse-state')).toContainText(expectedError[code]);if(!['network'].includes(fault))await expect(page.locator('#parse-state')).not.toContainText('trace-p05');await expect(page.locator('#parse-candidate')).toHaveText('');await expect(page.locator('#parse-dismiss')).toBeHidden();await expect(page.locator('#question')).toHaveValue('女性且吸烟');expect(await snapshot(page)).toEqual(old);expect(o.requests).toHaveLength(n+1);
   }
-  mode=[401,'UNAUTHENTICATED'];await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-state')).toContainText('登录已失效，请重新登录');await expect(page.locator('#results')).not.toHaveAttribute('data-analysis-id');await expect(page.locator('#patient-rows > *')).toHaveCount(0);await expect(page.locator('#private-items > *')).toHaveCount(0);await expect(page.locator('#compare-start')).toBeDisabled();await expect(page.locator('#login-return')).toBeVisible();expect(o.pageErrors).toEqual([]);
+  mode=[401,'UNAUTHENTICATED'];await page.locator('#question-form button[type="submit"]').click();await expect(page.locator('#parse-state')).toContainText('登录已失效，请重新登录');await expect(page.locator('#results')).not.toHaveAttribute('data-analysis-id');await expect(page.locator('#patient-rows > *')).toHaveCount(0);await expect(page.locator('#export')).toBeDisabled();await expect(page.locator('#login-return')).toBeVisible();expect(o.pageErrors).toEqual([]);
  }finally{await o.save();}
 });
 const gate=()=>{let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
@@ -68,28 +68,20 @@ async function inertParseAbort(context){await context.addInitScript(()=>{
  const original=window.fetch;window.fetch=async(...args)=>{const response=await original(...args),json=response.json.bind(response);response.json=async()=>{const value=await json();window.__parseReads.push({url:String(args[0]),value});return value;};return response;};
 });}
 test('cohort:parse-late-isolation',async({page,context,browser})=>{
- const holds=[],queue=[],producers=[],producerQueue=[];let serial=60,analysisSerial=1000,reply=fixtures.OK,comparePending=null;
+ const holds=[],queue=[],producers=[],producerQueue=[];let serial=60,analysisSerial=1000,reply=fixtures.OK;
  await inertParseAbort(context);await page.clock.install();
- const comparison=require('../fixtures/cohort-comparison.json').before;
- const definition=require('../fixtures/cohort-private.json').cohort;
  const clone=x=>JSON.parse(JSON.stringify(x));
  const produce=async(route,r,kind)=>{
   const hold=producerQueue.shift();if(hold)expect(hold.kind).toBe(kind);
   const data={...clone(U),analysisId:`00000000-0000-0000-0000-${String(analysisSerial++).padStart(12,'0')}`};
   const owner={kind,analysisId:data.analysisId,request:r,data};producers.push(owner);
   if(hold){hold.owner=owner;hold.received.resolve();await hold.release.promise;}
-  return fulfill(route,kind==='open'?{cohort:definition,analysis:data,meta:{traceId:'trace-p05'}}:data);
+  return fulfill(route,data);
  };
  const o=await setup({page,context,browser},'cohort:parse-late-isolation',async(route,r)=>{
   if(r.url.endsWith('/ai/parse')){const h=queue.shift();if(h){h.received.resolve();await h.release.promise;return fulfill(route,h.data);}return fulfill(route,reply);}
   if(r.url.endsWith('/ai/applyParse'))return fulfill(route,{questionRef:r.body.questionRef,parseStatus:r.body.parseStatus,applyMode:'REPLACE_EXCEPT_IDS',applied:true,filters:{studyCode:'RA',sex:'F',age:null,sero:null,tx:null,at:'now',act:null,cm:null,data:null,ids:r.body.currentFilters.ids??null},meta:{...fixtures.OK.meta,traceId:'trace-p05-apply',durationMs:4}},200,'200','trace-p05-apply');
-  if(r.url.endsWith('/list'))return fulfill(route,{items:[definition],total:1,page:1,size:20,meta:{traceId:'trace-p05'}});
-  if(r.url.endsWith('/open'))return produce(route,r,'open');
   if(r.url.endsWith('/ai/cohort'))return produce(route,r,'cohort');
-  if(r.url.endsWith('/ai/compare')||r.url.endsWith('/ai/compareResult')){
-   if(comparePending){const h=comparePending;comparePending=null;h.received.resolve();await h.release.promise;}
-   const data=clone(comparison);data.meta.traceId='trace-p05';if(r.body.a)for(const side of ['a','b']){const input=r.body[side],filters=input.source==='SAVED'?definition.filters:input.filters;data[side].source=input.source;data[side].cohortId=input.source==='SAVED'?definition.cohortId:null;data[side].cohortVersion=input.source==='SAVED'?definition.version:null;data[side].filters={studyCode:'RA',sex:null,age:null,sero:null,tx:null,at:'now',act:null,cm:null,data:null,ids:null,...Object.fromEntries(Object.entries(filters).map(([k,v])=>[k,v===''?null:v]))};}return fulfill(route,data);
-  }
   return fulfill(route,U);
  });
  const arm=()=>{const h={received:gate(),release:gate(),data:{...clone(PARTIAL),questionRef:`00000000-0000-0000-0000-${String(serial++).padStart(12,'0')}`}};holds.push(h);queue.push(h);return h;};
@@ -102,7 +94,7 @@ test('cohort:parse-late-isolation',async({page,context,browser})=>{
  };
  const nextProducer=async count=>{await expect.poll(()=>producers.length).toBe(count+1);return producers[count];};
  const holdProducer=kind=>{const h={kind,received:gate(),release:gate()};holds.push(h);producerQueue.push(h);return h;};
- const counts=()=>({parse:parseCalls(o).length,apply:o.requests.filter(r=>r.url.endsWith('/ai/applyParse')).length,cohort:o.requests.filter(r=>r.url.endsWith('/ai/cohort')).length,open:o.requests.filter(r=>r.url.endsWith('/open')).length,total:o.requests.length});
+ const counts=()=>({parse:parseCalls(o).length,apply:o.requests.filter(r=>r.url.endsWith('/ai/applyParse')).length,cohort:o.requests.filter(r=>r.url.endsWith('/ai/cohort')).length,total:o.requests.length});
  const fresh=async()=>{const before=producers.length;await page.goto(o.origin+'/ai-cohort.html?sex=M&tx=TNFi&ids=1');await o.auth.verify(page);await published(await nextProducer(before));await page.locator('#question').fill('女性且吸烟');};
  const start=async()=>{const h=arm();await submit();await h.received.promise;await expect(page.locator('#parse-state')).toHaveAttribute('data-state','loading');return h;};
  const release=async h=>{h.release.resolve();await page.waitForFunction(id=>window.__parseReads.some(r=>r.value?.data?.questionRef===id),h.data.questionRef);await page.evaluate(async()=>{await Promise.resolve();await Promise.resolve();});};
@@ -121,7 +113,7 @@ test('cohort:parse-late-isolation',async({page,context,browser})=>{
    if(order==='late-parse-before-current'){current.release.resolve();await published(current.owner);}
    const complete=await state();await page.clock.runFor(30001);expect(await state(),order+'退休timer不能扰动合法新结果').toEqual(complete);expect(counts()).toEqual(n);
   }
-  const actions=[['question',()=>page.locator('#question').fill('新问题')],...Object.entries({sex:'F',age:'18-40',sero:'1',tx:'JAKi',at:'6m',act:'target',cm:'FM',data:'complete'}).map(([k,v])=>['condition-'+k,()=>page.locator('#f-'+k).selectOption(v)]),['reanalyze',()=>page.locator('#reanalyze').click()],['reset',()=>page.locator('#reset').click()],['chip',()=>page.locator('#chips [data-key=ids]').click()],['popstate',()=>page.evaluate(()=>{history.pushState(null,'','?sex=F');dispatchEvent(new PopStateEvent('popstate'));})],['current-a',()=>page.locator('#compare-current-a').click()],['current-b',()=>page.locator('#compare-current-b').click()],['swap',()=>page.locator('#compare-swap').click()],['exclude',()=>page.locator('#compare-exclude').check()],['cancel',()=>page.locator('#parse-cancel').click()],['timeout',()=>page.clock.runFor(30001)],['identity',()=>page.evaluate(()=>{sessionStorage.setItem('ra-auth',JSON.stringify({name:'新合成身份',role:'研究者',expires:0}));dispatchEvent(new Event('focus'));})],['pagehide',()=>page.evaluate(()=>dispatchEvent(new Event('pagehide')))]];
+  const actions=[['question',()=>page.locator('#question').fill('新问题')],...Object.entries({sex:'F',age:'18-40',sero:'1',tx:'JAKi',at:'6m',act:'target',cm:'FM',data:'complete'}).map(([k,v])=>['condition-'+k,()=>page.locator('#f-'+k).selectOption(v)]),['reanalyze',()=>page.locator('#reanalyze').click()],['reset',()=>page.locator('#reset').click()],['chip',()=>page.locator('#chips [data-key=ids]').click()],['popstate',()=>page.evaluate(()=>{history.pushState(null,'','?sex=F');dispatchEvent(new PopStateEvent('popstate'));})],['cancel',()=>page.locator('#parse-cancel').click()],['timeout',()=>page.clock.runFor(30001)],['identity',()=>page.evaluate(()=>{sessionStorage.setItem('ra-auth',JSON.stringify({name:'新合成身份',role:'研究者',expires:0}));dispatchEvent(new Event('focus'));})],['pagehide',()=>page.evaluate(()=>dispatchEvent(new Event('pagehide')))]];
   for(const [name,act] of actions){
    await fresh();const h=await start(),n=parseCalls(o).length,before=producers.length;await act();await closed();
    if(name.startsWith('condition-')||['reanalyze','reset','chip','popstate'].includes(name))await published(await nextProducer(before));
@@ -129,20 +121,7 @@ test('cohort:parse-late-isolation',async({page,context,browser})=>{
    if(name==='timeout'||name==='cancel')await expect(page.locator('#parse-state')).toContainText(name==='timeout'?'等待超时，请重试':'等待已取消');if(name==='identity'||name==='pagehide')await expect(page.locator('#patient-rows > *')).toHaveCount(0);
    const stable=await state(),requestCount=counts();await release(h);expect(await state(),name+'迟到不能复活').toEqual(stable);expect(counts()).toEqual(requestCount);await page.clock.runFor(30001);expect(await state(),name+'timer已退休').toEqual(stable);expect(counts()).toEqual(requestCount);expect(parseCalls(o)).toHaveLength(n);
   }
-  for(const source of ['a','b','open']){
-   await fresh();await page.locator('#private-list-load').click();await expect(page.locator('#private-list-state')).toHaveAttribute('data-state','success');const h=await start(),before=producers.length;
-   await page.locator(source==='open'?`[data-open-cohort="${definition.cohortId}"]`:`[data-compare-side="${source}"][data-compare-cohort="${definition.cohortId}"]`).click();await closed();
-   if(source==='open')await published(await nextProducer(before));else expect(producers).toHaveLength(before);
-   const stable=await state(),n=counts();await release(h);expect(await state()).toEqual(stable);expect(counts()).toEqual(n);await page.clock.runFor(30001);expect(await state()).toEqual(stable);expect(counts()).toEqual(n);
-  }
   await fresh();reply=PARTIAL;await submit();await expect(page.locator('#parse-dismiss')).toBeVisible();const old=await snapshot(page);await page.locator('#parse-dismiss').click();await closed();expect(await snapshot(page)).toEqual(old);reply=fixtures.OK;
-  for(const action of ['compare-start','compare-read','compare-cancel']){
-   let comparisonHold=null;
-   await fresh();await page.locator('#compare-current-a').click();await page.locator('#compare-current-b').click();
-   if(action==='compare-read'){await page.locator('#compare-start').click();await expect(page.locator('#compare-read')).toBeVisible();}
-   if(action==='compare-cancel'){const pending={received:gate(),release:gate()};comparisonHold=pending;comparePending=pending;holds.push(pending);await page.locator('#compare-start').click();await pending.received.promise;}
-   const h=await start();await page.locator('#'+action).click();if(comparisonHold)comparisonHold.release.resolve();await closed();const stable=await state();await release(h);expect(await state()).toEqual(stable);
-  }
   await fresh();const bfcache=await start(),beforeReentry=producers.length;await page.evaluate(()=>{dispatchEvent(new Event('pagehide'));const e=new Event('pageshow');Object.defineProperty(e,'persisted',{value:true});dispatchEvent(e);});await published(await nextProducer(beforeReentry));await closed();const rebuilt=await state(),reentryCounts=counts();await release(bfcache);expect(await state()).toEqual(rebuilt);expect(counts()).toEqual(reentryCounts);await page.clock.runFor(30001);expect(await state()).toEqual(rebuilt);expect(counts()).toEqual(reentryCounts);
   expect(o.pageErrors).toEqual([]);expect(await page.evaluate(()=>window.__parseAborts)).toBeGreaterThan(0);expect(o.requests.filter(r=>r.url.endsWith('/applyParse')).every(r=>r.body.parseStatus==='OK'&&r.body.question===undefined)).toBe(true);
  }finally{for(const h of holds)h.release.resolve();await o.save();}

@@ -21,12 +21,12 @@ test('screenshots:repair-contract',async t=>{
   assert.match(css,/\.journey-content\s*\{[^}]*min-width:\s*0/);
   assert.match(css,/\.insight-table-wrap\s*\{[^}]*overflow-x:\s*auto/);
  });
- await t.test('导出申请按钮、人数说明、外置搜索提示与比较表可达性装配',()=>{
+ await t.test('导出申请按钮、人数说明、外置搜索提示与统计表滚动装配',()=>{
   const cohort=source('ai-cohort.html'),home=source('ai-analysis.html');
   assert.match(cohort,/受影响人数是整个受阻聚合的有效人数，人数不可跨原因相加/);assert.doesNotMatch(cohort,/affectedN/);
   for(const id of ['export-default','export-confirm','export-eligible','application-open','export-cancel','application-submit','application-dismiss','application-replay','application-retry-notification','application-cancel']){const button=cohort.match(new RegExp('<button[^>]*id="'+id+'"[^>]*>'))?.[0];assert.ok(button,id);assert.match(button,/class="[^"]*\bbutton\b/);}
   assert.match(source('css/common.css'),/\.button:disabled\s*\{[^}]*cursor:not-allowed/);
-  assert.match(cohort,/id="compare-table-scroll"[^>]*tabindex="0"[^>]*aria-describedby="compare-scroll-hint"/);assert.match(source('css/pages/ai-cohort.css'),/\.statistics-table-wrap\s*\{[^}]*overflow-x:auto/);assert.match(source('css/pages/ai-cohort.css'),/#compare-table\{[^}]*min-width:900px/);
+  assert.match(source('css/pages/ai-cohort.css'),/\.statistics-table-wrap\s*\{[^}]*overflow-x:auto/);
   assert.match(home,/placeholder="输入姓名、ID号或研究编号选择患者" aria-describedby="patient-search-hint"/);assert.match(home,/<p id="patient-search-hint">输入时显示本人 RA 患者候选，最多 8 位。<\/p>/);
  });
  await t.test('聊天共用导航语义和皮肤，保持零演示脚本',()=>{
