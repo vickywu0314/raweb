@@ -38,12 +38,31 @@ function moduleSummary(m){
  const key=m.key||({bqpg:'assessment',zlfa:'treatment',blsj:'adverse'})[m.column];
  return key==='assessment'?assessmentSummary(m):key==='treatment'?treatmentSummary(m):key==='adverse'?adverseSummary(m):'';
 }
+// 辅助检查的检验参考范围与异常标记：后端 referenceMin / referenceMax（可单侧）与 abnormal 'high' | 'low' | null（raapi docs/API.md §4.1），前端不自行判断
+const isExam=m=>m.key==='exam'||m.column==='fzjc';
+const refNum=x=>typeof x==='number'&&Number.isFinite(x)?x:null;
+const abnormalOf=i=>i&&(i.abnormal==='high'||i.abnormal==='low')?i.abnormal:null;
+function refText(i){const lo=refNum(i.referenceMin),hi=refNum(i.referenceMax);return lo!=null&&hi!=null?`${lo}–${hi}`:lo!=null?`≥${lo}`:hi!=null?`≤${hi}`:'';}
+const shortLabel=l=>{l=String(l??'');return l.split(/\s+/).find(w=>/[A-Za-z]/.test(w))||l;};
+function abnormalToolbar(m){
+ const items=(m.groups||[]).flatMap(g=>g.items||[]).filter(Boolean);
+ const ab=items.filter(abnormalOf);
+ if(!ab.length&&!items.some(i=>refText(i)))return '';
+ if(!ab.length)return '<div class="abnormal-toolbar is-normal"><div><strong>检验指标均在参考区间内</strong><span>已配置参考区间的检验项本次均未超出；参考区间以医院检验科为准。</span></div></div>';
+ return `<div class="abnormal-toolbar"><div><strong>异常指标 ${ab.length} 项</strong><span>${ab.map(i=>`${escapeHTML(shortLabel(i.label))} ${escapeHTML(i.value)}${abnormalOf(i)==='high'?'↑':'↓'}`).join(' · ')}</span></div><button class="button compact" id="toggle-abnormal" type="button" aria-pressed="false">仅看异常</button></div>`;
+}
+function fieldHTML(i,exam){
+ const ab=exam?abnormalOf(i):null,ref=exam?refText(i):'';
+ return `<div class="detail-field${i.notChecked?' not-checked':''}${ab?' metric-row '+ab:''}"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.value)}${ab?`<b class="abnormal-arrow" aria-label="${ab==='high'?'偏高':'偏低'}">${ab==='high'?'↑':'↓'}</b>`:''}${i.unit?`<small class="field-unit">${escapeHTML(i.unit)}</small>`:''}</strong>${ref?`<small class="field-ref" title="参考区间 ${escapeHTML(ref)}${i.unit?' '+escapeHTML(i.unit):''}，以医院检验科为准">参考 ${escapeHTML(ref)}</small>`:''}</div>`;
+}
 function moduleBody(m,trusted=false){
  if(!m.filled)return '<p class="module-empty">本次未记录</p>';
+ const exam=isExam(m);
  let html=moduleSummary(m);
+ if(exam){html+=abnormalToolbar(m);html+='<div class="lab-groups">';}
  if(m.record)html+=`<div class="visit-record">${escapeHTML(m.record)}</div>`;
  (m.groups||[]).forEach(g=>{
-  html+=`<div class="subcard">${g.title?`<h3>${escapeHTML(g.title)}</h3>`:''}<div class="detail-fields">${g.items.map(i=>`<div class="detail-field${i.notChecked?' not-checked':''}"><span>${escapeHTML(i.label)}</span><strong>${escapeHTML(i.value)}${i.unit?`<small class="field-unit">${escapeHTML(i.unit)}</small>`:''}</strong></div>`).join('')}</div></div>`;
+  html+=`<div class="subcard">${g.title?`<h3>${escapeHTML(g.title)}</h3>`:''}<div class="detail-fields">${g.items.map(i=>fieldHTML(i,exam)).join('')}</div></div>`;
  });
  (m.tables||[]).forEach(t=>{
   html+=`<div class="subcard"><h3>${escapeHTML(t.title)} <small class="table-count">${t.rows.length} 项</small></h3><div class="visit-table-wrap"><table class="visit-table"><thead><tr>${t.columns.map(c=>`<th>${escapeHTML(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r=>`<tr>${r.map(c=>`<td>${escapeHTML(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
@@ -52,6 +71,7 @@ function moduleBody(m,trusted=false){
   html+=`<div class="subcard"><h3>${escapeHTML(g.title)} <small class="table-count">${g.urls.length} 张</small></h3><div class="visit-images">${g.urls.map((u,i)=>{const safe=trusted?trustedImageUrl(u):u;return safe?`<a href="${escapeHTML(safe)}" target="_blank" rel="noopener" title="点击查看原图"><img src="${escapeHTML(safe)}" alt="${escapeHTML(g.title)} ${i+1}" loading="lazy"></a>`:'<span>图片地址不可用</span>'}).join('')}</div></div>`;
  });
  if(m.recordDate)html+=`<p class="record-date">记录日期：${escapeHTML(m.recordDate)}</p>`;
+ if(exam)html+='</div>';
  return html;
 }
 function renderSections(v,trusted=false){
@@ -61,9 +81,15 @@ function renderSections(v,trusted=false){
  document.querySelector('.detail-anchor').innerHTML=modules.map((m,i)=>`<a href="#section-${i}"><i>${m.filled||m.legacyAdverse?'✓':'–'}</i>${escapeHTML(m.title)}</a>`).join('');
  // 左侧导航：有内容 ✓，没内容 –
  [...document.querySelectorAll('.detail-anchor a')].forEach((a,i)=>{const m=modules[i];if(!m)return;const filled=m.filled||!!m.legacyAdverse;a.classList.toggle('is-empty',!filled);const mark=a.querySelector('i');if(mark)mark.textContent=filled?'✓':'–'});
+ bindAbnormalToggle();
  return bindSectionNav();
 }
 
+// 辅助检查「仅看异常」：只显示有异常标记的检验项，再点恢复全部
+function bindAbnormalToggle(){
+ const btn=$('#toggle-abnormal');if(!btn)return;
+ btn.onclick=()=>{const box=btn.closest&&btn.closest('.detail-section')?.querySelector('.lab-groups');if(!box)return;const on=box.classList.toggle('abnormal-only');btn.textContent=on?'查看全部指标':'仅看异常';btn.setAttribute('aria-pressed',String(on));};
+}
 // 左侧导航：点击滚动到模块；滚动时高亮当前模块
 function bindSectionNav(){
  const anchors=[...document.querySelectorAll('.detail-anchor a')], sections=[...document.querySelectorAll('.detail-section')];

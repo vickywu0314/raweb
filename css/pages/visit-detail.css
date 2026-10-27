@@ -461,21 +461,19 @@
   margin-top:2px;
 }
 
-.abnormal-only .metric-card {
+.abnormal-only .subcard,
+.abnormal-only .visit-record,
+.abnormal-only .record-date,
+.abnormal-only .module-note {
   display:none;
 }
 
-.abnormal-only .metric-card:has(.metric-row.high),
-.abnormal-only .metric-card:has(.metric-row.low) {
+.abnormal-only .subcard:has(.metric-row.high),
+.abnormal-only .subcard:has(.metric-row.low) {
   display:block;
 }
 
-.abnormal-only .metric-card .metric-list>div:not(.high):not(.low) {
-  display:none;
-}
-
-.abnormal-only .subcard:not(.metric-card),
-.abnormal-only .module-note {
+.abnormal-only .detail-field:not(.high):not(.low) {
   display:none;
 }
 
@@ -910,3 +908,13 @@
 .adverse-status.has-event{border-color:#f0c3bf;background:#fff6f5}
 .adverse-status.has-event strong{color:#b23a31}
 .adverse-status em.sae,.ae-card h3 em.sae{font-style:normal;background:#fbe6e4;color:#b23a31;font-size:11px;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:6px;vertical-align:middle}
+
+/* 辅助检查：检验参考区间与异常标记（后端 referenceMin / referenceMax / abnormal） */
+.abnormal-toolbar.is-normal{border-color:#cfe8da;background:#f4fbf7}
+.abnormal-toolbar.is-normal strong{color:#16794c}
+.abnormal-toolbar.is-normal span{color:#5f7d6c}
+.abnormal-toolbar .button[aria-pressed="true"]{background:#fbe6e4;border-color:#f2c9c6;color:#b23a31}
+.detail-field.metric-row.high,.detail-field.metric-row.low{margin:0;padding:13px;border:1px solid #f2c9c6!important;border-radius:9px;background:#fff4f3}
+.detail-field .abnormal-arrow{color:#c43d36}
+.field-ref{display:block;margin-top:3px;color:#9aa6b4;font-size:11px;font-weight:400;font-variant-numeric:tabular-nums}
+.detail-field.metric-row .field-ref{color:#b0756f}
