@@ -678,3 +678,49 @@
 .journey .insight-record::before { left:98px; }
 .journey:before { left:104px; }
 #cancel-load { display:none !important; } /* 不显示「取消读取」：加载中只提示「正在智能分析患者数据…」 */
+
+/* 疾病活动轨迹（DAS28-CRP；分层底色与页面 actOf 同一切点 2.3 / 2.7 / 4.1） */
+.trend-panel .panel-title { flex-wrap:wrap; gap:10px 18px; }
+.trend-chart { min-width:0; }
+.trend-chart svg { display:block; width:100%; height:auto; overflow:visible; }
+.trend-chart .band.remission { fill:#e9f6ef; }
+.trend-chart .band.low { fill:#f1f8e8; }
+.trend-chart .band.moderate { fill:#fdf6e9; }
+.trend-chart .band.high { fill:#fcefee; }
+.trend-chart .band-label { font-size:10.5px; fill:#8f9db0; }
+.trend-chart .grid { stroke:#e1e8f1; stroke-dasharray:3 4; }
+.trend-chart .axis { font-size:11px; fill:#7f8ea3; }
+.trend-chart .crp-axis { fill:#8aa0bd; }
+.trend-chart .area { fill:rgba(11,92,204,.06); }
+.trend-chart .line { fill:none; stroke:#0b5ccc; stroke-width:2.4; stroke-linejoin:round; stroke-linecap:round; }
+.trend-chart .dot { stroke:#fff; stroke-width:2; }
+.trend-chart .dot-link { cursor:pointer; }
+.trend-chart .dot-link:hover .dot,.trend-chart .dot-link:focus-visible .dot { r:7; }
+.trend-chart .dot-link:focus { outline:none; }
+.trend-chart .dot-link:focus-visible .dot { stroke:#0b5ccc; stroke-width:2.5; }
+.trend-chart .dot.remission { fill:#1f9d63; }
+.trend-chart .dot.low { fill:#6cbf3a; }
+.trend-chart .dot.moderate { fill:#e09a1a; }
+.trend-chart .dot.high { fill:#d0453b; }
+.trend-chart .crp-bar { fill:#b9c9df; opacity:.75; }
+.trend-chart .crp-bar:hover { opacity:1; fill:#8aa6cc; }
+.trend-chart .switch { stroke:#7a5ad8; stroke-width:1.5; stroke-dasharray:4 3; }
+.trend-chart .switch-hit { stroke:transparent; stroke-width:10; }
+.trend-chart .switch-label { font-size:11px; font-weight:600; fill:#6a4cc7; }
+.trend-chart .switch-mark.estimated .switch { stroke:#b7a6ea; stroke-dasharray:2 4; }
+.trend-chart .switch-mark.estimated .switch-label { fill:#9a88d6; font-weight:500; font-style:italic; }
+.trend-chart .trend-empty { margin:0; padding:18px 0 6px; color:var(--muted); font-size:var(--fs-sm); }
+.trend-legend { display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; color:#6b7d96; font-size:var(--fs-xs); }
+.trend-legend[hidden] { display:none; }
+.trend-legend span { display:inline-flex; align-items:center; gap:6px; }
+.lg-line { display:inline-block; width:18px; height:2.5px; border-radius:2px; background:#0b5ccc; }
+.lg-bar { display:inline-block; width:8px; height:12px; border-radius:1px; background:#b9c9df; }
+.lg-switch { display:inline-block; width:0; height:14px; border-left:1.5px dashed #7a5ad8; }
+.lg-switch.estimated { border-left:1.5px dotted #b7a6ea; }
+.viz-tip { position:fixed; z-index:120; box-sizing:border-box; white-space:normal; overflow-wrap:anywhere; max-width:min(360px,calc(100vw - 16px)); padding:6px 10px; border-radius:7px; background:#1f2d3d; color:#fff; font-size:12px; line-height:1.5; pointer-events:none; box-shadow:0 6px 18px rgba(20,40,70,.2); }
+.viz-tip[hidden] { display:none; }
+@media (prefers-reduced-motion:no-preference) {
+  .trend-chart .line.draw { stroke-dasharray:1; stroke-dashoffset:1; animation:trendDraw 1.1s ease forwards; }
+  .trend-chart .dot { transition:r .15s; }
+}
+@keyframes trendDraw { to { stroke-dashoffset:0; } }

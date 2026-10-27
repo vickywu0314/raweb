@@ -11,9 +11,9 @@
  shell('ai');
  function clear(){
    document.title=baseTitle;$('#patient-name').textContent='患者病程分析';$('#patient-meta').textContent='';
-   for(const selector of ['#journey','#unplaced-visits','#treatment','#clinical-source','#evidence','#evidence-boundary','#dims','#resp','#similar-tags','#similar-summary','#similar-tx','#ai-cards','#target-note'])$(selector).innerHTML='';
+   for(const selector of ['#journey','#unplaced-visits','#treatment','#clinical-source','#evidence','#evidence-boundary','#dims','#resp','#similar-tags','#similar-summary','#similar-tx','#ai-cards','#target-note','#trend-chart'])$(selector).innerHTML='';
    for(const selector of ['#st-status','#st-since','#das-trend'])$(selector).textContent='—';$('#insight-body').hidden=true;similarGeneration++;
-   $('#insight-source').textContent='';
+   $('#insight-source').textContent='';$('#trend-sum').textContent='DAS28-CRP 历次评分';$('#trend-legend').hidden=false;$('#viz-tip').hidden=true;trendArgs=null;
    for(const selector of ['#back-patient','#visit-record','#similar-detail','#insight-chat-link','#insight-chat-more']){$(selector).removeAttribute('href');$(selector).setAttribute('aria-disabled','true');}
  }
  function state(kind,message){$('#insight-state').dataset.state=kind;$('#insight-state').textContent=message;$('#cancel-load').hidden=kind!=='loading';$('#retry-load').hidden=!['error','timeout','cancelled'].includes(kind);}
@@ -59,7 +59,7 @@
    $('#insight-chat-link').href='ai-chat.html'+window.RACohortChatEntry.encode({kind:'PATIENT',patientId,visitId:null});$('#insight-chat-link').removeAttribute('aria-disabled');
    $('#similar-detail').href='ai-cohort.html?preset=similar&id='+encodeURIComponent(patientId);$('#similar-detail').removeAttribute('aria-disabled');
    $('#insight-chat-more').href=$('#insight-chat-link').href;$('#insight-chat-more').removeAttribute('aria-disabled');
-   paint(view);$('#insight-body').hidden=false;watchSimilar();
+   paint(view);$('#insight-body').hidden=false;trendArgs=[view,visitId=>id(visitId)&&visits.has(visitId)?visitHref(visitId):null];trend(true);watchSimilar();
  }
  // ---------- 病程分析视图（全部由本次读取的实测记录计算；缺失保持未知，不补数） ----------
  const ACT={remission:'缓解',low:'低疾病活动',moderate:'中疾病活动',high:'高疾病活动'};
@@ -137,6 +137,51 @@
    cards.push(['03 · 关键节点',mo==null?'当前方案时长未知':'当前方案已使用 '+mo+' 个月',mo==null?'方案开始日期未记录，无法判断评估时点。':mo<6?'尚未到 6 个月评估时点；按 Treat-to-Target，可在 3 个月时评估是否改善。':reached?'已达到治疗目标，按计划随访。':'已使用 6 个月以上仍未达标，可结合临床复核方案。','#journey .insight-record:last-child','定位到病程节点 →']);
    $('#ai-cards').innerHTML=cards.map(([k,t,d,target,txt])=>'<article><span>'+esc(k)+'</span><strong>'+esc(t)+'</strong><p>'+esc(d)+'</p><button type="button" class="text-button" data-locate="'+esc(target)+'">'+esc(txt)+'</button></article>').join('');
  }
+ // 疾病活动轨迹：DAS28-CRP 折线 + 活动分层底色（与 actOf 同一切点）+ 实测 CRP 柱 + 方案开始日期竖线；无任何推断标记
+ let trendArgs=null,trendWidth=0;
+ const dayOf=d=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(d||'');return m?Math.round(Date.UTC(+m[1],+m[2]-1,+m[3])/864e5):null;};
+ const dateOf=n=>new Date(n*864e5).toISOString().slice(0,10);
+ function trend(animate){
+   if(!trendArgs)return;
+   const [view,hrefOf]=trendArgs,host=$('#trend-chart'),cw=host.clientWidth||0,W=cw>=640||!cw?960:Math.max(360,Math.round(cw*1.25));trendWidth=cw>=640||!cw?960:W;
+   const pts=view.scored.map(v=>({v,d:dayOf(v.observedAt),das:num(v.metrics.das28Crp),crp:num(v.metrics.crp)})).filter(p=>p.d!=null).sort((a,b)=>a.d-b.d);
+   if(pts.length<2){host.innerHTML='<p class="trend-empty">'+(pts.length?'目前只有 1 次':'暂无')+' DAS28-CRP 评分，至少需要两次评分才能绘制疾病活动轨迹。</p>';$('#trend-sum').textContent=pts.length+' 次评分 · 评分不足两次，暂不绘制轨迹';$('#trend-legend').hidden=true;return;}
+   $('#trend-legend').hidden=false;
+   const narrow=W<640,H=narrow?250:260,L=40,R=narrow?34:44,T=16,B=34,PW=W-L-R,PH=H-T-B;
+   const crps=view.observed.map(v=>({v,d:dayOf(v.observedAt),crp:num(v.metrics.crp)})).filter(p=>p.d!=null&&p.crp!=null);
+   let d0=pts[0].d,d1=pts[pts.length-1].d;for(const c of crps){d0=Math.min(d0,c.d);d1=Math.max(d1,c.d);}
+   if(d1-d0<30)d1=d0+30;const pad=(d1-d0)*0.03;d0-=pad;d1+=pad;
+   const x=d=>L+(d-d0)/(d1-d0)*PW,yMax=Math.max(6,Math.ceil(Math.max(...pts.map(p=>p.das))+0.3)),y=v=>T+(1-Math.min(v,yMax)/yMax)*PH;
+   const crpMax=Math.max(20,...crps.map(c=>c.crp)),yc=c=>T+PH-c/crpMax*PH*0.45,n1=v=>v.toFixed(1);
+   const band=(lo,hi,cls)=>'<rect class="band '+cls+'" x="'+L+'" y="'+n1(y(hi))+'" width="'+PW+'" height="'+n1(y(lo)-y(hi))+'"/>'+(y(lo)-y(hi)>=11?'<text class="band-label" x="'+(L+PW-6)+'" y="'+n1(cls==='remission'?y(lo)-6:y(lo)-y(hi)<30?(y(lo)+y(hi))/2+4:y(hi)+12)+'" text-anchor="end">'+ACT[cls]+'</text>':'');
+   const bands=band(0,2.3,'remission')+band(2.3,2.7,'low')+band(2.7,4.1,'moderate')+band(4.1,yMax,'high');
+   const ticks=[0,2.3,2.7,4.1,yMax].map(v=>'<line class="grid" x1="'+L+'" x2="'+(L+PW)+'" y1="'+n1(y(v))+'" y2="'+n1(y(v))+'"/><text class="axis" x="'+(L-6)+'" y="'+n1(y(v)+4)+'" text-anchor="end">'+v+'</text>').join('');
+   const crpAxis=crps.length?'<text class="axis crp-axis" x="'+(L+PW+6)+'" y="'+n1(yc(crpMax)+4)+'">'+n1(crpMax).replace(/\.0$/,'')+'</text><text class="axis crp-axis" x="'+(L+PW+6)+'" y="'+n1(T+PH+4)+'">0</text>':'';
+   const months=[],first=new Date(dateOf(Math.ceil(d0)).slice(0,7)+'-01T00:00:00Z'),span=(d1-d0)/30.44,step=[1,2,3,6,12,24].find(s=>span/s<=(narrow?4:8))||36;
+   for(let y0=first.getUTCFullYear(),m0=first.getUTCMonth();;m0+=step){const dn=Math.round(Date.UTC(y0,m0,1)/864e5);if(dn>d1)break;if(dn>=d0)months.push(dn);}
+   const xt=months.map(dn=>'<text class="axis" x="'+n1(x(dn))+'" y="'+(T+PH+18)+'" text-anchor="middle">'+dateOf(dn).slice(2,7).replace('-','.')+'</text>').join('');
+   const bars=crps.map(c=>'<rect class="crp-bar" x="'+n1(x(c.d)-4)+'" y="'+n1(yc(c.crp))+'" width="8" height="'+n1(Math.max(1,T+PH-yc(c.crp)))+'" data-tip="'+esc(c.v.observedAt+' · CRP '+f1(c.crp)+' mg/L')+'"/>').join('');
+   const tx=view.tx,seen=new Set(),starts=[tx.current,...tx.history].map(e=>e&&(e.startDate||e.estimatedStartDate)?{e,date:e.startDate||e.estimatedStartDate,est:!e.startDate}:null).filter(s=>{if(!s)return false;const k=s.date+'|'+s.e.genericDrugIds.join(',');if(seen.has(k))return false;seen.add(k);return true;}).map(s=>({...s,d:dayOf(s.date)})).filter(s=>s.d!=null&&s.d>=d0&&s.d<=d1).sort((a,b)=>a.d-b.d);
+   const cut=t=>t.length>(narrow?6:12)?t.slice(0,narrow?6:12)+'…':t;
+   const marks=starts.map((s,i)=>{const name=view.drugs(s.e),tip=s.date+' · 开始 '+name+'（'+display.code(s.e.category,'未知方案')+'）'+(s.est?' · 估算日期':''),xx=n1(x(s.d)),right=x(s.d)>L+PW*0.75;
+     return '<g class="switch-mark'+(s.est?' estimated':'')+'" data-tip="'+esc(tip)+'"><line class="switch" x1="'+xx+'" x2="'+xx+'" y1="'+T+'" y2="'+(T+PH)+'"/><line class="switch-hit" x1="'+xx+'" x2="'+xx+'" y1="'+T+'" y2="'+(T+PH)+'"/><text class="switch-label" x="'+n1(x(s.d)+(right?-5:5))+'" y="'+(T+12+(i%2)*14)+'"'+(right?' text-anchor="end"':'')+'>'+esc(cut('开始 '+name))+(s.est?'（估）':'')+'</text></g>';}).join('');
+   const line=pts.map((p,i)=>(i?'L':'M')+n1(x(p.d))+','+n1(y(p.das))).join(' ');
+   const area=line+' L'+n1(x(pts[pts.length-1].d))+','+(T+PH)+' L'+n1(x(pts[0].d))+','+(T+PH)+' Z';
+   const dots=pts.map(p=>{const act=actOf(p.das),tip=p.v.observedAt+' · DAS28-CRP '+f2(p.das)+'（'+ACT[act]+'）· CRP '+(p.crp==null?'未记录':f1(p.crp)+' mg/L'),href=hrefOf(p.v.visitId),dot='<circle class="dot '+act+'" cx="'+n1(x(p.d))+'" cy="'+n1(y(p.das))+'" r="5"/>';
+     return href?'<a class="dot-link" href="'+esc(href)+'" data-tip="'+esc(tip)+'" aria-label="'+esc(tip+' · 查看当次随访')+'">'+dot+'</a>':'<g data-tip="'+esc(tip)+'">'+dot+'</g>';}).join('');
+   host.innerHTML='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet" aria-label="DAS28-CRP 疾病活动轨迹">'+bands+ticks+crpAxis+xt+bars+marks+'<path class="area" d="'+area+'"/><path class="line'+(animate?' draw':'')+'" d="'+line+'" pathLength="1"/>'+dots+'</svg>';
+   const a=pts[0].das,b=pts[pts.length-1].das,dd=b-a,word=dd<=-0.6?'改善':dd>=0.6?'加重':'稳定';
+   $('#trend-sum').textContent=pts.length+' 次评分 · 首次 '+f2(a)+' → 最近 '+f2(b)+'（'+word+' '+(dd>0?'+':dd<0?'−':'±')+f2(Math.abs(dd))+'，阈值 ±0.6）';
+ }
+ function trendTip(event,show){
+   const tip=$('#viz-tip'),t=show&&event.target&&event.target.closest?event.target.closest('[data-tip]'):null;
+   if(!t){tip.hidden=true;return;}
+   tip.textContent=t.dataset.tip;tip.style.left='0px';tip.style.top='0px';tip.hidden=false;
+   const r=event.clientX!=null&&event.type==='mousemove'?{x:event.clientX,y:event.clientY}:(()=>{const b=t.getBoundingClientRect();return {x:b.left+b.width/2,y:b.top+b.height/2};})();
+   tip.style.left=Math.max(8,Math.min(r.x+14,innerWidth-tip.offsetWidth-8))+'px';tip.style.top=Math.min(r.y+16,innerHeight-tip.offsetHeight-8)+'px';
+ }
+ $('#trend-chart').addEventListener('mousemove',event=>trendTip(event,true));$('#trend-chart').addEventListener('mouseleave',event=>trendTip(event,false));
+ $('#trend-chart').addEventListener('focusin',event=>trendTip(event,true));$('#trend-chart').addEventListener('focusout',event=>trendTip(event,false));
  // 相似患者：与队列分析「相似患者」入口同一规则（resolveEntry），再按该条件统计；滚动到该区块才计算（较重）
  let similarGeneration=0,similarObserver=null;
  function watchSimilar(){
@@ -174,6 +219,7 @@
  }
  $('#cancel-load').addEventListener('click',()=>invalidate());$('#retry-load').addEventListener('click',load);
  window.addEventListener('storage',event=>{if(!event.key||['ra-auth','ra-user','user','token','doctorId','ra-login'].includes(event.key))invalidate();});
+ window.addEventListener('resize',()=>{if(!trendArgs)return;const cw=$('#trend-chart').clientWidth||0,w=cw>=640||!cw?960:Math.max(360,Math.round(cw*1.25));if(w!==trendWidth)trend(false);});
  window.addEventListener('ra-auth-changed',()=>invalidate());window.addEventListener('pagehide',()=>{hidden=true;invalidate();});
  window.addEventListener('pageshow',event=>{if(event.persisted){hidden=false;load();}});
  window.loadPatientInsight=load;
