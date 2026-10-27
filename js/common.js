@@ -337,3 +337,26 @@ function confirmDialog(msg,opt={}){
     d.showModal();d.querySelector('[value=ok]').focus();
   });
 }
+
+// ===== 通用交互：分页条（含省略、跳转）、数字滚动、千分位、关键词高亮 =====
+// pagerHTML(page,pages)：‹ 1 … 4 5 6 … 20 › 跳至 __ 页；bindPager(el,go)：点页码 / 回车跳转都调 go(n)
+function pagerHTML(page,pages){
+ if(pages<=1)return '';
+ const nums=new Set([1,pages,page-2,page-1,page,page+1,page+2].filter(n=>n>=1&&n<=pages)),list=[...nums].sort((a,b)=>a-b),out=[];
+ list.forEach((n,i)=>{if(i&&n-list[i-1]>1)out.push('<span class="pager-gap">…</span>');out.push(`<button type="button" data-page="${n}" class="${n===page?'active':''}" ${n===page?'aria-current="page"':''}>${n}</button>`)});
+ return `<button type="button" class="pager-step" data-page="${page-1}" ${page<=1?'disabled':''} aria-label="上一页">‹</button>${out.join('')}<button type="button" class="pager-step" data-page="${page+1}" ${page>=pages?'disabled':''} aria-label="下一页">›</button><label class="pager-jump">跳至<input type="number" min="1" max="${pages}" data-jump inputmode="numeric" aria-label="跳转页码">页</label>`;
+}
+function bindPager(el,go){
+ el.addEventListener('click',e=>{const b=e.target.closest('[data-page]');if(b&&!b.disabled){go(+b.dataset.page);el.closest('main')?.querySelector('.toolbar,.page-heading')?.scrollIntoView({behavior:'smooth',block:'nearest'})}});
+ el.addEventListener('keydown',e=>{if(e.key!=='Enter'||!e.target.matches('[data-jump]'))return;e.preventDefault();const n=Math.round(+e.target.value),max=+e.target.max;if(n>=1&&n<=max)go(n);else{toast(`请输入 1–${max} 之间的页码`);e.target.select()}});
+}
+// countUp(root)：带 data-count 的元素从 0 增长到目标值（保留千分位、小数位和后缀，如 "1,234"、"86.5%"）
+function countUp(root=document){
+ if(typeof window.matchMedia==='function'&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+ root.querySelectorAll('[data-count]').forEach(el=>{const raw=el.dataset.count,target=parseFloat(raw.replace(/,/g,'')),dec=(raw.split('.')[1]||'').replace(/\D/g,'').length,suffix=raw.replace(/^[\d,.]+/,''),comma=raw.includes(',');if(isNaN(target)||!/^[\d,.]/.test(raw))return;const t0=performance.now(),dur=700;const f=v=>{let s=v.toFixed(dec);if(comma)s=Number(s).toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});return s+suffix};const step=now=>{const k=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-k,3);el.textContent=k<1?f(target*e):raw;if(k<1)requestAnimationFrame(step)};requestAnimationFrame(step)});
+}
+const fmtN=n=>n==null||n===''||isNaN(n)?String(n??''):Number(n).toLocaleString('en-US');
+// highlight(text,q)：转义后把关键词（空格分隔多个）包成 <mark class="hl">
+function highlight(text,q){const s=escapeHTML(text);const words=String(q||'').trim().split(/\s+/).filter(Boolean).map(w=>escapeHTML(w).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'));return words.length?s.replace(new RegExp(`(${words.join('|')})`,'gi'),'<mark class="hl">$1</mark>'):s}
+// 列表重新渲染时的轻微淡入
+function flashResult(el){if(!el)return;el.classList.remove('result-flash');void el.offsetWidth;el.classList.add('result-flash')}
